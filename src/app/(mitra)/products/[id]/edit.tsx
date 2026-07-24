@@ -4,7 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Colors, Spacing, FontSize, FontWeight } from '@/constants/typography';
-// import { productService } from '@/services/product.service';
+import { productService } from '@/services/product.service';
 
 export default function MitraEditProductScreen() {
   const router = useRouter();
@@ -21,13 +21,31 @@ export default function MitraEditProductScreen() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    // In real app, fetch product details by id
+    if (id) {
+      productService.getById(id).then(product => {
+        setName(product.name);
+        setDescription(product.description || '');
+        setOriginalPrice(product.originalPrice.toString());
+        setDiscountPrice(product.discountPrice.toString());
+        setStock(product.stock.toString());
+        // Simple fallback for time parsing in MVP
+        setPickupStart('19:00'); 
+        setPickupEnd('21:00');
+      }).catch(err => {
+        Alert.alert('Error', 'Gagal mengambil detail produk');
+      });
+    }
   }, [id]);
 
   const handleUpdate = async () => {
     setIsLoading(true);
     try {
-      // await productService.update(id!, { ... });
+      await productService.update(id!, {
+        name, description, 
+        originalPrice: parseInt(originalPrice),
+        discountPrice: parseInt(discountPrice),
+        stock: parseInt(stock),
+      });
       Alert.alert('Sukses', 'Produk berhasil diupdate', [
         { text: 'OK', onPress: () => router.back() }
       ]);
@@ -50,7 +68,7 @@ export default function MitraEditProductScreen() {
           onPress: async () => {
             setIsDeleting(true);
             try {
-              // await productService.delete(id!);
+              await productService.delete(id!);
               router.back();
             } catch (err) {
               Alert.alert('Error', 'Gagal hapus produk');

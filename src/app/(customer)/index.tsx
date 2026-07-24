@@ -31,10 +31,10 @@ export default function CustomerHome() {
         
         setLocation({ lat, lng });
         
-        const data = await productService.getNearby({ lat, lng, radiusKm: 10 });
-        setProducts(data as Product[]);
+        const data = await productService.getNearby({ lat, lng, radius: 10 });
+        setProducts(Array.isArray(data) ? data : data?.data || []);
       } catch (err) {
-        console.error('Failed to load products:', err);
+        console.warn('Failed to load products:', err);
       } finally {
         setLoading(false);
       }
@@ -72,7 +72,7 @@ export default function CustomerHome() {
           <Text style={styles.greeting}>Halo, {user?.email?.split('@')[0]}</Text>
           <Text style={styles.subtitle}>Selamatkan makanan hari ini!</Text>
         </View>
-        <Button title="Keluar" variant="outline" onPress={clearAuth} />
+        <Button title="Keluar" variant="ghost" onPress={clearAuth} />
       </View>
 
       <View style={styles.content}>

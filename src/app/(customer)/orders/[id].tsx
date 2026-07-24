@@ -52,7 +52,7 @@ export default function CustomerOrderDetail() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Button title="Kembali" variant="outline" onPress={() => router.push('/(customer)/orders')} />
+        <Button title="Kembali" variant="ghost" onPress={() => router.push('/(customer)/orders')} />
         <Text style={styles.title}>Detail Pesanan</Text>
         <View style={{ width: 60 }} />
       </View>
@@ -85,17 +85,21 @@ export default function CustomerOrderDetail() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Ringkasan Belanja</Text>
-          {order.orderItems?.map((item) => (
-            <View key={item.id} style={styles.itemRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.itemName}>{item.product?.name}</Text>
-                <Text style={styles.itemQty}>{item.quantity} x Rp {Number(item.priceAtPurchase).toLocaleString('id-ID')}</Text>
+          {(order.items || (order as any).orderItems || [])?.map((item: any) => {
+            const itemQty = item.qty || item.quantity || 1;
+            const price = Number(item.priceAtPurchase || 0);
+            return (
+              <View key={item.id} style={styles.itemRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.itemName}>{item.product?.name || 'Paket Roti Surplus'}</Text>
+                  <Text style={styles.itemQty}>{itemQty} x Rp {price.toLocaleString('id-ID')}</Text>
+                </View>
+                <Text style={styles.itemTotal}>
+                  Rp {(itemQty * price).toLocaleString('id-ID')}
+                </Text>
               </View>
-              <Text style={styles.itemTotal}>
-                Rp {(item.quantity * Number(item.priceAtPurchase)).toLocaleString('id-ID')}
-              </Text>
-            </View>
-          ))}
+            );
+          })}
           
           <View style={styles.feeRow}>
             <Text style={styles.feeLabel}>Biaya Layanan</Text>

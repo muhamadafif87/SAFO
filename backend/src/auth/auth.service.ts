@@ -63,6 +63,8 @@ export class AuthService {
       businessName: dto.businessName,
       category: dto.category,
       address: dto.address,
+      latitude: dto.latitude || 0,
+      longitude: dto.longitude || 0,
       verificationStatus: VerificationStatus.PENDING,
     });
 
@@ -102,6 +104,42 @@ export class AuthService {
       },
       mitra: user.mitraProfile || null,
     };
+  }
+
+  async getProfile(userId: string) {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: { mitraProfile: true },
+    });
+
+    if (!user) throw new UnauthorizedException();
+
+    const { passwordHash, ...userWithoutPassword } = user;
+    return {
+      user: userWithoutPassword,
+      mitra: user.mitraProfile || null,
+    };
+  }
+
+  async refreshToken(token: string) {
+    try {
+      const payload = this.jwtService.verify(token);
+      const user = await this.userRepository.findOne({ where: { id: payload.sub } });
+      if (!user) throw new UnauthorizedException();
+
+      const newPayload = { sub: user.id, email: user.email, role: user.role };
+      const accessToken = this.jwtService.sign(newPayload);
+      const refreshToken = this.jwtService.sign(newPayload, { expiresIn: '7d' });
+
+      return {
+        tokens: {
+          accessToken,
+          refreshToken,
+        },
+      };
+    } catch (e) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
   }
 }
 

@@ -103,7 +103,7 @@ export default function ProductDetail() {
           <View style={styles.qtyControls}>
             <Button 
               title="-" 
-              variant="outline" 
+              variant="secondary" 
               onPress={() => setQuantity(Math.max(1, quantity - 1))} 
               style={styles.qtyBtn}
               textStyle={styles.qtyBtnText}
@@ -111,7 +111,7 @@ export default function ProductDetail() {
             <Text style={styles.qtyValue}>{quantity}</Text>
             <Button 
               title="+" 
-              variant="outline" 
+              variant="secondary" 
               onPress={() => setQuantity(Math.min(product.stock, quantity + 1))} 
               style={styles.qtyBtn}
               textStyle={styles.qtyBtnText}

@@ -7,8 +7,10 @@ export enum OrderStatus {
   PENDING_PAYMENT = 'pending_payment',
   PAID = 'paid',
   READY_FOR_PICKUP = 'ready_for_pickup',
+  READY = 'ready',
   COMPLETED = 'completed',
   CANCELLED = 'cancelled',
+  EXPIRED = 'expired',
 }
 
 @Entity('orders')
@@ -48,6 +50,9 @@ export class Order {
 
   @Column({ name: 'payment_url', nullable: true })
   paymentUrl: string;
+
+  @Column({ type: 'text', nullable: true })
+  note: string;
 
   @Column({ name: 'pickup_code', nullable: true })
   pickupCode: string;

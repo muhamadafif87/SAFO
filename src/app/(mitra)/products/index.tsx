@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { Colors, Spacing, FontSize, FontWeight, BorderRadius } from '@/constants/typography';
 import { Button } from '@/components/ui/Button';
 import { Product } from '@/types';
-// import { productService } from '@/services/product.service';
+import { productService } from '@/services/product.service';
 
 export default function MitraProductsScreen() {
   const router = useRouter();
@@ -14,22 +14,8 @@ export default function MitraProductsScreen() {
 
   const fetchProducts = async () => {
     try {
-      // Mock data for development
-      const mockProducts: Product[] = [
-        {
-          id: '1',
-          mitraId: 'm1',
-          name: 'Roti Sisa Hari Ini',
-          description: 'Aneka roti manis dan gurih, masih sangat layak konsumsi.',
-          originalPrice: 50000,
-          discountPrice: 20000,
-          stock: 5,
-          pickupWindowStart: new Date().toISOString(),
-          pickupWindowEnd: new Date(Date.now() + 3600000).toISOString(),
-          status: 'active',
-        },
-      ];
-      setProducts(mockProducts);
+      const data = await productService.getMitraProducts();
+      setProducts(data);
     } catch (error) {
       console.error(error);
     } finally {

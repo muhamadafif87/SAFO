@@ -2,10 +2,12 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Colors, FontSize, FontWeight, Spacing } from '@/constants/typography';
 import { useAuthStore } from '@/stores/auth.store';
+import { showAlert } from '@/utils/alert';
+import { authService } from '@/services/auth.service';
 import { isAxiosError } from 'axios';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -16,41 +18,23 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Email dan password wajib diisi');
+    const cleanEmail = email.trim().toLowerCase();
+    
+    if (!cleanEmail || !password) {
+      showAlert('Error', 'Email dan password wajib diisi');
       return;
     }
 
     setIsLoading(true);
     try {
-      // Mock flow if backend is not available yet
-      // const res = await authService.login({ email, password });
-      // await setAuth(res.user, res.tokens, res.mitra);
-
-      // Temporary mock login for development
-      if (email === 'admin@safo.com') {
-        await setAuth(
-          { id: '1', email, role: 'admin', status: 'active', createdAt: new Date().toISOString() },
-          { accessToken: 'mock-access', refreshToken: 'mock-refresh' }
-        );
-      } else if (email === 'mitra@safo.com') {
-        await setAuth(
-          { id: '2', email, role: 'mitra', status: 'active', createdAt: new Date().toISOString() },
-          { accessToken: 'mock-access', refreshToken: 'mock-refresh' },
-          { id: 'm1', userId: '2', businessName: 'Toko Roti Makmur', category: 'Bakery', address: 'Jl. Merdeka', latitude: -6.2, longitude: 106.8, verificationStatus: 'approved' }
-        );
-      } else {
-        await setAuth(
-          { id: '3', email, role: 'customer', status: 'active', createdAt: new Date().toISOString() },
-          { accessToken: 'mock-access', refreshToken: 'mock-refresh' }
-        );
-      }
+      const res = await authService.login({ email: cleanEmail, password });
+      await setAuth(res.user, res.tokens, res.mitra);
 
     } catch (error) {
       if (isAxiosError(error)) {
-        Alert.alert('Login Gagal', error.response?.data?.message || 'Terjadi kesalahan');
+        showAlert('Login Gagal', error.response?.data?.message || 'Terjadi kesalahan');
       } else {
-        Alert.alert('Error', 'Gagal terhubung ke server');
+        showAlert('Error', error instanceof Error ? error.message : 'Gagal terhubung ke server');
       }
     } finally {
       setIsLoading(false);

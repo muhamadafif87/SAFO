@@ -1,10 +1,10 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import * as SecureStore from 'expo-secure-store';
+import { storage } from '@/utils/storage';
 
 // ── Config ────────────────────────────────────────────────────────────────
 // Change to your machine's local IP when testing on physical device
 // e.g. 'http://192.168.1.x:3000' for LAN testing
-const BASE_URL = __DEV__ ? 'http://localhost:3000' : 'https://api.safo.app';
+const BASE_URL = __DEV__ ? 'http://localhost:3000/api' : 'https://api.safo.app/api';
 
 const TOKEN_KEY_ACCESS = 'safo_access_token';
 const TOKEN_KEY_REFRESH = 'safo_refresh_token';
@@ -22,7 +22,7 @@ export const api = axios.create({
 
 // ── Request Interceptor — Attach JWT ──────────────────────────────────────
 api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
-  const token = await SecureStore.getItemAsync(TOKEN_KEY_ACCESS);
+  const token = await storage.getItemAsync(TOKEN_KEY_ACCESS);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -64,7 +64,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const refreshToken = await SecureStore.getItemAsync(TOKEN_KEY_REFRESH);
+        const refreshToken = await storage.getItemAsync(TOKEN_KEY_REFRESH);
         if (!refreshToken) throw new Error('No refresh token');
 
         const { data } = await axios.post(`${BASE_URL}/auth/refresh`, {
@@ -72,15 +72,15 @@ api.interceptors.response.use(
         });
 
         const newAccessToken: string = data.data.accessToken;
-        await SecureStore.setItemAsync(TOKEN_KEY_ACCESS, newAccessToken);
+        await storage.setItemAsync(TOKEN_KEY_ACCESS, newAccessToken);
         processQueue(null, newAccessToken);
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
         // Clear tokens — session expired
-        await SecureStore.deleteItemAsync(TOKEN_KEY_ACCESS);
-        await SecureStore.deleteItemAsync(TOKEN_KEY_REFRESH);
+        await storage.deleteItemAsync(TOKEN_KEY_ACCESS);
+        await storage.deleteItemAsync(TOKEN_KEY_REFRESH);
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

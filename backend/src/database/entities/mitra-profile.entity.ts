@@ -30,15 +30,17 @@ export class MitraProfile {
   @Column()
   address: string;
 
-  // For simplicity without PostGIS in TypeORM setup we use simple coordinates or string
-  // If PostGIS is needed, we'll map this as point
-  @Column({
-    type: 'geometry',
-    spatialFeatureType: 'Point',
-    srid: 4326,
-    nullable: true,
-  })
-  location: any;
+  @Column({ type: 'double precision' })
+  latitude: number;
+
+  @Column({ type: 'double precision' })
+  longitude: number;
+
+  @Column({ name: 'legal_doc_url', type: 'text', nullable: true })
+  legalDocUrl: string;
+
+  @Column({ name: 'photo_url', type: 'text', nullable: true })
+  photoUrl: string;
 
   @Column({
     type: 'enum',
@@ -47,6 +49,9 @@ export class MitraProfile {
     name: 'verification_status',
   })
   verificationStatus: VerificationStatus;
+
+  @Column({ name: 'verified_at', type: 'timestamp with time zone', nullable: true })
+  verifiedAt: Date;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

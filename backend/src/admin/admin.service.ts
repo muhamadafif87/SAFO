@@ -3,8 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Order, OrderStatus } from '../database/entities/order.entity';
 import { MitraProfile, VerificationStatus } from '../database/entities/mitra-profile.entity';
-import { User } from '../database/entities/user.entity';
+import { User, UserRole, UserStatus } from '../database/entities/user.entity';
 import { Product } from '../database/entities/product.entity';
+import { NotFoundException } from '@nestjs/common';
 
 @Injectable()
 export class AdminService {
@@ -59,5 +60,14 @@ export class AdminService {
   async getPlatformFee(): Promise<number> {
     // In a real app, store this in a settings table. For now, hardcoded.
     return 1000;
+  }
+
+  async suspendUser(userId: string) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User tidak ditemukan');
+
+    user.status = UserStatus.SUSPENDED;
+    await this.userRepository.save(user);
+    return { message: 'User suspended successfully' };
   }
 }

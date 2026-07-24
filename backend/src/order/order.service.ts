@@ -14,7 +14,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Order, OrderStatus } from '../database/entities/order.entity';
 import { OrderItem } from '../database/entities/order-item.entity';
 import { Product, ProductStatus } from '../database/entities/product.entity';
-import { CreateOrderItemDto } from './dto/create-order.dto';
+import { CreateOrderDto } from './dto/create-order.dto';
 
 const PLATFORM_FEE = 1000; // Rp 1.000 fixed fee per SRS
 const STOCK_LOCK_TTL = 300; // 5 menit dalam detik
@@ -37,7 +37,8 @@ export class OrderService {
    * Create an order with Redis-based atomic stock reservation.
    * Uses DECRBY in Redis as the "lock" before touching the DB.
    */
-  async createOrder(customerId: string, items: CreateOrderItemDto[]): Promise<Order> {
+  async createOrder(customerId: string, dto: CreateOrderDto): Promise<Order> {
+    const { items, note, paymentMethod } = dto;
     // 1. Validate products and lock stock in Redis atomically
     const lockedKeys: string[] = [];
 
@@ -59,23 +60,23 @@ export class OrderService {
         const client = this.getRedisClient();
         if (client) {
           await client.set(redisKey, product.stock, 'EX', STOCK_LOCK_TTL, 'NX');
-          const remaining = await client.decrby(redisKey, item.quantity);
+          const remaining = await client.decrby(redisKey, item.qty);
           if (remaining < 0) {
             // Rollback the decrement
-            await client.incrby(redisKey, item.quantity);
+            await client.incrby(redisKey, item.qty);
             throw new BadRequestException(`Stok produk ${product.name} tidak cukup`);
           }
           lockedKeys.push(redisKey);
         } else {
           // No Redis: fall back to DB stock check only
-          if (product.stock < item.quantity) {
+          if (product.stock < item.qty) {
             throw new BadRequestException(`Stok produk ${product.name} tidak cukup`);
           }
         }
       } catch (err) {
         if (err instanceof BadRequestException) throw err;
         // Redis connection failed — fall back gracefully
-        if (product.stock < item.quantity) {
+        if (product.stock < item.qty) {
           throw new BadRequestException(`Stok produk ${product.name} tidak cukup`);
         }
       }
@@ -92,7 +93,7 @@ export class OrderService {
       for (const item of items) {
         const p = productMap.get(item.productId);
         if (!p) throw new NotFoundException(`Produk ${item.productId} tidak ditemukan`);
-        totalAmount += p.discountPrice * item.quantity;
+        totalAmount += p.discountPrice * item.qty;
       }
 
       // Generate 4-digit pickup code
@@ -108,6 +109,8 @@ export class OrderService {
         platformFee: PLATFORM_FEE,
         status: OrderStatus.PENDING_PAYMENT,
         pickupCode,
+        note,
+        paymentMethod,
       });
       await manager.save(Order, order);
 
@@ -118,13 +121,13 @@ export class OrderService {
         const orderItem = manager.create(OrderItem, {
           orderId: order.id,
           productId: p.id,
-          quantity: item.quantity,
+          qty: item.qty,
           priceAtPurchase: p.discountPrice,
         });
         await manager.save(OrderItem, orderItem);
 
         // Decrement stock in DB
-        await manager.decrement(Product, { id: p.id }, 'stock', item.quantity);
+        await manager.decrement(Product, { id: p.id }, 'stock', item.qty);
 
         // Check if sold out
         const updated = await manager.findOne(Product, { where: { id: p.id } });

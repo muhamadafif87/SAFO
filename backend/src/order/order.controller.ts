@@ -3,7 +3,7 @@ import {
   Body, Param, Request,
 } from '@nestjs/common';
 import { OrderService } from './order.service';
-import { CreateOrderItemDto } from './dto/create-order.dto';
+import { CreateOrderDto } from './dto/create-order.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../database/entities/user.entity';
 import { OrderStatus } from '../database/entities/order.entity';
@@ -16,8 +16,8 @@ export class OrderController {
 
   @Roles(UserRole.CUSTOMER)
   @Post()
-  createOrder(@Request() req, @Body() body: { items: CreateOrderItemDto[] }) {
-    return this.orderService.createOrder(req.user.userId, body.items);
+  createOrder(@Request() req, @Body() body: CreateOrderDto) {
+    return this.orderService.createOrder(req.user.userId, body);
   }
 
   @Roles(UserRole.CUSTOMER)
