@@ -6,6 +6,7 @@ export enum ProductStatus {
   ACTIVE = 'active',
   SOLD_OUT = 'sold_out',
   INACTIVE = 'inactive',
+  EXPIRED = 'expired',
 }
 
 @Entity('products')
@@ -25,6 +26,9 @@ export class Product {
 
   @Column({ type: 'text', nullable: true })
   description: string;
+
+  @Column({ name: 'photo_url', type: 'text', nullable: true })
+  photoUrl: string;
 
   @Column({ type: 'decimal', precision: 10, scale: 2, name: 'original_price' })
   originalPrice: number;

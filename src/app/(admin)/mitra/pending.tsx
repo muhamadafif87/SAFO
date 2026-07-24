@@ -3,29 +3,29 @@ import { View, Text, StyleSheet, FlatList, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors, Spacing, FontSize, FontWeight, BorderRadius } from '@/constants/typography';
 import { Button } from '@/components/ui/Button';
-import { Mitra } from '@/types';
+import { MitraProfile } from '@/types';
+import { adminService } from '@/services/admin.service';
 
 export default function AdminPendingMitraScreen() {
   const router = useRouter();
-  const [pendingMitras, setPendingMitras] = useState<Mitra[]>([]);
+  const [pendingMitras, setPendingMitras] = useState<MitraProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Mock fetch pending mitras
-    setPendingMitras([
-      {
-        id: 'm2',
-        userId: 'u4',
-        businessName: 'Warung Pojok',
-        category: 'Warung',
-        address: 'Jl. Sudirman No 1',
-        latitude: -6.2,
-        longitude: 106.8,
-        verificationStatus: 'pending'
-      }
-    ]);
-    setIsLoading(false);
+    fetchPendingMitras();
   }, []);
+
+  const fetchPendingMitras = async () => {
+    try {
+      setIsLoading(true);
+      const data = await adminService.getPendingMitra();
+      setPendingMitras(data);
+    } catch (error) {
+      Alert.alert('Error', 'Gagal memuat data mitra pending');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleVerify = (id: string, action: 'approve' | 'reject') => {
     Alert.alert(
@@ -36,16 +36,21 @@ export default function AdminPendingMitraScreen() {
         { 
           text: 'Ya', 
           style: action === 'approve' ? 'default' : 'destructive',
-          onPress: () => {
-            setPendingMitras(prev => prev.filter(m => m.id !== id));
-            Alert.alert('Sukses', `Mitra berhasil di-${action === 'approve' ? 'setujui' : 'tolak'}`);
+          onPress: async () => {
+            try {
+              await adminService.verifyMitra(id, action);
+              setPendingMitras(prev => prev.filter(m => m.id !== id));
+              Alert.alert('Sukses', `Mitra berhasil di-${action === 'approve' ? 'setujui' : 'tolak'}`);
+            } catch (error) {
+              Alert.alert('Error', 'Gagal memproses verifikasi');
+            }
           }
         }
       ]
     );
   };
 
-  const renderItem = ({ item }: { item: Mitra }) => (
+  const renderItem = ({ item }: { item: MitraProfile }) => (
     <View style={styles.card}>
       <View style={styles.cardInfo}>
         <Text style={styles.businessName}>{item.businessName}</Text>

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, Get, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterCustomerDto } from './dto/register-customer.dto';
 import { RegisterMitraDto } from './dto/register-mitra.dto';
@@ -26,5 +26,21 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Get('me')
+  getProfile(@Request() req) {
+    return this.authService.getProfile(req.user.sub);
+  }
+
+  @Public()
+  @Post('refresh')
+  refreshToken(@Body('refreshToken') token: string) {
+    return this.authService.refreshToken(token);
+  }
+
+  @Post('logout')
+  logout() {
+    return { message: 'Logged out successfully' };
   }
 }

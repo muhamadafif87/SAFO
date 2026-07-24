@@ -13,7 +13,10 @@ import { VerificationStatus } from '../database/entities/mitra-profile.entity';
 @Roles(UserRole.ADMIN)
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly mitraService: MitraService,
+  ) {}
 
   @Get('dashboard')
   getDashboard() {
@@ -28,5 +31,24 @@ export class AdminController {
   @Get('settings/platform-fee')
   getPlatformFee() {
     return this.adminService.getPlatformFee();
+  }
+
+  // --- Mitra Management ---
+
+  @Get('mitra/pending')
+  getPendingMitra() {
+    return this.mitraService.listAll(VerificationStatus.PENDING);
+  }
+
+  @Patch('mitra/:id/verify')
+  verifyMitra(@Param('id') id: string, @Body('action') action: 'approve' | 'reject') {
+    return this.mitraService.verify(id, action);
+  }
+
+  // --- User Management ---
+
+  @Patch('users/:id/suspend')
+  suspendUser(@Param('id') id: string) {
+    return this.adminService.suspendUser(id);
   }
 }

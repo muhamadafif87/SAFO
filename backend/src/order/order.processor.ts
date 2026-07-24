@@ -43,8 +43,8 @@ export class OrderProcessor {
 
     // Restore stock
     for (const item of order.orderItems) {
-      await this.productRepository.increment({ id: item.productId }, 'stock', item.quantity);
-      this.logger.log(`Restored ${item.quantity} stock for product ${item.productId}`);
+      await this.productRepository.increment({ id: item.productId }, 'stock', item.qty);
+      this.logger.log(`Restored ${item.qty} stock for product ${item.productId}`);
     }
 
     // Cancel order

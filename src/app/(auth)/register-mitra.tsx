@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Colors, Spacing, FontSize, FontWeight } from '@/constants/typography';
+import { authService } from '@/services/auth.service';
 
 export default function RegisterMitraScreen() {
   const router = useRouter();
@@ -23,11 +24,10 @@ export default function RegisterMitraScreen() {
 
     setIsLoading(true);
     try {
-      // Mock flow
-      // await authService.registerMitra({ 
-      //   email, password, businessName, category, address, 
-      //   latitude: -6.2, longitude: 106.8 // Mock location 
-      // });
+      await authService.registerMitra({ 
+        email, password, businessName, category, address, 
+        latitude: -6.2, longitude: 106.8 // Hardcoded for MVP
+      });
       
       Alert.alert('Sukses', 'Pendaftaran Mitra berhasil! Admin akan mereview akun Anda.', [
         { text: 'OK', onPress: () => router.replace('/(auth)/login') }

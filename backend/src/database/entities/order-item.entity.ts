@@ -22,7 +22,7 @@ export class OrderItem {
   product: Product;
 
   @Column({ type: 'int', default: 1 })
-  quantity: number;
+  qty: number;
 
   @Column({ type: 'decimal', precision: 10, scale: 2, name: 'price_at_purchase' })
   priceAtPurchase: number;

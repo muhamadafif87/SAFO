@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Colors, Spacing, FontSize, FontWeight } from '@/constants/typography';
-// import { productService } from '@/services/product.service';
+import { productService } from '@/services/product.service';
 
 export default function MitraCreateProductScreen() {
   const router = useRouter();
@@ -26,14 +26,14 @@ export default function MitraCreateProductScreen() {
 
     setIsLoading(true);
     try {
-      // await productService.create({
-      //   name, description, 
-      //   originalPrice: parseInt(originalPrice),
-      //   discountPrice: parseInt(discountPrice),
-      //   stock: parseInt(stock),
-      //   pickupWindowStart: new Date().toISOString(), // Mock ISO strings for now
-      //   pickupWindowEnd: new Date(Date.now() + 3600000).toISOString(),
-      // });
+      await productService.create({
+        name, description, 
+        originalPrice: parseInt(originalPrice),
+        discountPrice: parseInt(discountPrice),
+        stock: parseInt(stock),
+        pickupWindowStart: new Date().toISOString(), // Mock ISO strings for MVP
+        pickupWindowEnd: new Date(Date.now() + 3600000).toISOString(),
+      });
       
       Alert.alert('Sukses', 'Produk berhasil ditambahkan', [
         { text: 'OK', onPress: () => router.back() }

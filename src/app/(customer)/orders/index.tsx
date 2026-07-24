@@ -50,7 +50,9 @@ export default function CustomerOrders() {
 
   const renderItem = ({ item }: { item: Order }) => {
     const statusStyle = getStatusColor(item.status);
-    const firstProduct = item.orderItems?.[0]?.product;
+    const orderItemsList = item.items || (item as any).orderItems;
+    const firstProduct = orderItemsList?.[0]?.product;
+    const itemQty = orderItemsList?.[0]?.qty || (orderItemsList?.[0] as any)?.quantity || 1;
     
     return (
       <TouchableOpacity
@@ -67,8 +69,8 @@ export default function CustomerOrders() {
         </View>
 
         <View style={styles.cardBody}>
-          <Text style={styles.productName}>{firstProduct?.name || 'Item'}</Text>
-          <Text style={styles.qty}>x{item.orderItems?.[0]?.quantity || 1}</Text>
+          <Text style={styles.productName}>{firstProduct?.name || 'Item Surplus'}</Text>
+          <Text style={styles.qty}>x{itemQty}</Text>
         </View>
 
         <View style={styles.cardFooter}>
@@ -82,7 +84,7 @@ export default function CustomerOrders() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Button title="Kembali" variant="outline" onPress={() => router.back()} />
+        <Button title="Kembali" variant="ghost" onPress={() => router.back()} />
         <Text style={styles.title}>Pesanan Saya</Text>
         <View style={{ width: 60 }} />
       </View>

@@ -8,5 +8,13 @@ export class CreateOrderItemDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  quantity: number;
+  qty: number;
+}
+
+export class CreateOrderDto {
+  @Type(() => CreateOrderItemDto)
+  items: CreateOrderItemDto[];
+
+  paymentMethod?: string;
+  note?: string;
 }

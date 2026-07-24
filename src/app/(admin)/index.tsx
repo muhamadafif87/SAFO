@@ -2,12 +2,23 @@ import React from 'react';
 import { View, Text, StyleSheet, SafeAreaView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/stores/auth.store';
+import { adminService, AdminDashboardStats } from '@/services/admin.service';
 import { Button } from '@/components/ui/Button';
 import { Colors, Spacing, FontSize, FontWeight } from '@/constants/typography';
 
 export default function AdminHome() {
   const router = useRouter();
   const { user, clearAuth } = useAuthStore();
+  
+  const [stats, setStats] = React.useState<AdminDashboardStats | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    adminService.getDashboardStats()
+      .then(setStats)
+      .catch(err => console.error('Failed to load dashboard stats:', err))
+      .finally(() => setIsLoading(false));
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -18,11 +29,15 @@ export default function AdminHome() {
         <View style={styles.statsContainer}>
           <View style={styles.statBox}>
             <Text style={styles.statLabel}>Mitra Pending</Text>
-            <Text style={styles.statValue}>3</Text>
+            <Text style={styles.statValue}>
+              {isLoading ? '...' : stats?.pendingMitra || 0}
+            </Text>
           </View>
           <View style={styles.statBox}>
             <Text style={styles.statLabel}>Total Transaksi</Text>
-            <Text style={styles.statValue}>1,248</Text>
+            <Text style={styles.statValue}>
+              {isLoading ? '...' : stats?.totalTransactions || 0}
+            </Text>
           </View>
         </View>
 
