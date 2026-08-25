@@ -26,6 +26,12 @@ export class OrderController {
     return this.orderService.getCustomerOrders(req.user.userId);
   }
 
+  @Roles(UserRole.CUSTOMER)
+  @Get(':id')
+  getOrderById(@Request() req, @Param('id') id: string) {
+    return this.orderService.getOrderById(id, req.user.userId);
+  }
+
   /** Mock payment endpoint — simulates Midtrans completing the payment */
   @Roles(UserRole.CUSTOMER)
   @Post(':id/pay-mock')

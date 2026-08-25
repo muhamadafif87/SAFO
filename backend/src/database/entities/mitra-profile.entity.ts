@@ -1,7 +1,16 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToOne, JoinColumn, OneToMany } from 'typeorm';
-import { User } from './user.entity';
-import { Product } from './product.entity';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  OneToMany,
+  OneToOne,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { Order } from './order.entity';
+import { Product } from './product.entity';
+import { User } from './user.entity';
 
 export enum VerificationStatus {
   PENDING = 'pending',
@@ -17,7 +26,7 @@ export class MitraProfile {
   @Column({ name: 'user_id' })
   userId: string;
 
-  @OneToOne(() => User, user => user.mitraProfile)
+  @OneToOne(() => User, (user) => user.mitraProfile)
   @JoinColumn({ name: 'user_id' })
   user: User;
 
@@ -30,11 +39,11 @@ export class MitraProfile {
   @Column()
   address: string;
 
-  @Column({ type: 'double precision' })
-  latitude: number;
+  @Column({ type: 'double precision', nullable: true })
+  latitude: number | null;
 
-  @Column({ type: 'double precision' })
-  longitude: number;
+  @Column({ type: 'double precision', nullable: true })
+  longitude: number | null;
 
   @Column({ name: 'legal_doc_url', type: 'text', nullable: true })
   legalDocUrl: string;
@@ -50,7 +59,11 @@ export class MitraProfile {
   })
   verificationStatus: VerificationStatus;
 
-  @Column({ name: 'verified_at', type: 'timestamp with time zone', nullable: true })
+  @Column({
+    name: 'verified_at',
+    type: 'timestamp with time zone',
+    nullable: true,
+  })
   verifiedAt: Date;
 
   @CreateDateColumn({ name: 'created_at' })
@@ -59,9 +72,9 @@ export class MitraProfile {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @OneToMany(() => Product, product => product.mitra)
+  @OneToMany(() => Product, (product) => product.mitra)
   products: Product[];
 
-  @OneToMany(() => Order, order => order.mitra)
+  @OneToMany(() => Order, (order) => order.mitra)
   orders: Order[];
 }

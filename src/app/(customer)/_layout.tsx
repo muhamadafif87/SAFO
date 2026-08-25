@@ -1,6 +1,5 @@
 import { Tabs } from 'expo-router';
 import { Colors } from '@/constants/typography';
-// Need icons? Can use expo/vector-icons or just Text for MVP
 
 export default function CustomerLayout() {
   return (
@@ -18,23 +17,27 @@ export default function CustomerLayout() {
         }}
       />
       <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Cari',
-        }}
-      />
-      <Tabs.Screen
         name="orders"
         options={{
           title: 'Pesanan',
         }}
       />
+      {/* Hidden screens — accessible via router.push but not shown in tab bar */}
       <Tabs.Screen
-        name="profile"
+        name="checkout"
         options={{
-          title: 'Profil',
+          href: null,
+          title: 'Checkout',
+        }}
+      />
+      <Tabs.Screen
+        name="products"
+        options={{
+          href: null,
+          title: 'Produk',
         }}
       />
     </Tabs>
   );
 }
+

@@ -1,7 +1,9 @@
-import { IsEmail, IsString, MinLength, IsOptional, IsNumber } from 'class-validator';
+// eslint-disable-next-line prettier/prettier
+import { IsEmail, IsNotEmpty, IsNumber, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class RegisterMitraDto {
   @IsEmail()
+  @IsNotEmpty()
   email: string;
 
   @IsString()
@@ -9,9 +11,11 @@ export class RegisterMitraDto {
   password: string;
 
   @IsString()
+  @IsNotEmpty()
   businessName: string;
 
   @IsString()
+  @IsNotEmpty()
   category: string;
 
   @IsString()

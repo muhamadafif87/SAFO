@@ -7,13 +7,9 @@ async function bootstrap() {
   // Global API prefix
   app.setGlobalPrefix('api');
 
-  // CORS — allow Expo web + mobile
+  // CORS — allow all origins in development
   app.enableCors({
-    origin: [
-      'http://localhost:8081', // Expo web dev
-      'http://localhost:19006',
-      'exp://localhost:19000',
-    ],
+    origin: true,
     credentials: true,
   });
 

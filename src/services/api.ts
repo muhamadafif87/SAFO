@@ -4,7 +4,7 @@ import { storage } from '@/utils/storage';
 // ── Config ────────────────────────────────────────────────────────────────
 // Change to your machine's local IP when testing on physical device
 // e.g. 'http://192.168.1.x:3000' for LAN testing
-const BASE_URL = __DEV__ ? 'http://localhost:3000/api' : 'https://api.safo.app/api';
+const BASE_URL = __DEV__ ? 'http://192.168.100.50:3000/api' : 'https://api.safo.app/api';
 
 const TOKEN_KEY_ACCESS = 'safo_access_token';
 const TOKEN_KEY_REFRESH = 'safo_refresh_token';
@@ -49,7 +49,10 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Do not attempt to refresh if the 401 error is from login or register endpoints
+    const isAuthEndpoint = originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/register');
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       if (isRefreshing) {
         // Queue the request until refresh completes
         return new Promise((resolve, reject) => {

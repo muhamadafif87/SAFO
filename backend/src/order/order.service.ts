@@ -175,6 +175,15 @@ export class OrderService {
     });
   }
 
+  async getOrderById(orderId: string, customerId: string): Promise<Order> {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId, customerId },
+      relations: { orderItems: { product: true }, mitra: true },
+    });
+    if (!order) throw new NotFoundException('Order tidak ditemukan');
+    return order;
+  }
+
   async getMitraOrders(userId: string): Promise<Order[]> {
     // Join via mitra profile
     return this.orderRepository
