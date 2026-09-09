@@ -32,7 +32,9 @@ export default function LoginScreen() {
 
     } catch (error) {
       if (isAxiosError(error)) {
-        showAlert('Login Gagal', error.response?.data?.message || 'Terjadi kesalahan');
+        const msg = error.response?.data?.message;
+        const errorMessage = Array.isArray(msg) ? msg.join('\n') : (typeof msg === 'string' ? msg : 'Terjadi kesalahan');
+        showAlert('Login Gagal', errorMessage);
       } else {
         showAlert('Error', error instanceof Error ? error.message : 'Gagal terhubung ke server');
       }

@@ -5,6 +5,9 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Colors, Spacing, FontSize, FontWeight } from '@/constants/typography';
 
+import { authService } from '@/services/auth.service';
+import { isAxiosError } from 'axios';
+
 export default function RegisterCustomerScreen() {
   const router = useRouter();
   
@@ -21,15 +24,21 @@ export default function RegisterCustomerScreen() {
 
     setIsLoading(true);
     try {
-      // Mock flow
-      // await authService.registerCustomer({ email, password, phone });
+      // Panggil backend API untuk register
+      await authService.registerCustomer({ email, password, phone });
       
       // Navigate to login after successful register
       Alert.alert('Sukses', 'Pendaftaran berhasil. Silakan login.', [
         { text: 'OK', onPress: () => router.replace('/(auth)/login') }
       ]);
     } catch (error) {
-      Alert.alert('Error', 'Gagal mendaftar');
+      if (isAxiosError(error)) {
+        const msg = error.response?.data?.message;
+        const errorMessage = Array.isArray(msg) ? msg.join('\n') : (typeof msg === 'string' ? msg : 'Terjadi kesalahan pada server');
+        Alert.alert('Gagal Mendaftar', errorMessage);
+      } else {
+        Alert.alert('Error', error instanceof Error ? error.message : 'Gagal terhubung ke server');
+      }
     } finally {
       setIsLoading(false);
     }

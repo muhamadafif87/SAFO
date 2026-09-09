@@ -41,27 +41,36 @@ export const orderService = {
    */
   create: async (data: CreateOrderRequest): Promise<Order> => {
     try {
-      const res = await api.post('/orders', data);
-      return res.data;
+      // Normalize items: pastikan pakai field `qty` sesuai backend DTO
+      const payload = {
+        items: data.items.map((it) => ({ productId: it.productId, qty: it.qty ?? (it as any).quantity ?? 1 })),
+        note: data.note,
+        paymentMethod: data.paymentMethod,
+      };
+      const res = await api.post('/orders', payload);
+      // Backend bisa return order langsung atau wrapped
+      return res.data?.order ?? res.data;
     } catch (error) {
       console.warn('[orderService.create] Backend API offline/unreachable, creating mock order');
       const newOrder: Order = {
         id: `ord-${Date.now()}`,
         customerId: '3',
-        mitraId: data.mitraId || 'm1',
-        mitra: { businessName: 'Toko Roti Makmur', address: 'Jl. Merdeka No. 45, Jakarta Pusat' },
+        mitraId: data.items[0]?.productId ? 'm1' : 'm1',
+        mitra: { businessName: 'Toko Mock', address: 'Jl. Mock No. 1' },
         items: (data.items || []).map((it, idx) => ({
           id: `item-${idx}`,
           orderId: `ord-${Date.now()}`,
           productId: it.productId,
-          product: { name: 'Paket Roti Manis Surplus' },
-          qty: it.qty,
+          product: { name: 'Produk Mock' },
+          qty: it.qty ?? (it as any).quantity ?? 1,
           priceAtPurchase: 18000,
         })),
         pickupCode: Math.random().toString(36).substring(2, 6).toUpperCase(),
         totalAmount: 19000,
         platformFee: 1000,
         status: 'paid',
+        note: data.note,
+        paymentMethod: data.paymentMethod,
         createdAt: new Date().toISOString(),
       };
       mockOrders.unshift(newOrder);

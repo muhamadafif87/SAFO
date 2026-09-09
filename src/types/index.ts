@@ -16,6 +16,7 @@ export type OrderStatus =
   | 'pending_payment'
   | 'paid'
   | 'ready'
+  | 'ready_for_pickup'  // alias used by backend entity
   | 'completed'
   | 'cancelled'
   | 'expired';
@@ -213,8 +214,8 @@ export interface CreateProductRequest {
 
 // Orders
 export interface CreateOrderRequest {
-  mitraId: string;
-  items: { productId: string; qty: number }[];
+  mitraId?: string;
+  items: { productId: string; qty: number; quantity?: number }[];
   note?: string;
   paymentMethod: PaymentMethod;
 }
