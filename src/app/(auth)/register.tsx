@@ -1,24 +1,32 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, Alert, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Input } from '@/components/ui/Input';
-import { Button } from '@/components/ui/Button';
-import { Colors, Spacing, FontSize, FontWeight } from '@/constants/typography';
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Colors, FontSize, FontWeight, Spacing } from "@/constants/typography";
+import { useRouter } from "expo-router";
+import { useState } from "react";
+import {
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+} from "react-native";
 
-import { authService } from '@/services/auth.service';
-import { isAxiosError } from 'axios';
+import { authService } from "@/services/auth.service";
+import { isAxiosError } from "axios";
 
 export default function RegisterCustomerScreen() {
   const router = useRouter();
-  
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleRegister = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Email dan password wajib diisi');
+      Alert.alert("Error", "Email dan password wajib diisi");
       return;
     }
 
@@ -26,18 +34,25 @@ export default function RegisterCustomerScreen() {
     try {
       // Panggil backend API untuk register
       await authService.registerCustomer({ email, password, phone });
-      
+
       // Navigate to login after successful register
-      Alert.alert('Sukses', 'Pendaftaran berhasil. Silakan login.', [
-        { text: 'OK', onPress: () => router.replace('/(auth)/login') }
+      Alert.alert("Sukses", "Pendaftaran berhasil. Silakan login.", [
+        { text: "OK", onPress: () => router.replace("/(auth)/login") },
       ]);
     } catch (error) {
       if (isAxiosError(error)) {
         const msg = error.response?.data?.message;
-        const errorMessage = Array.isArray(msg) ? msg.join('\n') : (typeof msg === 'string' ? msg : 'Terjadi kesalahan pada server');
-        Alert.alert('Gagal Mendaftar', errorMessage);
+        const errorMessage = Array.isArray(msg)
+          ? msg.join("\n")
+          : typeof msg === "string"
+            ? msg
+            : "Terjadi kesalahan pada server";
+        Alert.alert("Gagal Mendaftar", errorMessage);
       } else {
-        Alert.alert('Error', error instanceof Error ? error.message : 'Gagal terhubung ke server');
+        Alert.alert(
+          "Error",
+          error instanceof Error ? error.message : "Gagal terhubung ke server",
+        );
       }
     } finally {
       setIsLoading(false);
@@ -47,11 +62,13 @@ export default function RegisterCustomerScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>Daftar Pembeli</Text>
-        <Text style={styles.subtitle}>Selamatkan makanan, mulai dari sini.</Text>
+        <Text style={styles.subtitle}>
+          Selamatkan makanan, mulai dari sini.
+        </Text>
 
         <View style={styles.form}>
           <Input
@@ -87,7 +104,7 @@ export default function RegisterCustomerScreen() {
           <Button
             title="Kembali"
             variant="ghost"
-            onPress={() => router.back()}
+            onPress={() => router.replace("/(auth)")}
           />
         </View>
       </ScrollView>
@@ -103,10 +120,10 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     padding: Spacing[6],
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   title: {
-    fontSize: FontSize['3xl'],
+    fontSize: FontSize["3xl"],
     fontWeight: FontWeight.bold,
     color: Colors.neutral[900],
     marginBottom: Spacing[1],

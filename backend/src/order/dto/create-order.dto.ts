@@ -1,5 +1,6 @@
-import { IsUUID, IsInt, Min } from 'class-validator';
 import { Type } from 'class-transformer';
+import { IsInt, IsUUID, Min } from 'class-validator';
+import { PaymentMethod } from '../../database/entities/order.enums';
 
 export class CreateOrderItemDto {
   @IsUUID()
@@ -15,6 +16,6 @@ export class CreateOrderDto {
   @Type(() => CreateOrderItemDto)
   items: CreateOrderItemDto[];
 
-  paymentMethod?: string;
+  paymentMethod?: PaymentMethod;
   note?: string;
 }

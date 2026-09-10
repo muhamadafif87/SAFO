@@ -8,7 +8,7 @@ CREATE TYPE user_role AS ENUM ('admin', 'mitra', 'customer');
 CREATE TYPE user_status AS ENUM ('active', 'suspended');
 CREATE TYPE verification_status AS ENUM ('pending', 'approved', 'rejected');
 CREATE TYPE product_status AS ENUM ('active', 'sold_out', 'expired', 'inactive');
-CREATE TYPE order_status AS ENUM ('pending_payment', 'paid', 'ready', 'completed', 'cancelled', 'expired');
+CREATE TYPE order_status AS ENUM ('pending_payment', 'paid', 'ready', 'ready_for_pickup', 'completed', 'cancelled', 'expired');
 CREATE TYPE payment_status AS ENUM ('pending', 'success', 'failed', 'refunded');
 CREATE TYPE payment_provider AS ENUM ('midtrans', 'xendit', 'mock');
 CREATE TYPE payout_status AS ENUM ('requested', 'processed', 'rejected');

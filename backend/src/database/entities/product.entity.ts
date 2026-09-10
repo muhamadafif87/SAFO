@@ -1,4 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { MitraProfile } from './mitra-profile.entity';
 import { OrderItem } from './order-item.entity';
 
@@ -17,32 +26,32 @@ export class Product {
   @Column({ name: 'mitra_id' })
   mitraId: string;
 
-  @ManyToOne(() => MitraProfile, mitra => mitra.products)
+  @ManyToOne(() => MitraProfile, (mitra) => mitra.products)
   @JoinColumn({ name: 'mitra_id' })
   mitra: MitraProfile;
 
   @Column()
   name: string;
 
-  @Column({ type: 'text', nullable: true })
+  @Column({ name: 'description', type: 'text', nullable: true })
   description: string;
 
   @Column({ name: 'photo_url', type: 'text', nullable: true })
   photoUrl: string;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, name: 'original_price' })
+  @Column({ type: 'decimal', precision: 12, scale: 2, name: 'original_price' })
   originalPrice: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, name: 'discount_price' })
+  @Column({ type: 'decimal', precision: 12, scale: 2, name: 'discount_price' })
   discountPrice: number;
 
-  @Column({ type: 'int', default: 0 })
+  @Column({ name: 'stock', type: 'int', default: 0 })
   stock: number;
 
-  @Column({ type: 'timestamp', name: 'pickup_window_start' })
+  @Column({ type: 'timestamp with time zone', name: 'pickup_window_start' })
   pickupWindowStart: Date;
 
-  @Column({ type: 'timestamp', name: 'pickup_window_end' })
+  @Column({ type: 'timestamp with time zone', name: 'pickup_window_end' })
   pickupWindowEnd: Date;
 
   @Column({
@@ -58,6 +67,6 @@ export class Product {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @OneToMany(() => OrderItem, orderItem => orderItem.product)
+  @OneToMany(() => OrderItem, (orderItem) => orderItem.product)
   orderItems: OrderItem[];
 }
