@@ -1,18 +1,18 @@
+import { InjectQueue } from '@nestjs/bull';
 import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-  ForbiddenException,
+    BadRequestException,
+    ForbiddenException,
+    Injectable,
+    NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, In } from 'typeorm';
-import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
 import Redis from 'ioredis';
-import { v4 as uuidv4 } from 'uuid';
+import { DataSource, In, Repository } from 'typeorm';
 
-import { Order, OrderStatus } from '../database/entities/order.entity';
 import { OrderItem } from '../database/entities/order-item.entity';
+import { Order, OrderStatus } from '../database/entities/order.entity';
+import { PaymentMethod } from '../database/entities/order.enums';
 import { Product, ProductStatus } from '../database/entities/product.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 
@@ -64,20 +64,26 @@ export class OrderService {
           if (remaining < 0) {
             // Rollback the decrement
             await client.incrby(redisKey, item.qty);
-            throw new BadRequestException(`Stok produk ${product.name} tidak cukup`);
+            throw new BadRequestException(
+              `Stok produk ${product.name} tidak cukup`,
+            );
           }
           lockedKeys.push(redisKey);
         } else {
           // No Redis: fall back to DB stock check only
           if (product.stock < item.qty) {
-            throw new BadRequestException(`Stok produk ${product.name} tidak cukup`);
+            throw new BadRequestException(
+              `Stok produk ${product.name} tidak cukup`,
+            );
           }
         }
       } catch (err) {
         if (err instanceof BadRequestException) throw err;
         // Redis connection failed — fall back gracefully
         if (product.stock < item.qty) {
-          throw new BadRequestException(`Stok produk ${product.name} tidak cukup`);
+          throw new BadRequestException(
+            `Stok produk ${product.name} tidak cukup`,
+          );
         }
       }
     }
@@ -85,19 +91,25 @@ export class OrderService {
     // 2. Create order in a DB transaction
     return this.dataSource.transaction(async (manager) => {
       // Fetch full product data for pricing
-      const productIds = items.map(i => i.productId);
+      const productIds = items.map((i) => i.productId);
       const products = await manager.findBy(Product, { id: In(productIds) });
-      const productMap = new Map(products.map(p => [p.id, p]));
+      const productMap = new Map(products.map((p) => [p.id, p]));
 
       let totalAmount = PLATFORM_FEE;
       for (const item of items) {
         const p = productMap.get(item.productId);
-        if (!p) throw new NotFoundException(`Produk ${item.productId} tidak ditemukan`);
+        if (!p)
+          throw new NotFoundException(
+            `Produk ${item.productId} tidak ditemukan`,
+          );
         totalAmount += p.discountPrice * item.qty;
       }
 
       // Generate 4-digit pickup code
-      const pickupCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const pickupCode = Math.random()
+        .toString(36)
+        .substring(2, 6)
+        .toUpperCase();
 
       const firstProduct = productMap.get(items[0].productId)!;
 
@@ -132,7 +144,11 @@ export class OrderService {
         // Check if sold out
         const updated = await manager.findOne(Product, { where: { id: p.id } });
         if (updated && updated.stock <= 0) {
-          await manager.update(Product, { id: p.id }, { status: ProductStatus.SOLD_OUT });
+          await manager.update(
+            Product,
+            { id: p.id },
+            { status: ProductStatus.SOLD_OUT },
+          );
         }
       }
 
@@ -155,7 +171,9 @@ export class OrderService {
    * Real implementation: verify signature from Midtrans POST /payment/notification.
    */
   async mockPayment(orderId: string, customerId: string): Promise<Order> {
-    const order = await this.orderRepository.findOne({ where: { id: orderId } });
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId },
+    });
     if (!order) throw new NotFoundException('Order tidak ditemukan');
     if (order.customerId !== customerId) throw new ForbiddenException();
     if (order.status !== OrderStatus.PENDING_PAYMENT) {
@@ -163,7 +181,7 @@ export class OrderService {
     }
 
     order.status = OrderStatus.PAID;
-    order.paymentMethod = 'mock_qris';
+    order.paymentMethod = PaymentMethod.QRIS;
     return this.orderRepository.save(order);
   }
 
@@ -188,19 +206,28 @@ export class OrderService {
     // Join via mitra profile
     return this.orderRepository
       .createQueryBuilder('order')
-      .innerJoinAndSelect('order.mitra', 'mitra', 'mitra.userId = :userId', { userId })
+      .innerJoinAndSelect('order.mitra', 'mitra', 'mitra.userId = :userId', {
+        userId,
+      })
       .leftJoinAndSelect('order.orderItems', 'items')
       .leftJoinAndSelect('items.product', 'product')
       .orderBy('order.createdAt', 'DESC')
       .getMany();
   }
 
-  async verifyPickup(orderId: string, mitraUserId: string, pickupCode: string): Promise<Order> {
+  async verifyPickup(
+    orderId: string,
+    mitraUserId: string,
+    pickupCode: string,
+  ): Promise<Order> {
     const orders = await this.getMitraOrders(mitraUserId);
-    const order = orders.find(o => o.id === orderId);
+    const order = orders.find((o) => o.id === orderId);
     if (!order) throw new NotFoundException('Order tidak ditemukan');
 
-    if (order.status !== OrderStatus.PAID && order.status !== OrderStatus.READY_FOR_PICKUP) {
+    if (
+      order.status !== OrderStatus.PAID &&
+      order.status !== OrderStatus.READY_FOR_PICKUP
+    ) {
       throw new BadRequestException('Order belum dibayar atau sudah selesai');
     }
 
@@ -218,7 +245,7 @@ export class OrderService {
     status: OrderStatus,
   ): Promise<Order> {
     const orders = await this.getMitraOrders(mitraUserId);
-    const order = orders.find(o => o.id === orderId);
+    const order = orders.find((o) => o.id === orderId);
     if (!order) throw new NotFoundException('Order tidak ditemukan');
 
     order.status = status;

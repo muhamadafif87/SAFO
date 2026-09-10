@@ -1,14 +1,16 @@
 import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  JoinColumn,
-  OneToMany,
-  OneToOne,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
+    Column,
+    CreateDateColumn,
+    Entity,
+    JoinColumn,
+    OneToMany,
+    OneToOne,
+    PrimaryGeneratedColumn,
+    UpdateDateColumn,
 } from 'typeorm';
+import { OperationalHour } from './operational-hour.entity';
 import { Order } from './order.entity';
+import { Payout } from './payout.entity';
 import { Product } from './product.entity';
 import { User } from './user.entity';
 
@@ -39,11 +41,21 @@ export class MitraProfile {
   @Column()
   address: string;
 
-  @Column({ type: 'double precision', nullable: true })
-  latitude: number | null;
+  //catatan kalau lat, dan long tidak boleh null di db
+  @Column({ type: 'double precision' })
+  latitude: number;
 
-  @Column({ type: 'double precision', nullable: true })
-  longitude: number | null;
+  @Column({ type: 'double precision' })
+  longitude: number;
+
+  @Column({
+    type: 'geography',
+    spatialFeatureType: 'Point',
+    srid: 4326,
+    insert: false,
+    update: false,
+  })
+  location: string;
 
   @Column({ name: 'legal_doc_url', type: 'text', nullable: true })
   legalDocUrl: string;
@@ -77,4 +89,10 @@ export class MitraProfile {
 
   @OneToMany(() => Order, (order) => order.mitra)
   orders: Order[];
+
+  @OneToMany(() => OperationalHour, (hour) => hour.mitra)
+  operationalHours: OperationalHour[];
+
+  @OneToMany(() => Payout, (payout) => payout.mitra)
+  payouts: Payout[];
 }
