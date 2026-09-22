@@ -1,11 +1,11 @@
 import {
-    Column,
-    CreateDateColumn,
-    Entity,
-    OneToMany,
-    OneToOne,
-    PrimaryGeneratedColumn,
-    UpdateDateColumn,
+  Column,
+  CreateDateColumn,
+  Entity,
+  OneToMany,
+  OneToOne,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { MitraProfile } from './mitra-profile.entity';
 import { OrderStatusLog } from './order-status-log.entity';
@@ -27,6 +27,9 @@ export enum UserStatus {
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @Column({ name: 'name', length: 155 })
+  name: string;
 
   @Column({ unique: true, length: 255 })
   email: string;

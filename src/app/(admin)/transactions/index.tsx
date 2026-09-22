@@ -1,9 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Colors, Spacing, FontSize, FontWeight, BorderRadius } from '@/constants/typography';
-import { Button } from '@/components/ui/Button';
-import { Order } from '@/types';
+import { Button } from "@/components/ui/Button";
+import {
+    BorderRadius,
+    Colors,
+    FontSize,
+    FontWeight,
+    Spacing,
+} from "@/constants/typography";
+import { Order } from "@/types";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import { FlatList, StyleSheet, Text, View } from "react-native";
 
 export default function AdminTransactionsScreen() {
   const router = useRouter();
@@ -13,17 +19,17 @@ export default function AdminTransactionsScreen() {
     // Mock fetch all transactions
     setTransactions([
       {
-        id: 'o1',
-        customerId: 'c1',
-        mitraId: 'm1',
-        pickupCode: 'A3B7',
+        id: "o1",
+        customerId: "c1",
+        mitraId: "m1",
+        pickupCode: "A3B7",
         totalAmount: 21000,
         platformFee: 1000,
-        status: 'completed',
-        paymentMethod: 'qris',
+        status: "completed",
+        paymentMethod: "qris",
         createdAt: new Date().toISOString(),
-        items: [] // not needed for list view
-      }
+        items: [], // not needed for list view
+      },
     ]);
   }, []);
 
@@ -34,8 +40,12 @@ export default function AdminTransactionsScreen() {
         <Text style={styles.status}>{item.status.toUpperCase()}</Text>
       </View>
       <View style={styles.row}>
-        <Text style={styles.amount}>Total: Rp {item.totalAmount.toLocaleString('id-ID')}</Text>
-        <Text style={styles.fee}>Fee: Rp {item.platformFee.toLocaleString('id-ID')}</Text>
+        <Text style={styles.amount}>
+          Total: Rp {item.totalAmount.toLocaleString("id-ID")}
+        </Text>
+        <Text style={styles.fee}>
+          Fee: Rp {item.platformFee.toLocaleString("id-ID")}
+        </Text>
       </View>
     </View>
   );
@@ -43,14 +53,18 @@ export default function AdminTransactionsScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Button title="< Kembali" variant="ghost" onPress={() => router.back()} />
+        <Button
+          title="< Kembali"
+          variant="ghost"
+          onPress={() => router.back()}
+        />
         <Text style={styles.headerTitle}>Semua Transaksi</Text>
         <View style={{ width: 60 }} />
       </View>
 
       <FlatList
         data={transactions}
-        keyExtractor={item => item.id}
+        keyExtractor={(item) => item.id}
         renderItem={renderItem}
         contentContainerStyle={styles.listContainer}
       />
@@ -64,9 +78,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutral[50],
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: Spacing[4],
     backgroundColor: Colors.neutral[0],
     borderBottomWidth: 1,
@@ -89,8 +103,8 @@ const styles = StyleSheet.create({
     gap: Spacing[2],
   },
   row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   orderId: {
     fontSize: FontSize.md,
@@ -100,7 +114,7 @@ const styles = StyleSheet.create({
   status: {
     fontSize: FontSize.sm,
     fontWeight: FontWeight.bold,
-    color: Colors.status.completed,
+    color: Colors.status.completed.text,
   },
   amount: {
     fontSize: FontSize.md,

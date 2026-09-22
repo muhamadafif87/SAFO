@@ -5,29 +5,29 @@
 
 // ─── Enums ────────────────────────────────────────────────────────────────
 
-export type UserRole = 'admin' | 'mitra' | 'customer';
-export type UserStatus = 'active' | 'suspended';
+export type UserRole = "admin" | "mitra" | "customer";
+export type UserStatus = "active" | "suspended";
 
-export type VerificationStatus = 'pending' | 'approved' | 'rejected';
+export type VerificationStatus = "pending" | "approved" | "rejected";
 
-export type ProductStatus = 'active' | 'sold_out' | 'expired' | 'inactive';
+export type ProductStatus = "active" | "sold_out" | "expired" | "inactive";
 
 export type OrderStatus =
-  | 'pending_payment'
-  | 'paid'
-  | 'ready'
-  | 'ready_for_pickup'  // alias used by backend entity
-  | 'completed'
-  | 'cancelled'
-  | 'expired';
+  | "pending_payment"
+  | "paid"
+  | "ready"
+  | "ready_for_pickup" // alias used by backend entity
+  | "completed"
+  | "cancelled"
+  | "expired";
 
-export type PaymentStatus = 'pending' | 'success' | 'failed' | 'refunded';
+export type PaymentStatus = "pending" | "success" | "failed" | "refunded";
 
-export type PaymentProvider = 'midtrans' | 'xendit' | 'mock';
+export type PaymentProvider = "midtrans" | "xendit" | "mock";
 
-export type PayoutStatus = 'requested' | 'processed' | 'rejected';
+export type PayoutStatus = "requested" | "processed" | "rejected";
 
-export type PaymentMethod = 'ewallet' | 'bank_transfer' | 'qris';
+export type PaymentMethod = "ewallet" | "bank_transfer" | "qris";
 
 // ─── Core Entities ────────────────────────────────────────────────────────
 
@@ -59,14 +59,22 @@ export interface OperationalHour {
   id: string;
   mitraId: string;
   dayOfWeek: number; // 0=Sunday, 6=Saturday
-  openTime: string;  // "08:00"
+  openTime: string; // "08:00"
   closeTime: string; // "22:00"
 }
 
 export interface Product {
   id: string;
   mitraId: string;
-  mitra?: Pick<MitraProfile, 'businessName' | 'address' | 'latitude' | 'longitude' | 'distanceKm' | 'photoUrl'>;
+  mitra?: Pick<
+    MitraProfile,
+    | "businessName"
+    | "address"
+    | "latitude"
+    | "longitude"
+    | "distanceKm"
+    | "photoUrl"
+  >;
   name: string;
   description?: string;
   photoUrl?: string;
@@ -74,18 +82,21 @@ export interface Product {
   discountPrice: number;
   stock: number;
   pickupWindowStart: string; // ISO timestamp
-  pickupWindowEnd: string;   // ISO timestamp
+  pickupWindowEnd: string; // ISO timestamp
   status: ProductStatus;
-  discountPercent?: number;  // calculated
+  discountPercent?: number; // calculated
 }
+
+export type Mitra = MitraProfile;
 
 export interface Order {
   id: string;
   customerId: string;
   mitraId: string;
-  mitra?: Pick<MitraProfile, 'businessName' | 'address'>;
-  items: OrderItem[];
-  pickupCode: string;   // 4-char alphanumeric (e.g. "A3B7")
+  mitra?: Pick<MitraProfile, "businessName" | "address">;
+  items?: OrderItem[];
+  orderItems?: OrderItem[];
+  pickupCode: string; // 4-char alphanumeric (e.g. "A3B7")
   totalAmount: number;
   platformFee: number;
   status: OrderStatus;
@@ -98,8 +109,9 @@ export interface OrderItem {
   id: string;
   orderId: string;
   productId: string;
-  product?: Pick<Product, 'name' | 'photoUrl'>;
-  qty: number;
+  product?: Pick<Product, "name" | "photoUrl">;
+  qty?: number;
+  quantity?: number;
   priceAtPurchase: number;
 }
 
@@ -110,8 +122,8 @@ export interface Payment {
   providerRefId?: string;
   status: PaymentStatus;
   paidAt?: string;
-  snapToken?: string;    // Midtrans Snap token (or mock)
-  paymentUrl?: string;   // redirect URL
+  snapToken?: string; // Midtrans Snap token (or mock)
+  paymentUrl?: string; // redirect URL
 }
 
 export interface Review {
@@ -166,6 +178,7 @@ export interface LoginRequest {
 }
 
 export interface RegisterCustomerRequest {
+  name: string;
   email: string;
   password: string;
   phone?: string;
@@ -229,10 +242,10 @@ export interface CreateOrderResponse {
 
 // Admin
 export interface BusinessRules {
-  platformFeeCustomer: number;  // e.g. 500 (Rp)
-  platformFeeMitra: number;     // e.g. 500 (Rp)
-  minimumDiscount: number;      // e.g. 30 (%)
-  serviceRadiusKm: number;      // e.g. 10
+  platformFeeCustomer: number; // e.g. 500 (Rp)
+  platformFeeMitra: number; // e.g. 500 (Rp)
+  minimumDiscount: number; // e.g. 30 (%)
+  serviceRadiusKm: number; // e.g. 10
 }
 
 // ─── UI/Store Types ──────────────────────────────────────────────────────

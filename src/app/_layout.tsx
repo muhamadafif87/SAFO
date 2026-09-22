@@ -11,12 +11,14 @@ import { AnimatedSplashOverlay } from '@/components/animated-icon';
 
 SplashScreen.preventAutoHideAsync();
 
+
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
   const segments = useSegments();
   
-  // ✅ PERBAIKAN 1: Pisahkan selector Zustand agar referensi memorinya stabil
+  // ✅ Pisahkan selector Zustand agar referensi memorinya stabil
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isLoading = useAuthStore((state) => state.isLoading);
   const role = useAuthStore((state) => state.user?.role);
@@ -29,14 +31,18 @@ export default function RootLayout() {
   useEffect(() => {
     if (isLoading) return;
 
-    const rootSegment = segments[0]; // Ambil nilai string primitifnya
+    const rootSegment = segments[0] as string | undefined;
     const inAuthGroup = rootSegment === '(auth)';
+    // Landing page: segment undefined berarti user di root '/'
+    const inLandingPage = rootSegment === undefined;
+    // Cek apakah berada di route yang dilindungi (customer, mitra, admin)
+    const inProtectedRoute = !inAuthGroup && !inLandingPage;
 
-    if (!isAuthenticated && !inAuthGroup) {
-      // Redirect ke login jika belum di-autentikasi dan tidak berada di grup auth
-      router.replace('/(auth)');
+    if (!isAuthenticated && inProtectedRoute) {
+      // Unauthenticated user mencoba akses halaman protected → redirect ke landing
+      router.replace('/');
     } else if (isAuthenticated && inAuthGroup) {
-      // Redirect sesuai role jika pengguna sudah terautentikasi
+      // Redirect sesuai role jika pengguna sudah terautentikasi tapi masih di grup auth
       if (role === 'customer') {
         router.replace('/(customer)');
       } else if (role === 'mitra') {
@@ -45,13 +51,15 @@ export default function RootLayout() {
         router.replace('/(admin)');
       }
     }
-  // ✅ PERBAIKAN 2: Gunakan 'segments[0]' (string primitif) bukan seluruh array 'segments'
+    // Landing page & auth group dapat diakses tanpa autentikasi → tidak ada redirect
   }, [isAuthenticated, isLoading, segments[0], role]);
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AnimatedSplashOverlay />
       <Stack screenOptions={{ headerShown: false }}>
+        {/* Landing page — publik, selalu tampil pertama kali */}
+        <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(customer)" options={{ headerShown: false }} />
         <Stack.Screen name="(mitra)" options={{ headerShown: false }} />

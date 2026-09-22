@@ -1,4 +1,3 @@
-import { BullModule } from '@nestjs/bull';
 import { Module, ValidationPipe } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
@@ -41,11 +40,14 @@ import { ProductModule } from './product/product.module';
               ssl: { rejectUnauthorized: false },
             }
           : {
-              host: config.get<string>('DB_HOST', 'localhost'),
+              host: config.get<string>(
+                'DB_HOST',
+                'db.cyakqxtjwyettzyzysok.supabase.co',
+              ),
               port: config.get<number>('DB_PORT', 5432),
-              username: config.get<string>('DB_USER', 'safo'),
-              password: config.get<string>('DB_PASSWORD', 'safo_password'),
-              database: config.get<string>('DB_NAME', 'safo_db'),
+              username: config.get<string>('DB_USER', 'postgres'),
+              password: config.get<string>('DB_PASSWORD', 'password'),
+              database: config.get<string>('DB_NAME', 'postgres'),
             }),
         autoLoadEntities: true,
         entities: [
@@ -63,16 +65,6 @@ import { ProductModule } from './product/product.module';
         ],
         synchronize: false,
         logging: config.get('NODE_ENV') === 'development',
-      }),
-    }),
-    BullModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        redis: {
-          host: config.get<string>('REDIS_HOST', 'localhost'),
-          port: config.get<number>('REDIS_PORT', 6379),
-        },
       }),
     }),
     AuthModule,
