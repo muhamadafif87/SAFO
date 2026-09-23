@@ -16,6 +16,12 @@ export class ProductController {
   // ─── Public / Customer ────────────────────────────────────────────────────
 
   @Public()
+  @Get('banners')
+  getBanners() {
+    return this.productService.getBanners();
+  }
+
+  @Public()
   @Get('nearby')
   findNearby(@Query() dto: NearbyProductsDto) {
     return this.productService.findNearby(dto);

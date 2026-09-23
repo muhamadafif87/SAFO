@@ -33,10 +33,12 @@ export type PaymentMethod = "ewallet" | "bank_transfer" | "qris";
 
 export interface User {
   id: string;
+  name?: string;
   email: string;
   phone?: string;
   role: UserRole;
   status: UserStatus;
+  isVip?: boolean; // calculated: true if completed orders >= threshold
   createdAt: string;
 }
 
@@ -85,9 +87,27 @@ export interface Product {
   pickupWindowEnd: string; // ISO timestamp
   status: ProductStatus;
   discountPercent?: number; // calculated
+  avgRating?: number | null;  // calculated: avg of reviews
+  reviewCount?: number;        // calculated: count of reviews
+  distanceKm?: number | string | null; // calculated from geo query
 }
 
 export type Mitra = MitraProfile;
+
+// ─── Promo Banner ─────────────────────────────────────────────────────────
+
+export interface PromoBanner {
+  id: string;
+  title: string;
+  subtitle: string;
+  emoji: string;
+  bgColor: string;
+  accentColor: string;
+}
+
+// ─── Sort Filter ──────────────────────────────────────────────────────────
+
+export type SortFilter = 'nearby' | 'discount' | 'rating';
 
 export interface Order {
   id: string;
@@ -213,6 +233,8 @@ export interface GetProductsQuery {
   radius?: number; // km, default 10
   page?: number;
   limit?: number;
+  sort?: SortFilter;
+  search?: string;
 }
 
 export interface CreateProductRequest {

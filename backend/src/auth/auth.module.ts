@@ -7,11 +7,12 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { User } from '../database/entities/user.entity';
 import { MitraProfile } from '../database/entities/mitra-profile.entity';
+import { Order } from '../database/entities/order.entity';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, MitraProfile]),
+    TypeOrmModule.forFeature([User, MitraProfile, Order]),
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

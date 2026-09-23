@@ -1,215 +1,881 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-  Image,
-  RefreshControl,
-  TextInput,
-} from 'react-native';
-import { useRouter } from 'expo-router';
+import { productService } from '@/services/product.service';
 import { useAuthStore } from '@/stores/auth.store';
 import { useCartStore } from '@/stores/cart.store';
-import { productService } from '@/services/product.service';
-import type { Product } from '@/types';
-import { Colors, Spacing, FontSize, FontWeight, BorderRadius } from '@/constants/typography';
+import type { Product, PromoBanner, SortFilter } from '@/types';
 import * as Location from 'expo-location';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  FlatList,
+  Image,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
+
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const PRIMARY = '#1a5c52';
+const PRIMARY_LIGHT = '#e8f4f1';
+const PRIMARY_DARK = '#123d37';
+const GOLD = '#f59e0b';
+const BG = '#f7f8fa';
+const WHITE = '#ffffff';
+const GRAY_50 = '#f9fafb';
+const GRAY_100 = '#f3f4f6';
+const GRAY_200 = '#e5e7eb';
+const GRAY_300 = '#d1d5db';
+const GRAY_400 = '#9ca3af';
+const GRAY_500 = '#6b7280';
+const GRAY_700 = '#374151';
+const GRAY_900 = '#111827';
+const DANGER = '#ef4444';
+
+// ─── Location helpers ─────────────────────────────────────────────────────────
+
+async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  try {
+    const result = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+    if (result && result[0]) {
+      const r = result[0];
+      const parts = [r.street, r.subregion || r.district, r.city].filter(Boolean);
+      return parts.join(', ') || 'Lokasi Anda';
+    }
+  } catch { }
+  return 'Lokasi Anda';
+}
+
+// ─── Subcomponents ────────────────────────────────────────────────────────────
+
+interface LocationHeaderProps {
+  address: string;
+  isVip: boolean;
+  onEditPress: () => void;
+}
+
+function LocationHeader({ address, isVip, onEditPress }: LocationHeaderProps) {
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (isVip) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.08, duration: 900, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+        ])
+      ).start();
+    }
+  }, [isVip]);
+
+  return (
+    <View style={headerStyles.container}>
+      <View style={headerStyles.left}>
+        <View style={headerStyles.pinRow}>
+          <View style={headerStyles.pinIcon}>
+            <Svg width="16" height="16" fill={PRIMARY} viewBox="0 0 16 16">
+              <Path d="M8 16s6-5.686 6-10A6 6 0 0 0 2 6c0 4.314 6 10 6 10m0-7a3 3 0 1 1 0-6 3 3 0 0 1 0 6"/>
+            </Svg>
+          </View>
+          <View style={headerStyles.addressWrap}>
+            <Text style={headerStyles.locationLabel}>Lokasi</Text>
+            <TouchableOpacity onPress={onEditPress} activeOpacity={0.7}>
+              <Text style={headerStyles.address} numberOfLines={1}>
+                {address}
+              </Text>
+              <Text style={headerStyles.editHint}>Ketuk untuk ubah ›</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+      {isVip && (
+        <Animated.View style={[headerStyles.vipBadge, { transform: [{ scale: pulseAnim }] }]}>
+          <Text style={headerStyles.vipCrown}>👑</Text>
+          <Text style={headerStyles.vipText}>VIP</Text>
+        </Animated.View>
+      )}
+    </View>
+  );
+}
+
+const headerStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: WHITE,
+    borderBottomWidth: 1,
+    borderBottomColor: GRAY_100,
+  },
+  left: { flex: 1 },
+  pinRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  pinIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: PRIMARY_LIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pinEmoji: { fontSize: 18 },
+  addressWrap: { flex: 1 },
+  locationLabel: { fontSize: 11, color: GRAY_400, fontWeight: '600', letterSpacing: 0.5 },
+  address: { fontSize: 15, fontWeight: '700', color: GRAY_900, marginTop: 1 },
+  editHint: { fontSize: 11, color: PRIMARY, marginTop: 1 },
+  vipBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: GOLD,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    gap: 4,
+    shadowColor: GOLD,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  vipCrown: { fontSize: 13 },
+  vipText: { fontSize: 13, fontWeight: '800', color: WHITE, letterSpacing: 0.5 },
+});
+
+// ─── Search Bar ────────────────────────────────────────────────────────────
+
+interface SearchBarProps {
+  value: string;
+  onChangeText: (t: string) => void;
+}
+
+function SearchBar({ value, onChangeText }: SearchBarProps) {
+  return (
+    <View style={searchStyles.wrap}>
+      <View style={searchStyles.bar}>
+        <Text style={searchStyles.icon}>🔍</Text>
+        <TextInput
+          style={searchStyles.input}
+          placeholder="Cari makanan atau warung..."
+          placeholderTextColor={GRAY_400}
+          value={value}
+          onChangeText={onChangeText}
+          clearButtonMode="while-editing"
+          returnKeyType="search"
+        />
+        {value.length > 0 && (
+          <TouchableOpacity onPress={() => onChangeText('')} style={searchStyles.clearBtn}>
+            <Text style={searchStyles.clearText}>✕</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
+
+const searchStyles = StyleSheet.create({
+  wrap: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: WHITE,
+    borderBottomWidth: 1,
+    borderBottomColor: GRAY_100,
+  },
+  bar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: GRAY_100,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    height: 46,
+    gap: 8,
+  },
+  icon: { fontSize: 15 },
+  input: { flex: 1, fontSize: 15, color: GRAY_900 },
+  clearBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: GRAY_400,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clearText: { color: WHITE, fontSize: 10, fontWeight: '700' },
+});
+
+// ─── Promo Banner Carousel ────────────────────────────────────────────────────
+
+interface PromoBannerCarouselProps {
+  banners: PromoBanner[];
+}
+
+function PromoBannerCarousel({ banners }: PromoBannerCarouselProps) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const flatRef = useRef<FlatList>(null);
+
+  // Auto-scroll
+  useEffect(() => {
+    if (banners.length <= 1) return;
+    const interval = setInterval(() => {
+      setActiveIdx((prev) => {
+        const next = (prev + 1) % banners.length;
+        flatRef.current?.scrollToIndex({ index: next, animated: true });
+        return next;
+      });
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [banners.length]);
+
+  if (!banners.length) return null;
+
+  return (
+    <View style={bannerStyles.outerWrap}>
+      <FlatList
+        ref={flatRef}
+        data={banners}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={(item) => item.id}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+          { useNativeDriver: false }
+        )}
+        scrollEventThrottle={16}
+        onMomentumScrollEnd={(e) => {
+          const idx = Math.round(e.nativeEvent.contentOffset.x / (e.nativeEvent.layoutMeasurement.width));
+          setActiveIdx(idx);
+        }}
+        renderItem={({ item }) => (
+          <View style={[bannerStyles.card, { backgroundColor: item.bgColor }]}>
+            <View style={bannerStyles.textWrap}>
+              <Text style={bannerStyles.title}>{item.title}</Text>
+              <Text style={bannerStyles.subtitle}>{item.subtitle}</Text>
+            </View>
+            <View style={[bannerStyles.emojiCircle, { backgroundColor: item.accentColor + '33' }]}>
+              <Text style={bannerStyles.emoji}>{item.emoji}</Text>
+              <View style={[bannerStyles.percentCircle, { backgroundColor: item.accentColor }]}>
+                <Text style={bannerStyles.percentText}>%</Text>
+              </View>
+            </View>
+          </View>
+        )}
+      />
+      {banners.length > 1 && (
+        <View style={bannerStyles.dotsRow}>
+          {banners.map((_, i) => (
+            <View
+              key={i}
+              style={[
+                bannerStyles.dot,
+                i === activeIdx && bannerStyles.dotActive,
+              ]}
+            />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const BANNER_H = 110;
+
+const bannerStyles = StyleSheet.create({
+  outerWrap: {
+    marginHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 4,
+  },
+  card: {
+    width: '100%',
+    height: BANNER_H,
+    borderRadius: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    overflow: 'hidden',
+  },
+  textWrap: { flex: 1 },
+  title: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: WHITE,
+    letterSpacing: -0.3,
+  },
+  subtitle: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.82)',
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  emojiCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  emoji: { fontSize: 36 },
+  percentCircle: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  percentText: { fontSize: 12, fontWeight: '900', color: WHITE },
+  dotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 8,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: GRAY_300,
+  },
+  dotActive: {
+    width: 18,
+    backgroundColor: PRIMARY,
+  },
+});
+
+// ─── Filter Chips ────────────────────────────────────────────────────────────
+
+const FILTER_OPTIONS: { key: SortFilter; label: string }[] = [
+  { key: 'nearby', label: 'Di sekitar' },
+  { key: 'discount', label: 'Diskon Terbesar' },
+  { key: 'rating', label: 'Rating Tertinggi' },
+];
+
+interface FilterChipsProps {
+  active: SortFilter;
+  onChange: (f: SortFilter) => void;
+}
+
+function FilterChips({ active, onChange }: FilterChipsProps) {
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={chipStyles.row}
+      style={chipStyles.wrapper}
+    >
+      {FILTER_OPTIONS.map((opt) => {
+        const isActive = opt.key === active;
+        return (
+          <TouchableOpacity
+            key={opt.key}
+            style={[chipStyles.chip, isActive && chipStyles.chipActive]}
+            onPress={() => onChange(opt.key)}
+            activeOpacity={0.75}
+          >
+            <Text style={[chipStyles.chipText, isActive && chipStyles.chipTextActive]}>
+              {opt.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+const chipStyles = StyleSheet.create({
+  wrapper: {
+    marginTop: 14,
+    marginBottom: 6,
+  },
+  row: {
+    paddingHorizontal: 16,
+    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  chip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: GRAY_200,
+    backgroundColor: WHITE,
+  },
+  chipActive: {
+    backgroundColor: PRIMARY,
+    borderColor: PRIMARY,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: GRAY_700,
+  },
+  chipTextActive: {
+    color: WHITE,
+  },
+});
+
+// ─── Product Card ─────────────────────────────────────────────────────────────
+
+interface ProductCardProps {
+  item: Product;
+  onPress: () => void;
+}
+
+function ProductCard({ item, onPress }: ProductCardProps) {
+  const isSoldOut = Number(item.stock) <= 0 || item.status === 'sold_out';
+  const discountPct = Math.round(
+    ((Number(item.originalPrice) - Number(item.discountPrice)) / Number(item.originalPrice)) * 100
+  );
+  const rating = item.avgRating ?? null;
+  const reviewCount = item.reviewCount ?? 0;
+
+  return (
+    <TouchableOpacity
+      style={[cardStyles.container, isSoldOut && cardStyles.soldOut]}
+      onPress={onPress}
+      activeOpacity={0.88}
+    >
+      {/* Image */}
+      <View style={cardStyles.imageWrap}>
+        {item.photoUrl ? (
+          <Image source={{ uri: item.photoUrl }} style={cardStyles.image} resizeMode="cover" />
+        ) : (
+          <View style={[cardStyles.image, cardStyles.imagePlaceholder]}>
+            <Text style={cardStyles.imagePlaceholderIcon}>🍱</Text>
+          </View>
+        )}
+        {isSoldOut && (
+          <View style={cardStyles.soldOutOverlay}>
+            <Text style={cardStyles.soldOutLabel}>Habis</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Content */}
+      <View style={cardStyles.content}>
+        {/* Name */}
+        <Text style={cardStyles.productName} numberOfLines={1}>
+          {item.name}
+        </Text>
+
+        {/* Warung */}
+        <Text style={cardStyles.mitraName} numberOfLines={1}>
+          {item.mitra?.businessName || 'Mitra'}
+        </Text>
+
+        {/* Rating */}
+        {rating !== null && (
+          <View style={cardStyles.ratingRow}>
+            <Text style={cardStyles.ratingStar}>⭐</Text>
+            <Text style={cardStyles.ratingValue}>{Number(rating).toFixed(1)}</Text>
+            <Text style={cardStyles.ratingCount}>({reviewCount})</Text>
+          </View>
+        )}
+
+        {/* Price row */}
+        <View style={cardStyles.priceRow}>
+          <Text style={cardStyles.discountPrice}>
+            Rp {Number(item.discountPrice).toLocaleString('id-ID')}
+          </Text>
+          <Text style={cardStyles.originalPrice}>
+            Rp{Number(item.originalPrice).toLocaleString('id-ID')}
+          </Text>
+          <View style={[cardStyles.stockBadge, isSoldOut && cardStyles.stockBadgeSoldOut]}>
+            <Text style={[cardStyles.stockText, isSoldOut && cardStyles.stockTextSoldOut]}>
+              {isSoldOut ? 'Habis' : `Sisa ${item.stock}`}
+            </Text>
+          </View>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+const cardStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    backgroundColor: WHITE,
+    marginHorizontal: 16,
+    marginBottom: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: GRAY_100,
+    paddingVertical: 14,
+    gap: 12,
+    alignItems: 'center',
+  },
+  soldOut: { opacity: 0.6 },
+
+  imageWrap: {
+    position: 'relative',
+    width: 100,
+    height: 100,
+    borderRadius: 14,
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  image: {
+    width: 100,
+    height: 100,
+    borderRadius: 14,
+  },
+  imagePlaceholder: {
+    backgroundColor: GRAY_100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imagePlaceholderIcon: { fontSize: 40 },
+  soldOutOverlay: {
+    position: 'absolute',
+    inset: 0,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  soldOutLabel: { color: WHITE, fontSize: 13, fontWeight: '800' },
+
+  content: { flex: 1, justifyContent: 'center' },
+
+  productName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: GRAY_900,
+    marginBottom: 2,
+  },
+  mitraName: {
+    fontSize: 12,
+    color: GRAY_500,
+    marginBottom: 4,
+  },
+
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    marginBottom: 6,
+  },
+  ratingStar: { fontSize: 12 },
+  ratingValue: { fontSize: 13, fontWeight: '700', color: GRAY_700 },
+  ratingCount: { fontSize: 12, color: GRAY_400 },
+
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  discountPrice: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: PRIMARY_DARK,
+  },
+  originalPrice: {
+    fontSize: 12,
+    color: GRAY_400,
+    textDecorationLine: 'line-through',
+    flexShrink: 1,
+  },
+  stockBadge: {
+    marginLeft: 'auto',
+    backgroundColor: PRIMARY_LIGHT,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  stockBadgeSoldOut: { backgroundColor: GRAY_100 },
+  stockText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: PRIMARY,
+  },
+  stockTextSoldOut: { color: GRAY_500 },
+});
+
+// ─── Location Edit Modal ──────────────────────────────────────────────────────
+
+interface LocationModalProps {
+  visible: boolean;
+  currentAddress: string;
+  onClose: () => void;
+  onDetect: () => void;
+}
+
+function LocationModal({ visible, currentAddress, onClose, onDetect }: LocationModalProps) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={modalStyles.backdrop} activeOpacity={1} onPress={onClose} />
+      <View style={modalStyles.sheet}>
+        <View style={modalStyles.handle} />
+        <Text style={modalStyles.title}>Ubah Lokasi</Text>
+        <View style={modalStyles.currentWrap}>
+          <Text style={modalStyles.currentLabel}>Lokasi saat ini</Text>
+          <Text style={modalStyles.currentAddress}>{currentAddress}</Text>
+        </View>
+        <TouchableOpacity style={modalStyles.detectBtn} onPress={onDetect} activeOpacity={0.85}>
+          <Text style={modalStyles.detectBtnText}>📍  Deteksi Ulang Lokasi</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={modalStyles.cancelBtn} onPress={onClose} activeOpacity={0.75}>
+          <Text style={modalStyles.cancelBtnText}>Batal</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+}
+
+const modalStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  sheet: {
+    backgroundColor: WHITE,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 36,
+    gap: 14,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: GRAY_200,
+    alignSelf: 'center',
+    marginBottom: 6,
+  },
+  title: { fontSize: 18, fontWeight: '800', color: GRAY_900 },
+  currentWrap: {
+    backgroundColor: GRAY_50,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: GRAY_200,
+  },
+  currentLabel: { fontSize: 11, color: GRAY_400, fontWeight: '600', marginBottom: 4 },
+  currentAddress: { fontSize: 14, color: GRAY_700, fontWeight: '600' },
+  detectBtn: {
+    backgroundColor: PRIMARY,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  detectBtnText: { color: WHITE, fontWeight: '700', fontSize: 15 },
+  cancelBtn: {
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  cancelBtnText: { color: GRAY_500, fontWeight: '600', fontSize: 14 },
+});
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function CustomerHome() {
   const router = useRouter();
-  const { user, clearAuth } = useAuthStore();
+  const { user } = useAuthStore();
   const { getTotalItems } = useCartStore();
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [banners, setBanners] = useState<PromoBanner[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState<SortFilter>('nearby');
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [address, setAddress] = useState('Mendeteksi lokasi...');
+  const [locationModalVisible, setLocationModalVisible] = useState(false);
 
-  const fetchProducts = useCallback(async (lat: number, lng: number) => {
+  const isVip = user?.isVip ?? false;
+  const cartCount = getTotalItems();
+
+  // Fetch products
+  const fetchProducts = useCallback(
+    async (lat: number, lng: number, sort: SortFilter, search?: string) => {
+      try {
+        const data = await productService.getNearby({
+          lat,
+          lng,
+          radius: 10,
+          sort,
+          search: search || undefined,
+        });
+        setProducts(Array.isArray(data) ? data : (data as any)?.data || []);
+      } catch (err) {
+        console.warn('Failed to load products:', err);
+      }
+    },
+    []
+  );
+
+  // Fetch banners
+  const fetchBanners = useCallback(async () => {
     try {
-      const data = await productService.getNearby({ lat, lng, radius: 10 });
-      setProducts(Array.isArray(data) ? data : (data as any)?.data || []);
-    } catch (err) {
-      console.warn('Failed to load products:', err);
-    }
+      const data = await productService.getBanners();
+      setBanners(data);
+    } catch { }
   }, []);
 
+  // Init location
   useEffect(() => {
     (async () => {
-      try {
-        let lat = -6.200000;
-        let lng = 106.816666;
+      let lat = -7.575273;
+      let lng = 110.8218226;
 
-        let { status } = await Location.requestForegroundPermissionsAsync();
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === 'granted') {
-          let loc = await Location.getCurrentPositionAsync({});
+          const loc = await Location.getCurrentPositionAsync({});
           lat = loc.coords.latitude;
           lng = loc.coords.longitude;
         }
+      } catch { }
 
-        setLocation({ lat, lng });
-        await fetchProducts(lat, lng);
-      } catch (err) {
-        console.warn('Location error:', err);
-      } finally {
-        setLoading(false);
-      }
+      setLocation({ lat, lng });
+      const addr = await reverseGeocode(lat, lng);
+      setAddress(addr);
+      await Promise.all([fetchProducts(lat, lng, 'nearby'), fetchBanners()]);
+      setLoading(false);
     })();
   }, []);
+
+  // Re-fetch when filter changes
+  useEffect(() => {
+    if (!location) return;
+    setLoading(true);
+    fetchProducts(location.lat, location.lng, activeFilter, searchQuery).finally(() =>
+      setLoading(false)
+    );
+  }, [activeFilter]);
+
+  // Debounced search
+  useEffect(() => {
+    if (!location) return;
+    const timer = setTimeout(() => {
+      fetchProducts(location.lat, location.lng, activeFilter, searchQuery);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     if (location) {
-      await fetchProducts(location.lat, location.lng);
+      await fetchProducts(location.lat, location.lng, activeFilter, searchQuery);
     }
     setRefreshing(false);
   };
 
-  const filteredProducts = searchQuery.trim()
-    ? products.filter(
-        (p) =>
-          p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.mitra?.businessName?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : products;
-
-  const cartCount = getTotalItems();
-  const firstName = user?.email?.split('@')[0] || 'Sahabat';
-
-  const renderItem = ({ item }: { item: Product }) => {
-    const discountPercent = Math.round(
-      ((Number(item.originalPrice) - Number(item.discountPrice)) / Number(item.originalPrice)) * 100
-    );
-    const isSoldOut = item.stock <= 0 || item.status === 'sold_out';
-
-    return (
-      <TouchableOpacity
-        style={[styles.card, isSoldOut && styles.cardSoldOut]}
-        onPress={() => router.push(`/(customer)/products/${item.id}`)}
-        activeOpacity={0.9}
-      >
-        {/* Product image */}
-        {item.photoUrl ? (
-          <Image source={{ uri: item.photoUrl }} style={styles.cardImage} resizeMode="cover" />
-        ) : (
-          <View style={styles.cardImagePlaceholder}>
-            <Text style={styles.cardImagePlaceholderIcon}>🍱</Text>
-          </View>
-        )}
-
-        {/* Discount badge */}
-        <View style={styles.discountBadge}>
-          <Text style={styles.discountBadgeText}>-{discountPercent}%</Text>
-        </View>
-
-        {/* Sold out overlay */}
-        {isSoldOut && (
-          <View style={styles.soldOutOverlay}>
-            <Text style={styles.soldOutText}>Habis Terjual</Text>
-          </View>
-        )}
-
-        {/* Card content */}
-        <View style={styles.cardContent}>
-          <Text style={styles.mitraName} numberOfLines={1}>{item.mitra?.businessName || 'Mitra'}</Text>
-          <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
-
-          <View style={styles.priceRow}>
-            <View>
-              <Text style={styles.originalPrice}>Rp {Number(item.originalPrice).toLocaleString('id-ID')}</Text>
-              <Text style={styles.discountPrice}>Rp {Number(item.discountPrice).toLocaleString('id-ID')}</Text>
-            </View>
-            <View style={[styles.stockBadge, isSoldOut && styles.stockBadgeSoldOut]}>
-              <Text style={[styles.stockText, isSoldOut && styles.stockTextSoldOut]}>
-                {isSoldOut ? 'Habis' : `Sisa ${item.stock}`}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.metaRow}>
-            {item.mitra?.distanceKm !== undefined && (
-              <Text style={styles.metaText}>📍 {item.mitra.distanceKm.toFixed(1)} km</Text>
-            )}
-            <Text style={styles.metaText}>
-              ⏰ {new Date(item.pickupWindowStart).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}–{new Date(item.pickupWindowEnd).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-            </Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
+  const handleDetectLocation = async () => {
+    setLocationModalVisible(false);
+    setAddress('Mendeteksi lokasi...');
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Izin Ditolak', 'Aktifkan izin lokasi di pengaturan perangkat.');
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({});
+      const lat = loc.coords.latitude;
+      const lng = loc.coords.longitude;
+      setLocation({ lat, lng });
+      const addr = await reverseGeocode(lat, lng);
+      setAddress(addr);
+      setLoading(true);
+      await fetchProducts(lat, lng, activeFilter, searchQuery);
+      setLoading(false);
+    } catch {
+      setAddress('Gagal mendeteksi lokasi');
+    }
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.greeting}>Halo, {firstName} 👋</Text>
-          <Text style={styles.subtitle}>Selamatkan makanan, hemat lebih banyak!</Text>
-        </View>
-        <TouchableOpacity onPress={() => router.push('/(customer)/orders')} style={styles.ordersBtn}>
-          <Text style={styles.ordersBtnText}>Pesanan</Text>
-        </TouchableOpacity>
-      </View>
+  const renderItem = ({ item }: { item: Product }) => (
+    <ProductCard
+      item={item}
+      onPress={() => router.push(`/(customer)/products/${item.id}`)}
+    />
+  );
 
-      {/* Search bar */}
-      <View style={styles.searchWrap}>
-        <View style={styles.searchBar}>
-          <Text style={styles.searchIcon}>🔍</Text>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Cari makanan atau toko..."
-            placeholderTextColor={Colors.neutral[400]}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            clearButtonMode="while-editing"
-          />
-        </View>
-      </View>
+  const ListHeader = (
+    <>
+      {/* Search */}
+      <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
 
-      {/* Section title */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Terdekat di Sekitarmu</Text>
-        <Text style={styles.sectionCount}>
-          {filteredProducts.length} produk
+      {/* Promo Banner */}
+      {banners.length > 0 && <PromoBannerCarousel banners={banners} />}
+
+      {/* Filter Chips */}
+      <FilterChips active={activeFilter} onChange={setActiveFilter} />
+
+      {/* Section label */}
+      <View style={styles.sectionRow}>
+        <Text style={styles.sectionTitle}>
+          {activeFilter === 'nearby'
+            ? 'Terdekat di Sekitarmu'
+            : activeFilter === 'discount'
+              ? 'Diskon Terbesar'
+              : 'Rating Tertinggi'}
         </Text>
+        <Text style={styles.sectionCount}>{products.length} produk</Text>
       </View>
+    </>
+  );
 
-      {/* Product list */}
-      {loading ? (
-        <ActivityIndicator size="large" color={Colors.primary[500]} style={{ marginTop: 60 }} />
-      ) : filteredProducts.length === 0 ? (
-        <View style={styles.emptyWrap}>
-          <Text style={styles.emptyIcon}>{searchQuery ? '🔍' : '🍽️'}</Text>
-          <Text style={styles.emptyTitle}>
-            {searchQuery ? 'Tidak ditemukan' : 'Belum ada makanan surplus'}
-          </Text>
-          <Text style={styles.emptySubtext}>
-            {searchQuery
-              ? `Coba kata kunci lain.`
-              : 'Cek lagi nanti — mitra biasanya posting sore hari!'}
-          </Text>
-        </View>
+  const EmptyComponent = loading ? null : (
+    <View style={styles.emptyWrap}>
+      <Text style={styles.emptyIcon}>{searchQuery ? '🔍' : '🍽️'}</Text>
+      <Text style={styles.emptyTitle}>
+        {searchQuery ? 'Tidak ditemukan' : 'Belum ada makanan'}
+      </Text>
+      <Text style={styles.emptySubtext}>
+        {searchQuery ? 'Coba kata kunci lain.' : 'Cek lagi nanti — mitra biasanya posting sore hari!'}
+      </Text>
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      {/* Location Header */}
+      <LocationHeader
+        address={address}
+        isVip={isVip}
+        onEditPress={() => setLocationModalVisible(true)}
+      />
+
+      {loading && products.length === 0 ? (
+        <>
+          {/* Show banner skeleton while loading */}
+          <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
+          {banners.length > 0 && <PromoBannerCarousel banners={banners} />}
+          <FilterChips active={activeFilter} onChange={setActiveFilter} />
+          <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 60 }} />
+        </>
       ) : (
         <FlatList
-          data={filteredProducts}
+          data={products}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          numColumns={1}
-          contentContainerStyle={styles.list}
+          ListHeaderComponent={ListHeader}
+          ListEmptyComponent={EmptyComponent}
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContent}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary[500]} />
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={PRIMARY} />
           }
         />
       )}
 
-      {/* Floating cart button */}
+      {/* Floating Cart FAB */}
       {cartCount > 0 && (
         <TouchableOpacity
           style={styles.cartFab}
@@ -224,173 +890,75 @@ export default function CustomerHome() {
           <Text style={styles.cartFabArrow}>→</Text>
         </TouchableOpacity>
       )}
+
+      {/* Location Modal */}
+      <LocationModal
+        visible={locationModalVisible}
+        currentAddress={address}
+        onClose={() => setLocationModalVisible(false)}
+        onDetect={handleDetectLocation}
+      />
     </SafeAreaView>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.neutral[50] },
-
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing[4],
-    paddingTop: Spacing[4],
-    paddingBottom: Spacing[3],
-    backgroundColor: Colors.neutral[0],
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral[100],
-  },
-  headerLeft: { flex: 1 },
-  greeting: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.neutral[900] },
-  subtitle: { fontSize: FontSize.sm, color: Colors.neutral[500], marginTop: 2 },
-  ordersBtn: {
-    backgroundColor: Colors.primary[50],
-    paddingHorizontal: Spacing[3],
-    paddingVertical: Spacing[2],
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    borderColor: Colors.primary[200],
-  },
-  ordersBtnText: { fontSize: FontSize.sm, color: Colors.primary[700], fontWeight: FontWeight.bold },
-
-  searchWrap: {
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[3],
-    backgroundColor: Colors.neutral[0],
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.neutral[100],
-    borderRadius: BorderRadius.xl,
-    paddingHorizontal: Spacing[3],
-    height: 44,
-    gap: Spacing[2],
-  },
-  searchIcon: { fontSize: 16 },
-  searchInput: {
+  safeArea: {
     flex: 1,
-    fontSize: FontSize.md,
-    color: Colors.neutral[900],
+    backgroundColor: BG,
   },
-
-  sectionHeader: {
+  listContent: {
+    paddingBottom: 120,
+    backgroundColor: BG,
+  },
+  sectionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[3],
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 6,
   },
-  sectionTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.neutral[800] },
-  sectionCount: { fontSize: FontSize.sm, color: Colors.neutral[400] },
-
-  list: { paddingHorizontal: Spacing[4], paddingBottom: 100 },
-
-  // Product card
-  card: {
-    backgroundColor: Colors.neutral[0],
-    borderRadius: BorderRadius.xl,
-    marginBottom: Spacing[4],
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: GRAY_900,
   },
-  cardSoldOut: { opacity: 0.65 },
-
-  cardImage: { width: '100%', height: 160 },
-  cardImagePlaceholder: {
-    width: '100%',
-    height: 160,
-    backgroundColor: Colors.neutral[100],
-    alignItems: 'center',
-    justifyContent: 'center',
+  sectionCount: {
+    fontSize: 12,
+    color: GRAY_400,
   },
-  cardImagePlaceholderIcon: { fontSize: 60 },
-
-  discountBadge: {
-    position: 'absolute',
-    top: Spacing[3],
-    left: Spacing[3],
-    backgroundColor: Colors.secondary[500],
-    paddingHorizontal: Spacing[2],
-    paddingVertical: 3,
-    borderRadius: BorderRadius.md,
-  },
-  discountBadgeText: { color: '#fff', fontSize: FontSize.xs, fontWeight: FontWeight.bold },
-
-  soldOutOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 160,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  soldOutText: { color: '#fff', fontSize: FontSize.xl, fontWeight: FontWeight.bold },
-
-  cardContent: { padding: Spacing[4] },
-  mitraName: { fontSize: FontSize.sm, color: Colors.neutral[500], marginBottom: 2 },
-  productName: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.neutral[900], marginBottom: Spacing[3] },
-
-  priceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginBottom: Spacing[3],
-  },
-  originalPrice: { fontSize: FontSize.xs, color: Colors.neutral[400], textDecorationLine: 'line-through' },
-  discountPrice: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.primary[600] },
-  stockBadge: {
-    backgroundColor: Colors.secondary[100],
-    paddingHorizontal: Spacing[2],
-    paddingVertical: 4,
-    borderRadius: BorderRadius.full,
-  },
-  stockBadgeSoldOut: { backgroundColor: Colors.neutral[200] },
-  stockText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.secondary[700] },
-  stockTextSoldOut: { color: Colors.neutral[500] },
-
-  metaRow: { flexDirection: 'row', gap: Spacing[4] },
-  metaText: { fontSize: FontSize.xs, color: Colors.neutral[500] },
-
   emptyWrap: {
-    flex: 1,
+    paddingHorizontal: 32,
+    paddingTop: 60,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing[8],
-    paddingBottom: 60,
   },
-  emptyIcon: { fontSize: 64, marginBottom: Spacing[4] },
-  emptyTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.neutral[700], marginBottom: Spacing[2] },
-  emptySubtext: { fontSize: FontSize.sm, color: Colors.neutral[500], textAlign: 'center', lineHeight: 20 },
+  emptyIcon: { fontSize: 60, marginBottom: 14 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: GRAY_700, marginBottom: 8 },
+  emptySubtext: { fontSize: 14, color: GRAY_500, textAlign: 'center', lineHeight: 20 },
 
   // Cart FAB
   cartFab: {
     position: 'absolute',
-    bottom: Spacing[6],
-    left: Spacing[4],
-    right: Spacing[4],
-    backgroundColor: Colors.primary[600],
-    borderRadius: BorderRadius.xl,
+    bottom: 24,
+    left: 16,
+    right: 16,
+    backgroundColor: PRIMARY,
+    borderRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing[4],
-    shadowColor: Colors.primary[700],
+    padding: 16,
+    shadowColor: PRIMARY_DARK,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
     shadowRadius: 12,
     elevation: 10,
   },
-  cartFabIcon: { fontSize: 24, marginRight: Spacing[3] },
+  cartFabIcon: { fontSize: 22, marginRight: 12 },
   cartFabMiddle: { flex: 1 },
-  cartFabLabel: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: '#fff' },
-  cartFabSub: { fontSize: FontSize.xs, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
-  cartFabArrow: { fontSize: 20, color: '#fff', fontWeight: FontWeight.bold },
+  cartFabLabel: { fontSize: 15, fontWeight: '700', color: WHITE },
+  cartFabSub: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
+  cartFabArrow: { fontSize: 18, color: WHITE, fontWeight: '700' },
 });

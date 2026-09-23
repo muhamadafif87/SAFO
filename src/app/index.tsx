@@ -1,13 +1,13 @@
 import { useAuthStore } from "@/stores/auth.store";
 import { useRouter } from "expo-router";
 import {
-    FlatList,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  FlatList,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -149,7 +149,7 @@ export default function MarketplaceLandingScreen() {
                   }
                 >
                   <Text style={styles.cardButtonText}>
-                    {isAuthenticated ? "Pesan" : "Login untuk pesan"}
+                    {isAuthenticated ? "Pesan" : "Mulai pesan"}
                   </Text>
                 </TouchableOpacity>
               </View>

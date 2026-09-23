@@ -1,14 +1,18 @@
 import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 
 import { User, UserRole } from '../database/entities/user.entity';
 import { MitraProfile, VerificationStatus } from '../database/entities/mitra-profile.entity';
+import { Order } from '../database/entities/order.entity';
 import { RegisterCustomerDto } from './dto/register-customer.dto';
 import { RegisterMitraDto } from './dto/register-mitra.dto';
 import { LoginDto } from './dto/login.dto';
+
+/** Number of completed orders required to be considered VIP */
+const VIP_ORDER_THRESHOLD = 5;
 
 @Injectable()
 export class AuthService {
@@ -17,8 +21,23 @@ export class AuthService {
     private userRepository: Repository<User>,
     @InjectRepository(MitraProfile)
     private mitraProfileRepository: Repository<MitraProfile>,
+    @InjectRepository(Order)
+    private orderRepository: Repository<Order>,
     private jwtService: JwtService,
+    private dataSource: DataSource,
   ) {}
+
+  /** Returns true if the customer has >= VIP_ORDER_THRESHOLD completed orders */
+  private async checkIsVip(userId: string): Promise<boolean> {
+    try {
+      const count = await this.orderRepository.count({
+        where: { customerId: userId, status: 'completed' as any },
+      });
+      return count >= VIP_ORDER_THRESHOLD;
+    } catch {
+      return false;
+    }
+  }
 
   async registerCustomer(dto: RegisterCustomerDto) {
     const existingUser = await this.userRepository.findOne({ where: { email: dto.email } });
@@ -115,9 +134,11 @@ export class AuthService {
 
     if (!user) throw new UnauthorizedException();
 
+    const isVip = user.role === UserRole.CUSTOMER ? await this.checkIsVip(userId) : false;
+
     const { passwordHash, ...userWithoutPassword } = user;
     return {
-      user: userWithoutPassword,
+      user: { ...userWithoutPassword, isVip },
       mitra: user.mitraProfile || null,
     };
   }

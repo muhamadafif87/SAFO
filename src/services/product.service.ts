@@ -3,6 +3,7 @@ import type {
   ApiResponse,
   PaginatedResponse,
   Product,
+  PromoBanner,
   GetProductsQuery,
   CreateProductRequest,
 } from '@/types';
@@ -12,64 +13,122 @@ export const mockProducts: Product[] = [
     id: '1',
     mitraId: 'm1',
     mitra: {
-      businessName: 'Toko Roti Makmur',
+      businessName: 'Geprek Kumlot',
       address: 'Jl. Merdeka No. 45, Jakarta Pusat',
       latitude: -6.200000,
       longitude: 106.816666,
       distanceKm: 0.8,
     },
-    name: 'Paket Roti Manis Surplus',
-    description: 'Kombinasi 4 pcs roti manis (Cokelat, Keju, Daging, Srikaya) segar buatan hari ini.',
-    originalPrice: 45000,
-    discountPrice: 18000,
+    name: 'Geprek Dada Bakar',
+    description: 'Ayam geprek dada bakar super pedas, cocok untuk pecinta pedas.',
+    originalPrice: 12000,
+    discountPrice: 10000,
     stock: 5,
+    avgRating: 4.8,
+    reviewCount: 70,
     pickupWindowStart: new Date(Date.now() + 1800000).toISOString(),
     pickupWindowEnd: new Date(Date.now() + 10800000).toISOString(),
     status: 'active',
+    photoUrl: 'https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&w=400&q=80',
   },
   {
     id: '2',
     mitraId: 'm2',
     mitra: {
-      businessName: 'Dapur Bento Nusantara',
+      businessName: 'WM. Titik Temu',
       address: 'Jl. Sudirman No. 12, Jakarta Selatan',
       latitude: -6.210000,
       longitude: 106.820000,
       distanceKm: 1.5,
     },
-    name: 'Bento Chicken Teriyaki',
-    description: 'Paket bento nasi dengan chicken teriyaki dan salad segar.',
-    originalPrice: 35000,
-    discountPrice: 15000,
-    stock: 3,
+    name: 'Indomie Aceh',
+    description: 'Indomie goreng khas Aceh dengan bumbu rempah spesial dan topping telur.',
+    originalPrice: 12000,
+    discountPrice: 10000,
+    stock: 5,
+    avgRating: 4.8,
+    reviewCount: 70,
     pickupWindowStart: new Date(Date.now() + 3600000).toISOString(),
     pickupWindowEnd: new Date(Date.now() + 14400000).toISOString(),
     status: 'active',
+    photoUrl: 'https://images.unsplash.com/photo-1569050467447-ce54b3bbc37d?auto=format&fit=crop&w=400&q=80',
   },
   {
     id: '3',
     mitraId: 'm3',
     mitra: {
-      businessName: 'Kopi & Pastry Artisan',
+      businessName: 'WM. Mantap',
       address: 'Jl. Senopati No. 88, Jakarta Selatan',
       latitude: -6.225000,
       longitude: 106.808000,
       distanceKm: 2.3,
     },
-    name: 'Butter Croissant & Danish Box',
-    description: 'Box isi 3 pastry Prancis mentega asli, krispi dan lezat.',
-    originalPrice: 60000,
-    discountPrice: 24000,
-    stock: 4,
+    name: 'Nasgor Spesial',
+    description: 'Nasi goreng spesial dengan telur, ayam suwir, dan kerupuk renyah.',
+    originalPrice: 12000,
+    discountPrice: 10000,
+    stock: 7,
+    avgRating: 4.7,
+    reviewCount: 55,
     pickupWindowStart: new Date(Date.now() + 900000).toISOString(),
     pickupWindowEnd: new Date(Date.now() + 7200000).toISOString(),
     status: 'active',
+    photoUrl: 'https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=400&q=80',
+  },
+  {
+    id: '4',
+    mitraId: 'm4',
+    mitra: {
+      businessName: 'Toko Roti Makmur',
+      address: 'Jl. Kebon Jeruk No. 3, Jakarta Barat',
+      latitude: -6.190000,
+      longitude: 106.800000,
+      distanceKm: 3.1,
+    },
+    name: 'Paket Roti Manis Surplus',
+    description: 'Kombinasi 4 pcs roti manis segar buatan hari ini.',
+    originalPrice: 45000,
+    discountPrice: 18000,
+    stock: 3,
+    avgRating: 4.9,
+    reviewCount: 120,
+    pickupWindowStart: new Date(Date.now() + 600000).toISOString(),
+    pickupWindowEnd: new Date(Date.now() + 5400000).toISOString(),
+    status: 'active',
+    photoUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=400&q=80',
+  },
+];
+
+export const mockBanners: PromoBanner[] = [
+  {
+    id: '1',
+    title: 'Diskon Menjelang Tutup',
+    subtitle: 'Dapatkan makanan nikmat dengan harga hemat.',
+    emoji: '⏰',
+    bgColor: '#1a5c52',
+    accentColor: '#f59e0b',
+  },
+  {
+    id: '2',
+    title: 'Flash Sale Sore Ini!',
+    subtitle: 'Hemat hingga 60% dari mitra terdekat.',
+    emoji: '🔥',
+    bgColor: '#7c3aed',
+    accentColor: '#fbbf24',
+  },
+  {
+    id: '3',
+    title: 'Gratis Ongkir Weekend',
+    subtitle: 'Pesan sekarang dan nikmati gratis ongkir.',
+    emoji: '🚀',
+    bgColor: '#0e7490',
+    accentColor: '#34d399',
   },
 ];
 
 export const productService = {
   /**
-   * Ambil daftar produk flash sale aktif, diurutkan berdasarkan jarak dari lokasi customer.
+   * Ambil daftar produk flash sale aktif, diurutkan berdasarkan sort param.
    */
   getNearby: async (params: GetProductsQuery): Promise<PaginatedResponse<Product> | Product[]> => {
     try {
@@ -77,7 +136,39 @@ export const productService = {
       return res.data;
     } catch (error) {
       console.warn('[productService.getNearby] Backend API offline/unreachable, using mock products for development');
-      return mockProducts;
+      // Apply sort on mock data
+      let result = [...mockProducts];
+      if (params.search) {
+        const kw = params.search.toLowerCase();
+        result = result.filter(
+          (p) =>
+            p.name.toLowerCase().includes(kw) ||
+            p.mitra?.businessName?.toLowerCase().includes(kw)
+        );
+      }
+      if (params.sort === 'discount') {
+        result.sort(
+          (a, b) =>
+            (Number(b.originalPrice) - Number(b.discountPrice)) / Number(b.originalPrice) -
+            (Number(a.originalPrice) - Number(a.discountPrice)) / Number(a.originalPrice)
+        );
+      } else if (params.sort === 'rating') {
+        result.sort((a, b) => (Number(b.avgRating) || 0) - (Number(a.avgRating) || 0));
+      }
+      return result;
+    }
+  },
+
+  /**
+   * Ambil daftar promo banners untuk halaman beranda.
+   */
+  getBanners: async (): Promise<PromoBanner[]> => {
+    try {
+      const res = await api.get('/products/banners');
+      return res.data;
+    } catch (error) {
+      console.warn('[productService.getBanners] Backend API offline, using mock banners');
+      return mockBanners;
     }
   },
 
