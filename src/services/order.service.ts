@@ -95,13 +95,8 @@ export const orderService = {
    * Riwayat pesanan customer yang sedang login.
    */
   getMyOrders: async (): Promise<Order[]> => {
-    try {
-      const res = await api.get('/orders/mine');
-      return res.data;
-    } catch (error) {
-      console.warn('[orderService.getMyOrders] Backend API offline/unreachable, returning mock orders');
-      return mockOrders;
-    }
+    const res = await api.get('/orders/mine');
+    return res.data;
   },
 
   /**

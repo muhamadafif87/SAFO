@@ -4,6 +4,7 @@ import type { Order, OrderStatus } from "@/types";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
+  Alert,
   ActivityIndicator,
   FlatList,
   Image,
@@ -40,22 +41,42 @@ function formatDate(value: string) {
   }).format(date);
 }
 
+function formatHistoryDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
 export default function CustomerOrders() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [activeTab, setActiveTab] = useState<OrdersTab>("all");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const fetchOrders = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
+    setLoadError(null);
 
     try {
       const data = await orderService.getMyOrders();
       setOrders(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Gagal memuat pesanan", error);
+      setOrders([]);
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      const message = error instanceof Error ? error.message : "";
+      setLoadError(
+        status === 401 || message === "No refresh token" || message === "Invalid refresh token"
+          ? "Sesi login tidak valid. Silakan login kembali untuk melihat pesanan."
+          : "Pesanan gagal dimuat. Periksa koneksi lalu coba lagi.",
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -77,6 +98,13 @@ export default function CustomerOrders() {
     const items = item.items || item.orderItems || [];
     const firstItem = items[0];
     const product = firstItem?.product;
+    const orderDetails = item as Order & {
+      updatedAt?: string;
+      payments?: { paidAt?: string | null; status?: string }[];
+    };
+    const paymentTime =
+      orderDetails.payments?.find((payment) => payment.status === "success")?.paidAt ||
+      (item.status !== "pending_payment" ? orderDetails.updatedAt : undefined);
     const quantity = items.reduce(
       (total, orderItem) => total + (orderItem.qty ?? orderItem.quantity ?? 1),
       0,
@@ -91,16 +119,31 @@ export default function CustomerOrders() {
           activeOpacity={0.82}
           onPress={() => openOrder(item.id)}
         >
-          <View style={styles.cardTopline}>
+          <View style={[styles.cardTopline, isHistory && styles.historyTopline]}>
             <Text numberOfLines={1} style={styles.mitraName}>
               {item.mitra?.businessName || "Warung SAFO"}
             </Text>
-            <Text
-              numberOfLines={1}
-              style={[styles.statusText, statusStyles[item.status]]}
-            >
-              {STATUS_LABEL[item.status]}
-            </Text>
+            {isHistory ? (
+              <View style={styles.historyDateStatus}>
+                <Text style={styles.historyDate}>{formatHistoryDate(item.createdAt)}</Text>
+                <Text
+                  style={[
+                    styles.statusText,
+                    styles.historyStatusText,
+                    statusStyles[item.status],
+                  ]}
+                >
+                  {STATUS_LABEL[item.status]}
+                </Text>
+              </View>
+            ) : (
+              <Text
+                numberOfLines={1}
+                style={[styles.statusText, statusStyles[item.status]]}
+              >
+                {STATUS_LABEL[item.status]}
+              </Text>
+            )}
           </View>
 
           <View style={styles.productRow}>
@@ -132,41 +175,68 @@ export default function CustomerOrders() {
             </Text>
           </View>
 
-          <View style={styles.metadata}>
-            <View style={styles.metadataRow}>
-              <Text style={styles.metadataLabel}>Waktu Pesanan</Text>
-              <Text style={styles.metadataValue}>{formatDate(item.createdAt)}</Text>
+          {!isHistory ? (
+            <View style={styles.metadata}>
+              <View style={styles.metadataRow}>
+                <Text style={styles.metadataLabel}>Waktu Pesanan</Text>
+                <Text style={styles.metadataValue}>{formatDate(item.createdAt)}</Text>
+              </View>
+              <View style={styles.metadataRow}>
+                <Text style={styles.metadataLabel}>Waktu Pembayaran</Text>
+                <Text style={styles.metadataValue}>
+                  {paymentTime ? formatDate(paymentTime) : "-"}
+                </Text>
+              </View>
+              <View style={styles.metadataRow}>
+                <Text style={styles.metadataLabel}>No. Pesanan</Text>
+                <Text numberOfLines={1} style={styles.metadataValue}>
+                  #{item.id.slice(0, 8).toUpperCase()}
+                </Text>
+              </View>
             </View>
-            <View style={styles.metadataRow}>
-              <Text style={styles.metadataLabel}>No. Pesanan</Text>
-              <Text numberOfLines={1} style={styles.metadataValue}>
-                #{item.id.slice(0, 8).toUpperCase()}
-              </Text>
-            </View>
-          </View>
+          ) : null}
         </TouchableOpacity>
 
         <View style={styles.actions}>
-          {isHistory && firstItem?.productId ? (
+          {!isHistory ? (
             <TouchableOpacity
               accessibilityRole="button"
-              style={styles.secondaryButton}
-              onPress={() => router.push(`/(customer)/products/${firstItem.productId}`)}
+              style={styles.primaryButton}
+              onPress={() => Alert.alert("Hubungi Warung", "Informasi kontak warung belum tersedia.")}
               activeOpacity={0.8}
             >
-              <Text style={styles.secondaryButtonText}>Pesan Lagi</Text>
+              <Text style={styles.primaryButtonText}>Hubungi Warung</Text>
             </TouchableOpacity>
-          ) : null}
-          <TouchableOpacity
-            accessibilityRole="button"
-            style={styles.primaryButton}
-            onPress={() => openOrder(item.id)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.primaryButtonText}>
-              {isHistory ? "Detail Pesanan" : "Lihat Pesanan"}
-            </Text>
-          </TouchableOpacity>
+          ) : (
+            <>
+              {item.status === "completed" ? (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  style={styles.secondaryButton}
+                  onPress={() => Alert.alert("Nilai Warung", "Fitur ulasan belum tersedia.")}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.secondaryButtonText}>Nilai Warung</Text>
+                </TouchableOpacity>
+              ) : null}
+              {firstItem?.productId ? (
+                <>
+                  {item.status !== "completed" ? <View style={styles.actionSpacer} /> : null}
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    style={[
+                      styles.primaryButton,
+                      item.status !== "completed" && styles.historySingleButton,
+                    ]}
+                    onPress={() => router.push(`/(customer)/products/${firstItem.productId}`)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.primaryButtonText}>Pesan Lagi</Text>
+                  </TouchableOpacity>
+                </>
+              ) : null}
+            </>
+          )}
         </View>
       </View>
     );
@@ -208,6 +278,21 @@ export default function CustomerOrders() {
 
       {loading ? (
         <ActivityIndicator size="large" color={Colors.primary[700]} style={styles.loader} />
+      ) : loadError ? (
+        <View style={styles.emptyList}>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>Tidak dapat memuat pesanan</Text>
+            <Text style={styles.emptyDescription}>{loadError}</Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={styles.retryButton}
+              onPress={() => fetchOrders()}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.retryButtonText}>Coba Lagi</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       ) : (
         <FlatList
           data={visibleOrders}
@@ -306,6 +391,10 @@ const styles = StyleSheet.create({
     marginBottom: Spacing[2],
     paddingBottom: Spacing[1],
   },
+  historyTopline: { minHeight: 34, alignItems: "flex-start" },
+  historyDateStatus: { width: 100, flexShrink: 0, alignItems: "flex-end", gap: 2 },
+  historyDate: { color: "#333838", fontSize: 9, flexShrink: 0 },
+  historyStatusText: { maxWidth: "100%", flexShrink: 0 },
   mitraName: {
     flex: 1,
     color: "#252828",
@@ -359,7 +448,19 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     paddingHorizontal: Spacing[2],
   },
+  historySingleButton: { flex: 1 },
+  actionSpacer: { flex: 1 },
   secondaryButtonText: { color: "#087f72", fontSize: FontSize.xs, fontWeight: FontWeight.bold },
+  retryButton: {
+    minHeight: 38,
+    marginTop: Spacing[3],
+    paddingHorizontal: Spacing[5],
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#087f72",
+  },
+  retryButtonText: { color: "#ffffff", fontSize: FontSize.sm, fontWeight: FontWeight.bold },
   loader: { marginTop: Spacing[10] },
   emptyList: { flexGrow: 1, justifyContent: "center" },
   emptyState: { alignItems: "center", paddingHorizontal: Spacing[5], paddingBottom: Spacing[10] },
