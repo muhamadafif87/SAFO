@@ -1,6 +1,6 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Tabs } from 'expo-router';
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
@@ -54,7 +54,7 @@ function CustomBottomTabBar({ state, descriptors, navigation }: BottomTabBarProp
       label: 'Beranda',
       icon: (color) => <HomeIcon color={color} size={19} />,
     },
-    orders: {
+    'orders/index': {
       label: 'Pesanan',
       icon: (color) => <OrdersIcon color={color} size={19} />,
     },
@@ -142,7 +142,7 @@ export default function CustomerLayout() {
         }}
       />
       <Tabs.Screen
-        name="orders"
+        name="orders/index"
         options={{
           title: 'Pesanan',
         }}
