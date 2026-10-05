@@ -81,6 +81,7 @@ Format: `FR-[MODUL]-[NOMOR]` | Prioritas: **Must** (MVP wajib) / **Should** (pen
 | FR-MTR-08 | Mitra dapat melihat laporan keuangan (omzet, komisi platform, saldo pencairan) | Should |
 | FR-MTR-09 | Mitra dapat mengajukan pencairan dana (payout) | Should |
 | FR-MTR-10 | Mitra dapat menonaktifkan sementara toko (mode libur) | Could |
+| FR-MTR_11 | Mitra dapat memberikan rating kepada customer | Could |
 
 ### 4.3 Modul Customer
 

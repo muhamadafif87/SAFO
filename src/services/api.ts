@@ -5,7 +5,7 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 // Change to your machine's local IP when testing on physical device
 // e.g. 'http://192.168.1.x:3000' for LAN testing
 const BASE_URL = __DEV__
-  ? "http://192.168.100.202:3000/api"
+  ? "http://localhost:3000/api"
   : "https://api.safo.app/api";
 
 const TOKEN_KEY_ACCESS = "safo_access_token";
