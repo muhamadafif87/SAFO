@@ -37,8 +37,9 @@ function OrdersIcon({ color, size = 18 }: { color: string; size?: number }) {
 
 function ProfileIcon({ color, size = 18 }: { color: string; size?: number }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 16 16" fill={color}>
-      <Path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1m5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6" />
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
     </Svg>
   );
 }
