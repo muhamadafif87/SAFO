@@ -213,12 +213,12 @@ const styles = StyleSheet.create({
   fieldInput: {
     borderWidth: 1,
     borderColor: GRAY_200,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 14,
     color: GRAY_900,
-    backgroundColor: GRAY_50,
+    backgroundColor: GRAY_100,
   },
   fieldInputMultiline: {
     minHeight: 80,
