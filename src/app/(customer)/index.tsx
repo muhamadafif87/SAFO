@@ -81,7 +81,7 @@ function LocationHeader({ address, isVip, onEditPress }: LocationHeaderProps) {
       <View style={headerStyles.left}>
         <View style={headerStyles.pinRow}>
           <View style={headerStyles.pinIcon}>
-            <Svg width="16" height="16" fill={PRIMARY} viewBox="0 0 16 16">
+            <Svg width="18" height="18" fill={PRIMARY} viewBox="0 0 16 16">
               <Path d="M8 16s6-5.686 6-10A6 6 0 0 0 2 6c0 4.314 6 10 6 10m0-7a3 3 0 1 1 0-6 3 3 0 0 1 0 6"/>
             </Svg>
           </View>
@@ -112,42 +112,42 @@ const headerStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     backgroundColor: WHITE,
     borderBottomWidth: 1,
     borderBottomColor: GRAY_100,
   },
   left: { flex: 1 },
-  pinRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  pinRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   pinIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: PRIMARY_LIGHT,
     alignItems: 'center',
     justifyContent: 'center',
   },
   pinEmoji: { fontSize: 18 },
   addressWrap: { flex: 1 },
-  locationLabel: { fontSize: 11, color: GRAY_400, fontWeight: '600', letterSpacing: 0.5 },
-  address: { fontSize: 15, fontWeight: '700', color: GRAY_900, marginTop: 1 },
+  locationLabel: { fontSize: 10, color: GRAY_500, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase' },
+  address: { fontSize: 16, fontWeight: '700', color: GRAY_900, marginTop: 2 },
   editHint: { fontSize: 11, color: PRIMARY, marginTop: 1 },
   vipBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: GOLD,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 999,
     gap: 4,
     shadowColor: GOLD,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.35,
     shadowRadius: 6,
     elevation: 4,
   },
-  vipCrown: { fontSize: 13 },
-  vipText: { fontSize: 13, fontWeight: '800', color: WHITE, letterSpacing: 0.5 },
+  vipCrown: { fontSize: 12 },
+  vipText: { fontSize: 12, fontWeight: '800', color: WHITE, letterSpacing: 0.5 },
 });
 
 // ─── Search Bar ────────────────────────────────────────────────────────────
