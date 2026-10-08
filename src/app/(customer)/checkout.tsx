@@ -400,7 +400,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   orderBtnDisabled: { opacity: 0.7 },
-  orderBtnText: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: '#fff' },
+  orderBtnText: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.neutral[0] },
 
   emptyWrap: {
     flex: 1,
