@@ -51,9 +51,9 @@ const STATUS_COLOR: Partial<Record<OrderStatus, string>> = {
   pending_payment: Colors.neutral[500],
   paid: Colors.primary[600],
   ready: Colors.primary[600],
-  ready_for_pickup: Colors.secondary[600],
-  completed: Colors.secondary[600],
-  cancelled: '#EF4444',
+  ready_for_pickup: Colors.primary[600],
+  completed: Colors.primary[600],
+  cancelled: Colors.error,
   expired: Colors.neutral[400],
 };
 
@@ -338,17 +338,18 @@ const styles = StyleSheet.create({
 
   // Cancelled
   cancelledBanner: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: Colors.error,
     borderRadius: BorderRadius.xl,
     padding: Spacing[6],
     marginBottom: Spacing[4],
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#FCA5A5',
+    borderColor: Colors.error,
+    opacity: 0.1,
   },
   cancelledIcon: { fontSize: 40, marginBottom: Spacing[2] },
-  cancelledTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: '#DC2626', marginBottom: Spacing[1] },
-  cancelledSub: { fontSize: FontSize.sm, color: '#EF4444', textAlign: 'center' },
+  cancelledTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.error, marginBottom: Spacing[1] },
+  cancelledSub: { fontSize: FontSize.sm, color: Colors.error, textAlign: 'center' },
 
   // QR Pickup card
   pickupCard: {
@@ -368,7 +369,7 @@ const styles = StyleSheet.create({
   pickupTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.primary[800], marginBottom: Spacing[1] },
   pickupHelper: { fontSize: FontSize.sm, color: Colors.primary[600], textAlign: 'center', marginBottom: Spacing[5] },
   qrWrap: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.neutral[0],
     padding: Spacing[4],
     borderRadius: BorderRadius.xl,
     marginBottom: Spacing[5],
