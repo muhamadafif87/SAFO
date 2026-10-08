@@ -416,8 +416,8 @@ const chipStyles = StyleSheet.create({
     backgroundColor: WHITE,
   },
   chipActive: {
-    backgroundColor: PRIMARY,
-    borderColor: PRIMARY,
+    backgroundColor: PRIMARY_LIGHT,
+    borderColor: PRIMARY_LIGHT,
   },
   chipText: {
     fontSize: 13,
@@ -425,7 +425,7 @@ const chipStyles = StyleSheet.create({
     color: GRAY_700,
   },
   chipTextActive: {
-    color: WHITE,
+    color: PRIMARY,
   },
 });
 
@@ -511,7 +511,7 @@ const cardStyles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: WHITE,
     marginHorizontal: 16,
-    marginBottom: 2,
+    marginBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: GRAY_100,
     paddingVertical: 14,
@@ -590,16 +590,16 @@ const cardStyles = StyleSheet.create({
   },
   stockBadge: {
     marginLeft: 'auto',
-    backgroundColor: PRIMARY_LIGHT,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
+    backgroundColor: PRIMARY,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
   stockBadgeSoldOut: { backgroundColor: GRAY_100 },
   stockText: {
     fontSize: 11,
     fontWeight: '700',
-    color: PRIMARY,
+    color: WHITE,
   },
   stockTextSoldOut: { color: GRAY_500 },
 });
