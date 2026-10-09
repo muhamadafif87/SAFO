@@ -40,6 +40,16 @@ export default function CheckoutScreen() {
   const handleOrder = async () => {
     if (items.length === 0) return;
 
+    // Pre-flight: cek stok lokal sebelum kirim ke backend
+    const outOfStock = items.find((i) => Number(i.product.stock) < i.qty);
+    if (outOfStock) {
+      Alert.alert(
+        'Stok Tidak Cukup',
+        `Stok "${outOfStock.product.name}" saat ini hanya tersisa ${outOfStock.product.stock}. Silakan kurangi jumlah atau hapus dari pesanan.`,
+      );
+      return;
+    }
+
     setIsLoading(true);
     try {
       // 1. Create order
@@ -400,7 +410,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   orderBtnDisabled: { opacity: 0.7 },
-  orderBtnText: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: '#fff' },
+  orderBtnText: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.neutral[0] },
 
   emptyWrap: {
     flex: 1,

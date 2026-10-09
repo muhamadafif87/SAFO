@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -26,7 +26,7 @@ const STATUS_STEPS: { key: OrderStatus; label: string; icon: string }[] = [
 const STATUS_ORDER_INDEX: Partial<Record<OrderStatus, number>> = {
   pending_payment: -1,
   paid: 0,
-  ready: 0,
+  ready: 1,           // "Siap Disiapkan" — step antara paid dan ready_for_pickup
   ready_for_pickup: 1,
   completed: 2,
   cancelled: -1,
@@ -51,9 +51,9 @@ const STATUS_COLOR: Partial<Record<OrderStatus, string>> = {
   pending_payment: Colors.neutral[500],
   paid: Colors.primary[600],
   ready: Colors.primary[600],
-  ready_for_pickup: Colors.secondary[600],
-  completed: Colors.secondary[600],
-  cancelled: '#EF4444',
+  ready_for_pickup: Colors.primary[600],
+  completed: Colors.primary[600],
+  cancelled: Colors.error,
   expired: Colors.neutral[400],
 };
 
@@ -66,31 +66,37 @@ export default function CustomerOrderDetail() {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchOrder = async () => {
+  const orderRef = useRef<Order | null>(null);
+
+  const fetchOrder = useCallback(async () => {
     try {
       if (!id) return;
       const data = await orderService.getById(id);
       setOrder(data);
+      orderRef.current = data;
     } catch (err: any) {
       Alert.alert('Error', err.response?.data?.message || 'Gagal memuat pesanan');
       router.back();
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, router]);
 
   useEffect(() => {
     fetchOrder();
 
-    // Auto-refresh setiap 10 detik jika pesanan belum selesai
+    // Auto-refresh every 10s while order is still active.
+    // Use ref to check current status so we don't need order in deps,
+    // which would re-create the interval on every status update (memory leak).
     const interval = setInterval(() => {
-      if (order && order.status !== 'completed' && order.status !== 'cancelled') {
+      const current = orderRef.current;
+      if (current && current.status !== 'completed' && current.status !== 'cancelled') {
         fetchOrder();
       }
     }, 10000);
 
     return () => clearInterval(interval);
-  }, [id, order?.status]);
+  }, [id, fetchOrder]);
 
   if (loading && !order) {
     return (
@@ -222,8 +228,8 @@ export default function CustomerOrderDetail() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Ringkasan Belanja</Text>
 
-          {(order.items || (order as any).orderItems || []).map((item: any) => {
-            const itemQty = item.qty || item.quantity || 1;
+          {(order.items ?? []).map((item) => {
+            const itemQty = item.qty;
             const price = Number(item.priceAtPurchase || 0);
             return (
               <View key={item.id} style={styles.itemRow}>
@@ -338,17 +344,18 @@ const styles = StyleSheet.create({
 
   // Cancelled
   cancelledBanner: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: Colors.error,
     borderRadius: BorderRadius.xl,
     padding: Spacing[6],
     marginBottom: Spacing[4],
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#FCA5A5',
+    borderColor: Colors.error,
+    opacity: 0.1,
   },
   cancelledIcon: { fontSize: 40, marginBottom: Spacing[2] },
-  cancelledTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: '#DC2626', marginBottom: Spacing[1] },
-  cancelledSub: { fontSize: FontSize.sm, color: '#EF4444', textAlign: 'center' },
+  cancelledTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.error, marginBottom: Spacing[1] },
+  cancelledSub: { fontSize: FontSize.sm, color: Colors.error, textAlign: 'center' },
 
   // QR Pickup card
   pickupCard: {
@@ -368,7 +375,7 @@ const styles = StyleSheet.create({
   pickupTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.primary[800], marginBottom: Spacing[1] },
   pickupHelper: { fontSize: FontSize.sm, color: Colors.primary[600], textAlign: 'center', marginBottom: Spacing[5] },
   qrWrap: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.neutral[0],
     padding: Spacing[4],
     borderRadius: BorderRadius.xl,
     marginBottom: Spacing[5],
