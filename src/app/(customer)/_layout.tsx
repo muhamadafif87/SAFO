@@ -1,8 +1,14 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
+import { Tabs } from "expo-router";
+import React from "react";
+import {
+  Dimensions,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
 
 // Lebar layar dipakai untuk menyesuaikan padding/ukuran pill di layar sempit
 // (mis. iPhone SE ~320px) maupun layar lebar (tablet).
@@ -77,8 +83,8 @@ function CustomBottomTabBar({
       label: "Beranda",
       icon: (color) => <HomeIcon color={color} size={19} />,
     },
-    'orders/index': {
-      label: 'Pesanan',
+    "orders/index": {
+      label: "Pesanan",
       icon: (color) => <OrdersIcon color={color} size={19} />,
     },
     profile: {

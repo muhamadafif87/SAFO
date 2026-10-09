@@ -1,5 +1,6 @@
-import { useAuthStore } from '@/stores/auth.store';
-import { useRouter } from 'expo-router';
+import { Colors } from "@/constants/typography";
+import { useAuthStore } from "@/stores/auth.store";
+import { useRouter } from "expo-router";
 import {
   Alert,
   ScrollView,
@@ -7,20 +8,20 @@ import {
   Text,
   TouchableOpacity,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
-import { Colors, Spacing, FontSize, FontWeight, BorderRadius } from '@/constants/typography';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
 
 const PRIMARY = Colors.primary[600];
 const PRIMARY_LIGHT = Colors.primary[50];
 const PRIMARY_DARK = Colors.primary[700];
-const WHITE = '#ffffff';
+const WHITE = "#ffffff";
 const TEXT_DARK = Colors.neutral[900];
 const TEXT_MUTED = Colors.neutral[500];
-const BORDER_COLOR = Colors.neutral[100];
-const ERROR_BG = '#fee2e2';
-const ERROR_TEXT = '#dc2626';
+const BORDER = Colors.neutral[100];
+const ERROR_BG = "#fee2e2";
+const ERROR_TEXT = "#dc2626";
+const MINT = "#1fabe1";
 
 export default function CustomerProfile() {
   const router = useRouter();
@@ -29,7 +30,7 @@ export default function CustomerProfile() {
   const isVip = !!user?.isVip;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       {/* Header: back + title */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -51,23 +52,25 @@ export default function CustomerProfile() {
           <View style={styles.avatarWrap}>
             <PersonIcon color={TEAL_DARK} size={32} />
           </View>
-          <Text style={styles.heroName}>{user?.name || 'Nama'}</Text>
-          <Text style={styles.heroPhone}>{user?.phone || '-'}</Text>
+          <Text style={styles.heroName}>{user?.name || "Nama"}</Text>
+          <Text style={styles.heroPhone}>{user?.phone || "-"}</Text>
         </View>
 
         {/* ── Kartu VIP ── */}
         <TouchableOpacity
           style={styles.vipCard}
           activeOpacity={0.7}
-          onPress={() => Alert.alert('VIP', 'Fitur VIP segera hadir.')}
+          onPress={() => Alert.alert("VIP", "Fitur VIP segera hadir.")}
         >
           <View style={styles.vipIconWrap}>
             <CrownIcon color={TEAL} size={20} />
           </View>
           <View style={styles.vipInfo}>
             <Text style={styles.vipLabel}>VIP</Text>
-            <Text style={[styles.vipStatus, !isVip && styles.vipStatusInactive]}>
-              {isVip ? 'Aktif' : 'Nonaktif'}
+            <Text
+              style={[styles.vipStatus, !isVip && styles.vipStatusInactive]}
+            >
+              {isVip ? "Aktif" : "Nonaktif"}
             </Text>
           </View>
           <Text style={styles.chevron}>›</Text>
@@ -86,7 +89,7 @@ export default function CustomerProfile() {
             <View style={styles.infoIconWrap}>
               <Text style={styles.infoEmoji}>📍</Text>
             </View>
-            <Text style={styles.infoText}>{mitra?.address || '-'}</Text>
+            <Text style={styles.infoText}>{mitra?.address || "-"}</Text>
             <Text style={styles.chevron}>›</Text>
           </View>
 
@@ -94,7 +97,7 @@ export default function CustomerProfile() {
             <View style={styles.infoIconWrap}>
               <Text style={styles.infoEmoji}>📞</Text>
             </View>
-            <Text style={styles.infoText}>{user?.phone || '-'}</Text>
+            <Text style={styles.infoText}>{user?.phone || "-"}</Text>
             <Text style={styles.chevron}>›</Text>
           </View>
 
@@ -103,7 +106,7 @@ export default function CustomerProfile() {
               <Text style={styles.infoEmoji}>✉️</Text>
             </View>
             <Text style={[styles.infoText, styles.infoEmail]} numberOfLines={1}>
-              {user?.email || '-'}
+              {user?.email || "-"}
             </Text>
             <Text style={styles.chevron}>›</Text>
           </View>
@@ -121,9 +124,14 @@ export default function CustomerProfile() {
           <TouchableOpacity
             style={styles.infoRow}
             activeOpacity={0.7}
-            onPress={() => Alert.alert('Pusat Bantuan', 'Kunjungi support@safo.id untuk bantuan.')}
+            onPress={() =>
+              Alert.alert(
+                "Pusat Bantuan",
+                "Kunjungi support@safo.id untuk bantuan.",
+              )
+            }
           >
-            <View style={[styles.infoIconWrap, { backgroundColor: '#fef3c7' }]}>
+            <View style={[styles.infoIconWrap, { backgroundColor: "#fef3c7" }]}>
               <QuestionIcon />
             </View>
             <Text style={styles.infoText}>Pusat Bantuan</Text>
@@ -133,9 +141,11 @@ export default function CustomerProfile() {
           <TouchableOpacity
             style={[styles.infoRow, styles.infoRowLast]}
             activeOpacity={0.7}
-            onPress={() => Alert.alert('Chat Admin', 'Hubungi admin SAFO melalui WhatsApp.')}
+            onPress={() =>
+              Alert.alert("Chat Admin", "Hubungi admin SAFO melalui WhatsApp.")
+            }
           >
-            <View style={[styles.infoIconWrap, { backgroundColor: '#eff6ff' }]}>
+            <View style={[styles.infoIconWrap, { backgroundColor: "#eff6ff" }]}>
               <ChatIcon />
             </View>
             <Text style={styles.infoText}>Chat Admin</Text>
@@ -159,28 +169,28 @@ const styles = StyleSheet.create({
   },
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 8,
     paddingVertical: 10,
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
   },
   backButton: {
     width: 40,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
+    alignItems: "flex-start",
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
     color: TEXT_DARK,
   },
   headerSpacer: {
     width: 40,
   },
 
-  scrollContent: {
+  heroCard: {
     padding: 16,
     borderRadius: 16,
     backgroundColor: PRIMARY_DARK,
@@ -191,25 +201,25 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 10,
   },
   heroName: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
     color: WHITE,
   },
   heroPhone: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.85)',
+    color: "rgba(255,255,255,0.85)",
     marginTop: 2,
   },
 
   vipCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: MINT,
     borderRadius: 12,
     paddingVertical: 14,
@@ -218,7 +228,7 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     color: WHITE,
     flexShrink: 1,
   },
@@ -231,17 +241,17 @@ const styles = StyleSheet.create({
   },
   vipLabel: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     color: PRIMARY,
   },
   userEmail: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: "rgba(255, 255, 255, 0.7)",
     marginTop: 2,
   },
   vipStatus: {
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: "rgba(255, 255, 255, 0.7)",
     marginTop: 1,
   },
   vipStatusInactive: {
@@ -249,7 +259,7 @@ const styles = StyleSheet.create({
   },
 
   card: {
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     borderRadius: 12,
     borderWidth: 1,
     borderColor: BORDER,
@@ -259,47 +269,47 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 6,
     paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F2',
+    borderBottomColor: "#F2F2F2",
   },
   cardHeaderIcon: {
     width: 28,
     height: 28,
     borderRadius: 8,
     backgroundColor: MINT,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 10,
   },
   cardHeaderTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     color: TEXT_DARK,
   },
 
   infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F2',
+    borderBottomColor: "#F2F2F2",
   },
   logoutButton: {
     marginTop: 12,
     backgroundColor: ERROR_BG,
     paddingVertical: 14,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
   logoutText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: ERROR_TEXT,
   },
   infoText: {
@@ -308,11 +318,11 @@ const styles = StyleSheet.create({
     color: TEXT_DARK,
   },
   infoEmail: {
-    color: LINK_BLUE,
+    color: PRIMARY,
   },
   chevron: {
     fontSize: 18,
-    color: '#B0B0B0',
+    color: "#B0B0B0",
     marginLeft: 8,
   },
 });
