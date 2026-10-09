@@ -80,10 +80,12 @@ export async function reverseGeocodeMapbox(
     url.searchParams.set('access_token', MAPBOX_TOKEN);
     url.searchParams.set('language', 'id');
     url.searchParams.set('types', 'poi,address,neighborhood,place');
-    url.searchParams.set('limit', '5');
 
     const res = await fetch(url.toString());
-    if (!res.ok) throw new Error(`Mapbox HTTP ${res.status}`);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(`Mapbox HTTP ${res.status}: ${errText}`);
+    }
 
     const data: MapboxGeocodeResponse = await res.json();
     const features = data.features ?? [];
