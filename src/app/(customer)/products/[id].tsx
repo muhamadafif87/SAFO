@@ -297,7 +297,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[3],
+    backgroundColor: Colors.neutral[0],
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral[100],
+  },
+  backBtn: { padding: Spacing[1] },
+  backText: { fontSize: FontSize.md, color: Colors.primary[600], fontWeight: FontWeight.medium },
+  cartBtn: {
+    backgroundColor: Colors.primary[600],
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+    borderRadius: BorderRadius.md,
+  },
+  cartBtnText: { fontSize: FontSize.sm, color: '#fff', fontWeight: FontWeight.bold },
+
+  productImage: {
+    width: '100%',
+    height: 240,
   },
   mitraName: {
     fontSize: 15,
@@ -307,13 +325,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  star: {
-    fontSize: 12,
-    marginRight: 4,
+  imagePlaceholderIcon: { fontSize: 80 },
+
+  discountBadge: {
+    position: 'absolute',
+    top: 56,
+    right: Spacing[4],
+    backgroundColor: Colors.primary[600],
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[1],
+    borderRadius: BorderRadius.md,
   },
-  ratingText: {
-    fontSize: 14,
-    color: GRAY_700,
+  discountBadgeText: { color: '#fff', fontSize: FontSize.sm, fontWeight: FontWeight.bold },
+
+  mitraSection: {
+    backgroundColor: Colors.neutral[0],
+    padding: Spacing[4],
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral[100],
+  },
+  mitraName: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.neutral[900] },
+  address: { fontSize: FontSize.sm, color: Colors.neutral[500], marginTop: 2 },
+  distance: { fontSize: FontSize.sm, color: Colors.primary[600], marginTop: Spacing[1] },
+
+  details: {
+    backgroundColor: Colors.neutral[0],
+    padding: Spacing[4],
+    marginTop: Spacing[2],
   },
   priceRow: {
     flexDirection: 'row',
@@ -391,8 +429,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  qtyControls: {
-    flexDirection: 'row',
+  qtyLabel: { fontSize: FontSize.md, fontWeight: FontWeight.medium, color: Colors.neutral[700] },
+  qtyControls: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
+  qtyBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.neutral[100],
     alignItems: 'center',
     gap: 12,
   },
@@ -444,6 +487,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: Colors.primary[600],
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
   },
   submitBtnDisabled: {
     backgroundColor: GRAY_400,

@@ -63,16 +63,16 @@ export const BorderRadius = {
 
 export const Colors = {
   primary: {
-    50: "#f0fdf4",
-    100: "#dcfce7",
-    200: "#bbf7d0",
-    300: "#86efac",
-    400: "#4ade80",
-    500: "#22c55e",
-    600: "#16a34a",
-    700: "#15803d",
-    800: "#166534",
-    900: "#14532d",
+    50: "#e8f4f1",
+    100: "#c5e5e0",
+    200: "#a1d5ce",
+    300: "#7ec6bc",
+    400: "#5ab6ab",
+    500: "#37a699",
+    600: "#1a5c52",
+    700: "#0f3d35",
+    800: "#0a2620",
+    900: "#051812",
   },
   secondary: {
     50: "#fff7ed",
@@ -102,9 +102,9 @@ export const Colors = {
   /** Status colors used in orders */
   status: {
     pendingPayment: { bg: "#fef3c7", text: "#92400e" },
-    paid: { bg: "#dcfce7", text: "#166534" },
+    paid: { bg: "#e8f4f1", text: "#0f3d35" },
     ready: { bg: "#dbeafe", text: "#1e40af" },
-    completed: { bg: "#dcfce7", text: "#166534" },
+    completed: { bg: "#e8f4f1", text: "#0f3d35" },
     cancelled: { bg: "#fee2e2", text: "#991b1b" },
   },
 } as const;
