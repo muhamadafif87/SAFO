@@ -76,10 +76,9 @@ export default function CustomerOrders() {
 
   const renderItem = ({ item }: { item: Order }) => {
     const statusStyle = getStatusColor(item.status);
-    const orderItemsList = item.items || (item as any).orderItems;
-    const firstProduct = orderItemsList?.[0]?.product;
-    const itemQty =
-      orderItemsList?.[0]?.qty || (orderItemsList?.[0] as any)?.quantity || 1;
+    const orderItemsList = item.items ?? [];
+    const firstProduct = orderItemsList[0]?.product;
+    const itemQty = orderItemsList[0]?.qty ?? 1;
 
     return (
       <TouchableOpacity

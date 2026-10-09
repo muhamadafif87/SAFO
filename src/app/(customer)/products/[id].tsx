@@ -1,31 +1,49 @@
-import React, { useEffect, useState } from 'react';
+import { productService } from '@/services/product.service';
+import { useCartStore } from '@/stores/cart.store';
+import type { Product } from '@/types';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
   ActivityIndicator,
   Alert,
-  ScrollView,
-  TouchableOpacity,
+  Dimensions,
   Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { productService } from '@/services/product.service';
-import type { Product } from '@/types';
-import { Colors, Spacing, FontSize, FontWeight, BorderRadius } from '@/constants/typography';
-import { useCartStore } from '@/stores/cart.store';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// ─── Design Tokens ────────────────────────────────────────────────────────────
+const PRIMARY = "#1a5c52";
+const PRIMARY_LIGHT = "#e8f4f1";
+const WHITE = "#ffffff";
+const GRAY_50 = "#f9fafb";
+const GRAY_100 = "#f3f4f6";
+const GRAY_200 = "#e5e7eb";
+const GRAY_300 = "#d1d5db";
+const GRAY_400 = "#9ca3af";
+const GRAY_500 = "#6b7280";
+const GRAY_700 = "#374151";
+const GRAY_900 = "#111827";
+const RED = "#ef4444";
+const YELLOW = "#fbbf24";
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function ProductDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
+  const [note, setNote] = useState("");
 
-  const { addItem, forceAddItem, getItemQty, getTotalItems } = useCartStore();
-  const cartQty = product ? getItemQty(product.id) : 0;
+  const { addItem, forceAddItem } = useCartStore();
 
   useEffect(() => {
     (async () => {
@@ -34,7 +52,7 @@ export default function ProductDetail() {
         const data = await productService.getById(id);
         setProduct(data);
       } catch (err: any) {
-        Alert.alert('Error', err.response?.data?.message || 'Gagal memuat produk');
+        Alert.alert('Error', err.message || 'Gagal memuat produk');
         router.back();
       } finally {
         setLoading(false);
@@ -45,6 +63,8 @@ export default function ProductDetail() {
   const handleAddToCart = () => {
     if (!product) return;
 
+    // Use a custom object extending product to include the note if needed,
+    // or typically we store notes per order item. The cartStore adds items.
     const result = addItem(product, quantity);
 
     if (result === 'mitra_conflict') {
@@ -59,6 +79,7 @@ export default function ProductDetail() {
             onPress: () => {
               forceAddItem(product, quantity);
               Alert.alert('Ditambahkan!', `${product.name} (x${quantity}) ditambahkan ke pesanan.`);
+              router.back();
             },
           },
         ]
@@ -66,126 +87,113 @@ export default function ProductDetail() {
       return;
     }
 
-    const msg = result === 'updated'
-      ? `Qty ${product.name} diperbarui.`
-      : `${product.name} (x${quantity}) ditambahkan ke pesanan!`;
-    Alert.alert('Berhasil', msg);
+    Alert.alert('Berhasil', `${product.name} (x${quantity}) ditambahkan ke pesanan!`);
+    router.back();
   };
 
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={Colors.primary[500]} />
+        <ActivityIndicator size="large" color={PRIMARY} />
       </View>
     );
   }
 
   if (!product) return null;
 
-  const discountPercent = Math.round(
-    ((Number(product.originalPrice) - Number(product.discountPrice)) / Number(product.originalPrice)) * 100
-  );
+  const discountAmount = Number(product.originalPrice) - Number(product.discountPrice);
 
   const formatTime = (iso: string) =>
     new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
-  const isPickupActive =
-    new Date() >= new Date(product.pickupWindowStart) &&
-    new Date() <= new Date(product.pickupWindowEnd);
-
-  const isSoldOut = product.stock <= 0 || product.status === 'sold_out';
   const maxQty = Math.min(product.stock, 10);
+  const isSoldOut = product.stock <= 0 || product.status === 'sold_out';
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Back button */}
-      <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>← Kembali</Text>
-        </TouchableOpacity>
-        {getTotalItems() > 0 && (
+    <View style={styles.container}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        {/* Full Width Image Header */}
+        <View style={styles.imageContainer}>
+          <Image
+            source={{ uri: product.photoUrl || 'https://via.placeholder.com/400' }}
+            style={styles.image}
+            resizeMode="cover"
+          />
+          {/* Back Button */}
           <TouchableOpacity
-            style={styles.cartBtn}
-            onPress={() => router.push('/(customer)/checkout')}
+            style={[styles.backBtn, { top: Math.max(insets.top, 16) }]}
+            onPress={() => router.back()}
           >
-            <Text style={styles.cartBtnText}>🛒 Lihat Pesanan ({getTotalItems()})</Text>
+            <Text style={styles.backBtnText}>{'<'}</Text>
           </TouchableOpacity>
-        )}
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Product image */}
-        {product.photoUrl ? (
-          <Image source={{ uri: product.photoUrl }} style={styles.productImage} resizeMode="cover" />
-        ) : (
-          <View style={styles.imagePlaceholder}>
-            <Text style={styles.imagePlaceholderIcon}>🍱</Text>
-          </View>
-        )}
-
-        {/* Discount badge */}
-        <View style={styles.discountBadge}>
-          <Text style={styles.discountBadgeText}>-{discountPercent}%</Text>
         </View>
 
-        {/* Mitra info */}
-        <View style={styles.mitraSection}>
-          <Text style={styles.mitraName}>{product.mitra?.businessName}</Text>
-          <Text style={styles.address}>{product.mitra?.address}</Text>
-          {product.mitra?.distanceKm !== undefined && (
-            <Text style={styles.distance}>📍 {product.mitra.distanceKm.toFixed(1)} km dari lokasi kamu</Text>
-          )}
-        </View>
+        {/* Content Sheet (overlapping image) */}
+        <View style={styles.sheet}>
+          {/* Title Row */}
+          <Text style={styles.title}>{product.name}</Text>
 
-        {/* Product details */}
-        <View style={styles.details}>
-          <Text style={styles.productName}>{product.name}</Text>
-          {product.description && (
-            <Text style={styles.description}>{product.description}</Text>
-          )}
-
-          {/* Price */}
-          <View style={styles.priceRow}>
-            <View>
-              <Text style={styles.originalPrice}>Rp {Number(product.originalPrice).toLocaleString('id-ID')}</Text>
-              <Text style={styles.discountPrice}>Rp {Number(product.discountPrice).toLocaleString('id-ID')}</Text>
-            </View>
-            <View style={[styles.stockBadge, isSoldOut && styles.stockBadgeSoldOut]}>
-              <Text style={[styles.stockText, isSoldOut && styles.stockTextSoldOut]}>
-                {isSoldOut ? 'Habis' : `Sisa ${product.stock}`}
+          {/* Subtitle Row (Mitra Name + Rating) */}
+          <View style={styles.mitraRow}>
+            <Text style={styles.mitraName}>{product.mitra?.businessName}</Text>
+            <View style={styles.ratingWrap}>
+              <Text style={styles.star}>⭐</Text>
+              <Text style={styles.ratingText}>
+                {product.avgRating} ({product.reviewCount})
               </Text>
             </View>
           </View>
 
-          {/* Pickup window */}
-          <View style={[styles.timeBox, isPickupActive && styles.timeBoxActive]}>
-            <Text style={styles.timeLabel}>⏰ Waktu Pengambilan</Text>
-            <Text style={styles.timeValue}>
-              {formatTime(product.pickupWindowStart)} – {formatTime(product.pickupWindowEnd)}
-            </Text>
-            {isPickupActive && (
-              <Text style={styles.timeActive}>● Sedang Berlangsung</Text>
-            )}
+          {/* Price Row */}
+          <View style={styles.priceRow}>
+            <View style={styles.priceLeft}>
+              <Text style={styles.discountPrice}>Rp {Number(product.discountPrice).toLocaleString('id-ID')}</Text>
+              <Text style={styles.originalPrice}>Rp{Number(product.originalPrice).toLocaleString('id-ID')}</Text>
+            </View>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>Hemat Rp {discountAmount.toLocaleString('id-ID')}</Text>
+            </View>
           </View>
-        </View>
 
-        <View style={{ height: 160 }} />
-      </ScrollView>
+          {/* Description Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Deskripsi</Text>
+            <Text style={styles.descText}>{product.description}</Text>
+          </View>
 
-      {/* Bottom bar */}
-      {!isSoldOut && (
-        <View style={styles.bottomBar}>
-          {/* Qty selector */}
+          <View style={styles.divider} />
+
+          {/* Info Rows */}
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Sisa Stok</Text>
+            <Text style={styles.stockValue}>{product.stock}</Text>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Waktu Pickup</Text>
+            <Text style={styles.infoValue}>
+              {formatTime(product.pickupWindowStart)} - {formatTime(product.pickupWindowEnd)} WIB
+            </Text>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Lokasi Toko</Text>
+            <Text style={styles.infoValue}>{product.mitra?.address}</Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          {/* Quantity Section */}
           <View style={styles.qtyRow}>
-            <Text style={styles.qtyLabel}>Jumlah</Text>
+            <Text style={styles.sectionTitle}>Jumlah Pesanan</Text>
             <View style={styles.qtyControls}>
               <TouchableOpacity
                 style={styles.qtyBtn}
                 onPress={() => setQuantity(Math.max(1, quantity - 1))}
               >
-                <Text style={styles.qtyBtnText}>−</Text>
+                <Text style={styles.qtyBtnText}>-</Text>
               </TouchableOpacity>
-              <Text style={styles.qtyValue}>{quantity}</Text>
+              <Text style={styles.qtyNumber}>{quantity}</Text>
               <TouchableOpacity
                 style={styles.qtyBtn}
                 onPress={() => setQuantity(Math.min(maxQty, quantity + 1))}
@@ -195,179 +203,254 @@ export default function ProductDetail() {
             </View>
           </View>
 
-          {cartQty > 0 && (
-            <Text style={styles.alreadyInCart}>✓ {cartQty} sudah di pesanan</Text>
-          )}
+          <View style={styles.divider} />
 
-          <TouchableOpacity
-            style={styles.addBtn}
-            onPress={handleAddToCart}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.addBtnText}>
-              Tambah ke Pesanan · Rp {(Number(product.discountPrice) * quantity).toLocaleString('id-ID')}
-            </Text>
-          </TouchableOpacity>
+          {/* Note Section */}
+          <View style={styles.noteSection}>
+            <Text style={styles.sectionTitle}>Catatan Pesanan</Text>
+            <TextInput
+              style={styles.noteInput}
+              placeholder="Contoh : tidak pedas, tambah alat makan"
+              placeholderTextColor={GRAY_400}
+              value={note}
+              onChangeText={setNote}
+            />
+          </View>
         </View>
-      )}
-    </SafeAreaView>
+      </ScrollView>
+
+      {/* Bottom Sticky Button */}
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <TouchableOpacity
+          style={[styles.submitBtn, isSoldOut && styles.submitBtnDisabled]}
+          onPress={handleAddToCart}
+          disabled={isSoldOut}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.submitBtnText}>
+            {isSoldOut ? "Stok Habis" : "Masukkan Keranjang"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.neutral[50] },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scroll: { paddingBottom: Spacing[4] },
-
-  topBar: {
+  container: {
+    flex: 1,
+    backgroundColor: WHITE,
+  },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scrollContent: {
+    paddingBottom: 100, // space for bottom bar
+  },
+  imageContainer: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_WIDTH * 0.8, // Adjust ratio as needed
+    position: 'relative',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+  },
+  backBtn: {
+    position: 'absolute',
+    left: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: WHITE,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  backBtnText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: PRIMARY,
+    marginLeft: -2,
+  },
+  sheet: {
+    backgroundColor: WHITE,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    marginTop: -24, // Pull up over the image
+    paddingHorizontal: 20,
+    paddingTop: 24,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: GRAY_900,
+    marginBottom: 6,
+  },
+  mitraRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[3],
-    backgroundColor: Colors.neutral[0],
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral[100],
+    marginBottom: 16,
   },
-  backBtn: { padding: Spacing[1] },
-  backText: { fontSize: FontSize.md, color: Colors.primary[600], fontWeight: FontWeight.medium },
-  cartBtn: {
-    backgroundColor: Colors.primary[600],
-    paddingHorizontal: Spacing[3],
-    paddingVertical: Spacing[2],
-    borderRadius: BorderRadius.full,
+  mitraName: {
+    fontSize: 15,
+    color: GRAY_700,
   },
-  cartBtnText: { fontSize: FontSize.sm, color: '#fff', fontWeight: FontWeight.bold },
-
-  productImage: {
-    width: '100%',
-    height: 240,
-  },
-  imagePlaceholder: {
-    width: '100%',
-    height: 240,
-    backgroundColor: Colors.neutral[100],
+  ratingWrap: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  imagePlaceholderIcon: { fontSize: 80 },
-
-  discountBadge: {
-    position: 'absolute',
-    top: 56,
-    right: Spacing[4],
-    backgroundColor: Colors.secondary[500],
-    paddingHorizontal: Spacing[3],
-    paddingVertical: Spacing[1],
-    borderRadius: BorderRadius.full,
+  star: {
+    fontSize: 12,
+    marginRight: 4,
   },
-  discountBadgeText: { color: '#fff', fontSize: FontSize.sm, fontWeight: FontWeight.bold },
-
-  mitraSection: {
-    backgroundColor: Colors.neutral[0],
-    padding: Spacing[4],
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral[100],
+  ratingText: {
+    fontSize: 14,
+    color: GRAY_700,
   },
-  mitraName: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.neutral[900] },
-  address: { fontSize: FontSize.sm, color: Colors.neutral[500], marginTop: 2 },
-  distance: { fontSize: FontSize.sm, color: Colors.primary[600], marginTop: Spacing[1] },
-
-  details: {
-    backgroundColor: Colors.neutral[0],
-    padding: Spacing[4],
-    marginTop: Spacing[2],
-  },
-  productName: { fontSize: FontSize['2xl'], fontWeight: FontWeight.bold, color: Colors.neutral[900] },
-  description: { fontSize: FontSize.md, color: Colors.neutral[600], marginTop: Spacing[2], lineHeight: 22 },
-
   priceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginTop: Spacing[4],
+    alignItems: 'center',
+    marginBottom: 24,
   },
-  originalPrice: { fontSize: FontSize.md, color: Colors.neutral[400], textDecorationLine: 'line-through' },
-  discountPrice: { fontSize: FontSize['3xl'], fontWeight: FontWeight.bold, color: Colors.primary[600] },
-
-  stockBadge: {
-    backgroundColor: Colors.secondary[100],
-    paddingHorizontal: Spacing[3],
-    paddingVertical: Spacing[1],
-    borderRadius: BorderRadius.full,
+  priceLeft: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
   },
-  stockBadgeSoldOut: { backgroundColor: Colors.neutral[200] },
-  stockText: { color: Colors.secondary[700], fontSize: FontSize.sm, fontWeight: FontWeight.bold },
-  stockTextSoldOut: { color: Colors.neutral[500] },
-
-  timeBox: {
-    marginTop: Spacing[6],
-    backgroundColor: Colors.primary[50],
-    padding: Spacing[4],
-    borderRadius: BorderRadius.lg,
-    borderLeftWidth: 3,
-    borderLeftColor: Colors.primary[300],
+  discountPrice: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: PRIMARY,
   },
-  timeBoxActive: {
-    backgroundColor: Colors.secondary[50],
-    borderLeftColor: Colors.secondary[400],
+  originalPrice: {
+    fontSize: 14,
+    color: GRAY_400,
+    textDecorationLine: 'line-through',
   },
-  timeLabel: { fontSize: FontSize.sm, color: Colors.primary[700], marginBottom: Spacing[1] },
-  timeValue: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.primary[900] },
-  timeActive: { fontSize: FontSize.xs, color: Colors.secondary[600], marginTop: Spacing[1] },
-
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: Colors.neutral[0],
-    padding: Spacing[4],
-    paddingBottom: Spacing[6],
-    borderTopWidth: 1,
-    borderTopColor: Colors.neutral[200],
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 12,
+  badge: {
+    backgroundColor: PRIMARY_LIGHT,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: PRIMARY,
+  },
+  section: {
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: GRAY_900,
+    marginBottom: 8,
+  },
+  descText: {
+    fontSize: 14,
+    color: GRAY_700,
+    lineHeight: 20,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: GRAY_200,
+    marginVertical: 16,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  infoLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: GRAY_900,
+  },
+  stockValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: RED,
+  },
+  infoValue: {
+    fontSize: 13,
+    color: GRAY_900,
   },
   qtyRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing[2],
   },
-  qtyLabel: { fontSize: FontSize.md, fontWeight: FontWeight.medium, color: Colors.neutral[700] },
-  qtyControls: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
+  qtyControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   qtyBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.neutral[100],
-    alignItems: 'center',
+    width: 28,
+    height: 28,
+    backgroundColor: PRIMARY,
     justifyContent: 'center',
-  },
-  qtyBtnText: { fontSize: 20, color: Colors.neutral[700], lineHeight: 24 },
-  qtyValue: { width: 36, textAlign: 'center', fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.neutral[900] },
-
-  alreadyInCart: {
-    fontSize: FontSize.sm,
-    color: Colors.secondary[600],
-    fontWeight: FontWeight.medium,
-    marginBottom: Spacing[3],
-  },
-
-  addBtn: {
-    backgroundColor: Colors.primary[600],
-    borderRadius: BorderRadius.xl,
-    paddingVertical: Spacing[4],
     alignItems: 'center',
-    shadowColor: Colors.primary[600],
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 6,
+    borderRadius: 4,
   },
-  addBtnText: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: '#fff' },
+  qtyBtnText: {
+    color: WHITE,
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  qtyNumber: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: GRAY_900,
+  },
+  noteSection: {
+    marginBottom: 20,
+  },
+  noteInput: {
+    backgroundColor: GRAY_50,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 13,
+    color: GRAY_900,
+    borderWidth: 1,
+    borderColor: GRAY_200,
+  },
+  bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: WHITE,
+    paddingTop: 16,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: GRAY_200,
+  },
+  submitBtn: {
+    backgroundColor: PRIMARY,
+    paddingVertical: 16,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  submitBtnDisabled: {
+    backgroundColor: GRAY_400,
+  },
+  submitBtnText: {
+    color: WHITE,
+    fontSize: 16,
+    fontWeight: '700',
+  },
 });

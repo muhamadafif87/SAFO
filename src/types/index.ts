@@ -130,8 +130,7 @@ export interface OrderItem {
   orderId: string;
   productId: string;
   product?: Pick<Product, "name" | "photoUrl">;
-  qty?: number;
-  quantity?: number;
+  qty: number;
   priceAtPurchase: number;
 }
 
@@ -284,4 +283,54 @@ export interface AuthState {
 export interface CartItem {
   product: Product;
   qty: number;
+}
+
+// --- Saved Address ---
+
+export interface SavedAddress {
+  id: string;
+  userId: string;
+  label: string;
+  addressDetail: string;
+  latitude: number;
+  longitude: number;
+  recipientName: string;
+  recipientPhone: string;
+  isPrimary: boolean;
+  distanceKm?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAddressRequest {
+  label: string;
+  addressDetail: string;
+  latitude: number;
+  longitude: number;
+  recipientName: string;
+  recipientPhone: string;
+  isPrimary?: boolean;
+}
+
+export type UpdateAddressRequest = Partial<CreateAddressRequest>;
+
+// --- Active Location ---
+
+export interface ActiveLocation {
+  lat: number;
+  lng: number;
+  address: string;
+  fullAddress?: string;
+}
+
+// --- Nearby Place (Mapbox Geocoding) ---
+
+export interface NearbyPlace {
+  id: string;
+  name: string;
+  fullAddress: string;
+  latitude: number;
+  longitude: number;
+  distanceKm: number;
+  placeType: string;
 }
