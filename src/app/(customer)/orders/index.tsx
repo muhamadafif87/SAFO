@@ -4,7 +4,6 @@ import type { Order, OrderStatus } from "@/types";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  Alert,
   ActivityIndicator,
   FlatList,
   Image,
@@ -41,42 +40,22 @@ function formatDate(value: string) {
   }).format(date);
 }
 
-function formatHistoryDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(date);
-}
-
 export default function CustomerOrders() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [activeTab, setActiveTab] = useState<OrdersTab>("all");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
 
   const fetchOrders = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
-    setLoadError(null);
 
     try {
       const data = await orderService.getMyOrders();
       setOrders(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Gagal memuat pesanan", error);
-      setOrders([]);
-      const status = (error as { response?: { status?: number } })?.response?.status;
-      const message = error instanceof Error ? error.message : "";
-      setLoadError(
-        status === 401 || message === "No refresh token" || message === "Invalid refresh token"
-          ? "Sesi login tidak valid. Silakan login kembali untuk melihat pesanan."
-          : "Pesanan gagal dimuat. Periksa koneksi lalu coba lagi.",
-      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -98,13 +77,6 @@ export default function CustomerOrders() {
     const items = item.items || item.orderItems || [];
     const firstItem = items[0];
     const product = firstItem?.product;
-    const orderDetails = item as Order & {
-      updatedAt?: string;
-      payments?: { paidAt?: string | null; status?: string }[];
-    };
-    const paymentTime =
-      orderDetails.payments?.find((payment) => payment.status === "success")?.paidAt ||
-      (item.status !== "pending_payment" ? orderDetails.updatedAt : undefined);
     const quantity = items.reduce(
       (total, orderItem) => total + (orderItem.qty ?? orderItem.quantity ?? 1),
       0,
@@ -119,31 +91,16 @@ export default function CustomerOrders() {
           activeOpacity={0.82}
           onPress={() => openOrder(item.id)}
         >
-          <View style={[styles.cardTopline, isHistory && styles.historyTopline]}>
+          <View style={styles.cardTopline}>
             <Text numberOfLines={1} style={styles.mitraName}>
               {item.mitra?.businessName || "Warung SAFO"}
             </Text>
-            {isHistory ? (
-              <View style={styles.historyDateStatus}>
-                <Text style={styles.historyDate}>{formatHistoryDate(item.createdAt)}</Text>
-                <Text
-                  style={[
-                    styles.statusText,
-                    styles.historyStatusText,
-                    statusStyles[item.status],
-                  ]}
-                >
-                  {STATUS_LABEL[item.status]}
-                </Text>
-              </View>
-            ) : (
-              <Text
-                numberOfLines={1}
-                style={[styles.statusText, statusStyles[item.status]]}
-              >
-                {STATUS_LABEL[item.status]}
-              </Text>
-            )}
+            <Text
+              numberOfLines={1}
+              style={[styles.statusText, statusStyles[item.status]]}
+            >
+              {STATUS_LABEL[item.status]}
+            </Text>
           </View>
 
           <View style={styles.productRow}>
@@ -175,68 +132,41 @@ export default function CustomerOrders() {
             </Text>
           </View>
 
-          {!isHistory ? (
-            <View style={styles.metadata}>
-              <View style={styles.metadataRow}>
-                <Text style={styles.metadataLabel}>Waktu Pesanan</Text>
-                <Text style={styles.metadataValue}>{formatDate(item.createdAt)}</Text>
-              </View>
-              <View style={styles.metadataRow}>
-                <Text style={styles.metadataLabel}>Waktu Pembayaran</Text>
-                <Text style={styles.metadataValue}>
-                  {paymentTime ? formatDate(paymentTime) : "-"}
-                </Text>
-              </View>
-              <View style={styles.metadataRow}>
-                <Text style={styles.metadataLabel}>No. Pesanan</Text>
-                <Text numberOfLines={1} style={styles.metadataValue}>
-                  #{item.id.slice(0, 8).toUpperCase()}
-                </Text>
-              </View>
+          <View style={styles.metadata}>
+            <View style={styles.metadataRow}>
+              <Text style={styles.metadataLabel}>Waktu Pesanan</Text>
+              <Text style={styles.metadataValue}>{formatDate(item.createdAt)}</Text>
             </View>
-          ) : null}
+            <View style={styles.metadataRow}>
+              <Text style={styles.metadataLabel}>No. Pesanan</Text>
+              <Text numberOfLines={1} style={styles.metadataValue}>
+                #{item.id.slice(0, 8).toUpperCase()}
+              </Text>
+            </View>
+          </View>
         </TouchableOpacity>
 
         <View style={styles.actions}>
-          {!isHistory ? (
+          {isHistory && firstItem?.productId ? (
             <TouchableOpacity
               accessibilityRole="button"
-              style={styles.primaryButton}
-              onPress={() => Alert.alert("Hubungi Warung", "Informasi kontak warung belum tersedia.")}
+              style={styles.secondaryButton}
+              onPress={() => router.push(`/(customer)/products/${firstItem.productId}`)}
               activeOpacity={0.8}
             >
-              <Text style={styles.primaryButtonText}>Hubungi Warung</Text>
+              <Text style={styles.secondaryButtonText}>Pesan Lagi</Text>
             </TouchableOpacity>
-          ) : (
-            <>
-              {item.status === "completed" ? (
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  style={styles.secondaryButton}
-                  onPress={() => Alert.alert("Nilai Warung", "Fitur ulasan belum tersedia.")}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.secondaryButtonText}>Nilai Warung</Text>
-                </TouchableOpacity>
-              ) : null}
-              {firstItem?.productId ? (
-                <>
-                  {item.status !== "completed" ? <View style={styles.actionSpacer} /> : null}
-                  <TouchableOpacity
-                    accessibilityRole="button"
-                    style={[
-                      styles.primaryButton,
-                      item.status !== "completed" && styles.historySingleButton,
-                    ]}
-                    onPress={() => router.push(`/(customer)/products/${firstItem.productId}`)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.primaryButtonText}>Pesan Lagi</Text>
-                  </TouchableOpacity>
-                </>
-              ) : null}
-            </>
-          )}
+          ) : null}
+          <TouchableOpacity
+            accessibilityRole="button"
+            style={styles.primaryButton}
+            onPress={() => openOrder(item.id)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.primaryButtonText}>
+              {isHistory ? "Detail Pesanan" : "Lihat Pesanan"}
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -278,21 +208,6 @@ export default function CustomerOrders() {
 
       {loading ? (
         <ActivityIndicator size="large" color={Colors.primary[700]} style={styles.loader} />
-      ) : loadError ? (
-        <View style={styles.emptyList}>
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>Tidak dapat memuat pesanan</Text>
-            <Text style={styles.emptyDescription}>{loadError}</Text>
-            <TouchableOpacity
-              accessibilityRole="button"
-              style={styles.retryButton}
-              onPress={() => fetchOrders()}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.retryButtonText}>Coba Lagi</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
       ) : (
         <FlatList
           data={visibleOrders}
@@ -322,17 +237,17 @@ export default function CustomerOrders() {
 }
 
 const statusStyles = StyleSheet.create({
-  pending_payment: { color: "#b7791f" },
-  paid: { color: "#b7791f" },
-  ready: { color: "#087f72" },
-  ready_for_pickup: { color: "#087f72" },
-  completed: { color: "#087f72" },
-  cancelled: { color: "#d14343" },
-  expired: { color: "#777777" },
+  pending_payment: { color: Colors.warning },
+  paid: { color: Colors.warning },
+  ready: { color: Colors.primary[600] },
+  ready_for_pickup: { color: Colors.primary[600] },
+  completed: { color: Colors.primary[600] },
+  cancelled: { color: Colors.error },
+  expired: { color: Colors.neutral[500] },
 });
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#ffffff" },
+  container: { flex: 1, backgroundColor: Colors.neutral[0] },
   header: {
     height: 54,
     flexDirection: "row",
@@ -340,12 +255,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[4],
   },
   backButton: { width: 32, height: 40, justifyContent: "center" },
-  backIcon: { color: "#087f72", fontSize: 34, lineHeight: 38 },
+  backIcon: { color: Colors.primary[600], fontSize: 34, lineHeight: 38 },
   title: {
     flex: 1,
     fontSize: FontSize.lg,
     fontWeight: FontWeight.bold,
-    color: "#171717",
+    color: Colors.neutral[900],
     marginLeft: Spacing[2],
   },
   headerSpacer: { width: 32 },
@@ -362,15 +277,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 10,
-    backgroundColor: "#f1f2f2",
+    backgroundColor: Colors.neutral[100],
   },
-  activeTab: { backgroundColor: "#cce9e5" },
-  tabText: { color: "#626767", fontSize: FontSize.sm, fontWeight: FontWeight.medium },
-  activeTabText: { color: "#087f72", fontWeight: FontWeight.bold },
+  activeTab: { backgroundColor: Colors.primary[50] },
+  tabText: { color: Colors.neutral[500], fontSize: FontSize.sm, fontWeight: FontWeight.medium },
+  activeTabText: { color: Colors.primary[600], fontWeight: FontWeight.bold },
   list: { paddingHorizontal: Spacing[4], paddingBottom: Spacing[5] },
   orderCard: {
-    backgroundColor: "#ffffff",
-    borderColor: "#e4e7e7",
+    backgroundColor: Colors.neutral[0],
+    borderColor: Colors.neutral[200],
     borderWidth: 1,
     borderRadius: 9,
     marginBottom: Spacing[3],
@@ -387,37 +302,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     borderBottomWidth: 1,
-    borderBottomColor: "#eff0f0",
+    borderBottomColor: Colors.neutral[100],
     marginBottom: Spacing[2],
     paddingBottom: Spacing[1],
   },
-  historyTopline: { minHeight: 34, alignItems: "flex-start" },
-  historyDateStatus: { width: 100, flexShrink: 0, alignItems: "flex-end", gap: 2 },
-  historyDate: { color: "#333838", fontSize: 9, flexShrink: 0 },
-  historyStatusText: { maxWidth: "100%", flexShrink: 0 },
   mitraName: {
     flex: 1,
-    color: "#252828",
+    color: Colors.neutral[900],
     fontSize: FontSize.xs,
     fontWeight: FontWeight.medium,
     marginRight: Spacing[2],
   },
   statusText: { fontSize: 10, fontWeight: FontWeight.medium, maxWidth: "48%" },
   productRow: { flexDirection: "row", alignItems: "center", minHeight: 58, gap: Spacing[2] },
-  productImage: { width: 48, height: 48, borderRadius: 6, backgroundColor: "#f2f3f1" },
+  productImage: { width: 48, height: 48, borderRadius: 6, backgroundColor: Colors.neutral[100] },
   imagePlaceholder: { alignItems: "center", justifyContent: "center" },
   placeholderIcon: { fontSize: 25 },
   productInfo: { flex: 1, justifyContent: "center" },
-  productName: { color: "#171a1a", fontSize: FontSize.sm, fontWeight: FontWeight.bold },
-  productMeta: { color: "#555b5a", fontSize: 10, marginTop: 2 },
+  productName: { color: Colors.neutral[900], fontSize: FontSize.sm, fontWeight: FontWeight.bold },
+  productMeta: { color: Colors.neutral[500], fontSize: 10, marginTop: 2 },
   totalAmount: {
-    color: "#171a1a",
+    color: Colors.neutral[900],
     fontSize: FontSize.xs,
     fontWeight: FontWeight.bold,
     textAlign: "right",
     maxWidth: 92,
   },
-  metadata: { borderTopWidth: 1, borderTopColor: "#eff0f0", marginTop: Spacing[2], paddingTop: 5 },
+  metadata: { borderTopWidth: 1, borderTopColor: Colors.neutral[100], marginTop: Spacing[2], paddingTop: 5 },
   metadataRow: {
     minHeight: 16,
     flexDirection: "row",
@@ -425,47 +336,35 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: Spacing[2],
   },
-  metadataLabel: { color: "#454b4a", fontSize: 10 },
-  metadataValue: { color: "#454b4a", fontSize: 10, textAlign: "right", flexShrink: 1 },
+  metadataLabel: { color: Colors.neutral[600], fontSize: 10 },
+  metadataValue: { color: Colors.neutral[600], fontSize: 10, textAlign: "right", flexShrink: 1 },
   actions: { flexDirection: "row", justifyContent: "flex-end", gap: Spacing[2], marginTop: Spacing[2] },
   primaryButton: {
     minHeight: 34,
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#087f72",
+    backgroundColor: Colors.primary[600],
     borderRadius: 5,
     paddingHorizontal: Spacing[3],
   },
-  primaryButtonText: { color: "#ffffff", fontSize: FontSize.xs, fontWeight: FontWeight.bold },
+  primaryButtonText: { color: Colors.neutral[0], fontSize: FontSize.xs, fontWeight: FontWeight.bold },
   secondaryButton: {
     minHeight: 34,
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#087f72",
+    borderColor: Colors.primary[600],
     borderRadius: 5,
     paddingHorizontal: Spacing[2],
   },
-  historySingleButton: { flex: 1 },
-  actionSpacer: { flex: 1 },
-  secondaryButtonText: { color: "#087f72", fontSize: FontSize.xs, fontWeight: FontWeight.bold },
-  retryButton: {
-    minHeight: 38,
-    marginTop: Spacing[3],
-    paddingHorizontal: Spacing[5],
-    borderRadius: 6,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#087f72",
-  },
-  retryButtonText: { color: "#ffffff", fontSize: FontSize.sm, fontWeight: FontWeight.bold },
+  secondaryButtonText: { color: Colors.primary[600], fontSize: FontSize.xs, fontWeight: FontWeight.bold },
   loader: { marginTop: Spacing[10] },
   emptyList: { flexGrow: 1, justifyContent: "center" },
   emptyState: { alignItems: "center", paddingHorizontal: Spacing[5], paddingBottom: Spacing[10] },
   emptyIcon: { fontSize: 38, marginBottom: Spacing[3] },
-  emptyTitle: { color: "#252828", fontSize: FontSize.md, fontWeight: FontWeight.bold },
+  emptyTitle: { color: Colors.neutral[900], fontSize: FontSize.md, fontWeight: FontWeight.bold },
   emptyDescription: {
     color: Colors.neutral[500],
     fontSize: FontSize.sm,
