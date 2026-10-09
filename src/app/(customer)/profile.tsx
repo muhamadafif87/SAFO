@@ -11,14 +11,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/stores/auth.store';
 import Svg, { Path } from 'react-native-svg';
+import { Colors, Spacing, FontSize, FontWeight, BorderRadius } from '@/constants/typography';
 
-const PRIMARY = '#1a5c52';
-const PRIMARY_LIGHT = '#e8f4f1';
-const TEXT_DARK = '#111827';
-const TEXT_MUTED = '#6b7280';
-const BORDER_COLOR = '#f3f4f6';
-const GOLD = '#f59e0b';
-const GOLD_LIGHT = '#fef3c7';
+const PRIMARY = Colors.primary[600];
+const PRIMARY_LIGHT = Colors.primary[50];
+const PRIMARY_DARK = Colors.primary[700];
+const WHITE = '#ffffff';
+const TEXT_DARK = Colors.neutral[900];
+const TEXT_MUTED = Colors.neutral[500];
+const BORDER_COLOR = Colors.neutral[100];
+const ERROR_BG = '#fee2e2';
+const ERROR_TEXT = '#dc2626';
 
 export default function CustomerProfile() {
   const router = useRouter();
@@ -157,7 +160,7 @@ export default function CustomerProfile() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: WHITE,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -177,16 +180,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderRadius: 16,
-    backgroundColor: '#f9fafb',
-    borderWidth: 1,
-    borderColor: '#f0f2f5',
+    backgroundColor: PRIMARY_DARK,
+    borderWidth: 0,
     marginBottom: 24,
   },
   avatarWrap: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: PRIMARY_LIGHT,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
@@ -194,7 +196,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontSize: 20,
     fontWeight: '700',
-    color: PRIMARY,
+    color: WHITE,
   },
   profileInfo: {
     flex: 1,
@@ -207,30 +209,29 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 16,
     fontWeight: '700',
-    color: TEXT_DARK,
+    color: WHITE,
     flexShrink: 1,
   },
   vipBadge: {
-    backgroundColor: GOLD_LIGHT,
+    backgroundColor: PRIMARY_LIGHT,
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#fde68a',
+    borderWidth: 0,
   },
   vipText: {
     fontSize: 10,
     fontWeight: '700',
-    color: GOLD,
+    color: PRIMARY,
   },
   userEmail: {
     fontSize: 13,
-    color: TEXT_MUTED,
+    color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 2,
   },
   userPhone: {
     fontSize: 12,
-    color: TEXT_MUTED,
+    color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 1,
   },
   section: {
@@ -275,7 +276,7 @@ const styles = StyleSheet.create({
   },
   logoutButton: {
     marginTop: 12,
-    backgroundColor: '#fee2e2',
+    backgroundColor: ERROR_BG,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
@@ -283,7 +284,7 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#dc2626',
+    color: ERROR_TEXT,
   },
   versionText: {
     textAlign: 'center',
