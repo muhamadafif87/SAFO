@@ -117,7 +117,7 @@ const headerStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     backgroundColor: WHITE,
     borderBottomWidth: 1,
     borderBottomColor: GRAY_100,
@@ -125,9 +125,9 @@ const headerStyles = StyleSheet.create({
   left: { flex: 1 },
   pinRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   pinIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: PRIMARY_LIGHT,
     alignItems: "center",
     justifyContent: "center",
@@ -146,13 +146,13 @@ const headerStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: GOLD,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 999,
     gap: 4,
     shadowColor: GOLD,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.35,
     shadowRadius: 6,
     elevation: 4,
   },
@@ -480,8 +480,8 @@ const chipStyles = StyleSheet.create({
     backgroundColor: WHITE,
   },
   chipActive: {
-    backgroundColor: PRIMARY,
-    borderColor: PRIMARY,
+    backgroundColor: PRIMARY_LIGHT,
+    borderColor: PRIMARY_LIGHT,
   },
   chipText: {
     fontSize: 13,
@@ -489,7 +489,7 @@ const chipStyles = StyleSheet.create({
     color: GRAY_700,
   },
   chipTextActive: {
-    color: WHITE,
+    color: PRIMARY,
   },
 });
 
