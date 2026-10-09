@@ -17,7 +17,8 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   const port = process.env.PORT || 3000;
-  await app.listen(port);
-  console.log(`🚀 SAFO API running on http://localhost:${port}/api`);
+  const host = process.env.HOST || '0.0.0.0';
+  await app.listen(port, host);
+  console.log(`SAFO API listening on ${host}:${port} (prefix: /api)`);
 }
 bootstrap();
