@@ -22,6 +22,8 @@ import { User } from './database/entities/user.entity';
 import { MitraModule } from './mitra/mitra.module';
 import { OrderModule } from './order/order.module';
 import { ProductModule } from './product/product.module';
+import { AddressModule } from './address/address.module';
+import { SavedAddress } from './database/entities/saved-address.entity';
 
 @Module({
   imports: [
@@ -62,6 +64,7 @@ import { ProductModule } from './product/product.module';
           Payout,
           Review,
           PlatformSetting,
+          SavedAddress,
         ],
         synchronize: false,
         logging: config.get('NODE_ENV') === 'development',
@@ -72,6 +75,7 @@ import { ProductModule } from './product/product.module';
     ProductModule,
     OrderModule,
     AdminModule,
+    AddressModule,
   ],
   controllers: [AppController],
   providers: [

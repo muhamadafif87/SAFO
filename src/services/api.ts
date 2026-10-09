@@ -1,12 +1,16 @@
 import { storage } from "@/utils/storage";
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
+import Constants from "expo-constants";
+import { Platform } from "react-native";
 
 // ── Config ────────────────────────────────────────────────────────────────
-// Change to your machine's local IP when testing on physical device
-// e.g. 'http://192.168.1.x:3000' for LAN testing
-const BASE_URL = __DEV__
-  ? "http://192.168.100.202:3000/api"
-  : "https://api.safo.app/api";
+const DEV_API_URL =
+  process.env.EXPO_PUBLIC_API_URL ??
+  (Platform.OS === "web"
+    ? "http://localhost:3000/api"
+    : `http://${Constants.expoConfig?.hostUri?.split(":")[0] ?? "localhost"}:3000/api`);
+
+const BASE_URL = __DEV__ ? DEV_API_URL : "https://api.safo.app/api";
 
 const TOKEN_KEY_ACCESS = "safo_access_token";
 const TOKEN_KEY_REFRESH = "safo_refresh_token";

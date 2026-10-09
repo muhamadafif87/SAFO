@@ -7,9 +7,21 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 
+// UUID v4 regex — guards against sending non-UUID strings to PostgreSQL uuid columns,
+// which would cause: QueryFailedError: invalid input syntax for type uuid (pg 22P02)
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function assertUuid(id: string, label = 'ID'): void {
+  if (!UUID_REGEX.test(id)) {
+    throw new BadRequestException(
+      `${label} tidak valid: harus berupa UUID, diterima "${id}"`,
+    );
+  }
+}
+
 import { OrderItem } from '../database/entities/order-item.entity';
 import { Order, OrderStatus } from '../database/entities/order.entity';
-import { PaymentMethod } from '../database/entities/order.enums';
 import { Product, ProductStatus } from '../database/entities/product.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 
@@ -34,36 +46,36 @@ export class OrderService {
   async createOrder(customerId: string, dto: CreateOrderDto): Promise<Order> {
     const { items, note, paymentMethod } = dto;
 
-    for (const item of items) {
-      const product = await this.productRepository.findOne({
-        where: { id: item.productId, status: ProductStatus.ACTIVE },
-      });
-
-      if (!product) {
-        throw new NotFoundException(`Produk ${item.productId} tidak ditemukan`);
-      }
-
-      if (product.stock < item.qty) {
-        throw new BadRequestException(
-          `Stok produk ${product.name} tidak cukup`,
-        );
-      }
-    }
-
-    // 2. Create order in a DB transaction
+    // 2. Create order in a DB transaction with pessimistic locking
+    // Stock validation is done INSIDE the transaction to prevent race conditions (TOCTOU).
     return this.dataSource.transaction(async (manager) => {
-      // Fetch full product data for pricing
+      // Fetch full product data with pessimistic write lock (SELECT ... FOR UPDATE)
       const productIds = items.map((i) => i.productId);
-      const products = await manager.findBy(Product, { id: In(productIds) });
+      const products = await manager.find(Product, {
+        where: { id: In(productIds) },
+        lock: { mode: 'pessimistic_write' },
+      });
       const productMap = new Map(products.map((p) => [p.id, p]));
+
+      // Validate all products and stock INSIDE the transaction
+      for (const item of items) {
+        const p = productMap.get(item.productId);
+        if (!p) {
+          throw new NotFoundException(`Produk ${item.productId} tidak ditemukan`);
+        }
+        if (p.status !== ProductStatus.ACTIVE) {
+          throw new BadRequestException(`Produk ${p.name} tidak tersedia`);
+        }
+        if (p.stock < item.qty) {
+          throw new BadRequestException(
+            `Stok produk ${p.name} tidak cukup (tersisa ${p.stock})`,
+          );
+        }
+      }
 
       let totalAmount = PLATFORM_FEE;
       for (const item of items) {
-        const p = productMap.get(item.productId);
-        if (!p)
-          throw new NotFoundException(
-            `Produk ${item.productId} tidak ditemukan`,
-          );
+        const p = productMap.get(item.productId)!;
         totalAmount += p.discountPrice * item.qty;
       }
 
@@ -126,6 +138,8 @@ export class OrderService {
    * Real implementation: verify signature from Midtrans POST /payment/notification.
    */
   async mockPayment(orderId: string, customerId: string): Promise<Order> {
+    assertUuid(orderId, 'Order ID');
+
     const order = await this.orderRepository.findOne({
       where: { id: orderId },
     });
@@ -136,7 +150,7 @@ export class OrderService {
     }
 
     order.status = OrderStatus.PAID;
-    order.paymentMethod = PaymentMethod.QRIS;
+    // Do NOT override paymentMethod — preserve what was set during createOrder
     return this.orderRepository.save(order);
   }
 
@@ -149,6 +163,8 @@ export class OrderService {
   }
 
   async getOrderById(orderId: string, customerId: string): Promise<Order> {
+    assertUuid(orderId, 'Order ID');
+
     const order = await this.orderRepository.findOne({
       where: { id: orderId, customerId },
       relations: { orderItems: { product: true }, mitra: true },
@@ -175,6 +191,8 @@ export class OrderService {
     mitraUserId: string,
     pickupCode: string,
   ): Promise<Order> {
+    assertUuid(orderId, 'Order ID');
+
     const orders = await this.getMitraOrders(mitraUserId);
     const order = orders.find((o) => o.id === orderId);
     if (!order) throw new NotFoundException('Order tidak ditemukan');
@@ -199,6 +217,8 @@ export class OrderService {
     mitraUserId: string,
     status: OrderStatus,
   ): Promise<Order> {
+    assertUuid(orderId, 'Order ID');
+
     const orders = await this.getMitraOrders(mitraUserId);
     const order = orders.find((o) => o.id === orderId);
     if (!order) throw new NotFoundException('Order tidak ditemukan');

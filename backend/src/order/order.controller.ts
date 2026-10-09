@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Patch,
-  Body, Param, Request,
+  Body, Param, Request, ParseUUIDPipe,
 } from '@nestjs/common';
 import { OrderService } from './order.service';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -11,6 +11,16 @@ import { OrderStatus } from '../database/entities/order.entity';
 @Controller('orders')
 export class OrderController {
   constructor(private readonly orderService: OrderService) {}
+
+  // ─── Mitra ────────────────────────────────────────────────────────────────
+
+  // NOTE: This must be defined BEFORE the dynamic :id route to prevent
+  // "mitra" from being matched as an order ID by Express route resolution.
+  @Roles(UserRole.MITRA)
+  @Get('mitra')
+  getMitraOrders(@Request() req) {
+    return this.orderService.getMitraOrders(req.user.userId);
+  }
 
   // ─── Customer ────────────────────────────────────────────────────────────
 
@@ -28,30 +38,22 @@ export class OrderController {
 
   @Roles(UserRole.CUSTOMER)
   @Get(':id')
-  getOrderById(@Request() req, @Param('id') id: string) {
+  getOrderById(@Request() req, @Param('id', ParseUUIDPipe) id: string) {
     return this.orderService.getOrderById(id, req.user.userId);
   }
 
   /** Mock payment endpoint — simulates Midtrans completing the payment */
   @Roles(UserRole.CUSTOMER)
   @Post(':id/pay-mock')
-  mockPayment(@Request() req, @Param('id') id: string) {
+  mockPayment(@Request() req, @Param('id', ParseUUIDPipe) id: string) {
     return this.orderService.mockPayment(id, req.user.userId);
-  }
-
-  // ─── Mitra ────────────────────────────────────────────────────────────────
-
-  @Roles(UserRole.MITRA)
-  @Get('mitra')
-  getMitraOrders(@Request() req) {
-    return this.orderService.getMitraOrders(req.user.userId);
   }
 
   @Roles(UserRole.MITRA)
   @Patch(':id/status')
   updateStatus(
     @Request() req,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body('status') status: OrderStatus,
   ) {
     return this.orderService.updateOrderStatus(id, req.user.userId, status);
@@ -61,7 +63,7 @@ export class OrderController {
   @Post(':id/verify-pickup')
   verifyPickup(
     @Request() req,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body('pickupCode') pickupCode: string,
   ) {
     return this.orderService.verifyPickup(id, req.user.userId, pickupCode);
