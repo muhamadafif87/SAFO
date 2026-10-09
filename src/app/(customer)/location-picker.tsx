@@ -14,15 +14,20 @@
 
 import { useLocationStore } from "@/stores/location.store";
 import type { NearbyPlace, SavedAddress } from "@/types";
-import { getNearbyPlaces, reverseGeocodeMapbox, searchLocations } from "@/utils/geocoding";
+import {
+  getNearbyPlaces,
+  reverseGeocodeMapbox,
+  searchLocations,
+} from "@/utils/geocoding";
 import Mapbox from "@rnmapbox/maps";
 import * as Location from "expo-location";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Animated,
+  BackHandler,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -42,45 +47,112 @@ const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ?? "";
 if (MAPBOX_TOKEN) Mapbox.setAccessToken(MAPBOX_TOKEN);
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
-const PRIMARY      = "#1a5c52";
+const PRIMARY = "#1a5c52";
 const PRIMARY_DARK = "#123d37";
 const PRIMARY_LIGHT = "#e8f4f1";
-const WHITE        = "#ffffff";
-const GRAY_50      = "#f9fafb";
-const GRAY_100     = "#f3f4f6";
-const GRAY_200     = "#e5e7eb";
-const GRAY_300     = "#d1d5db";
-const GRAY_400     = "#9ca3af";
-const GRAY_500     = "#6b7280";
-const GRAY_700     = "#374151";
-const GRAY_900     = "#111827";
-const AMBER        = "#f59e0b";
-const AMBER_LIGHT  = "#fef3c7";
-const DANGER       = "#ef4444";
+const WHITE = "#ffffff";
+const GRAY_50 = "#f9fafb";
+const GRAY_100 = "#f3f4f6";
+const GRAY_200 = "#e5e7eb";
+const GRAY_300 = "#d1d5db";
+const GRAY_400 = "#9ca3af";
+const GRAY_500 = "#6b7280";
+const GRAY_700 = "#374151";
+const GRAY_900 = "#111827";
+const AMBER = "#f59e0b";
+const AMBER_LIGHT = "#fef3c7";
+const DANGER = "#ef4444";
 
 const DEFAULT_COORD = { latitude: -7.575273, longitude: 110.8218226 };
 const SHOWN_DEFAULT = 2; // jumlah alamat yang ditampilkan sebelum "Lihat Lainnya"
 
-// ─── SVG Icons ────────────────────────────────────────────────────────────────
+// ─── SVG Icons & Formatters ───────────────────────────────────────────────────
 
 function IconBack() {
   return (
     <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-      <Path d="M15 18l-6-6 6-6" stroke={WHITE} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+      <Path
+        d="M15 18l-6-6 6-6"
+        stroke={WHITE}
+        strokeWidth={2.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </Svg>
   );
+}
+
+function IconArrowLeft({
+  color = WHITE,
+  size = 22,
+}: {
+  color?: string;
+  size?: number;
+}) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M19 12H5M5 12L12 19M5 12L12 5"
+        stroke={color}
+        strokeWidth={2.2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+function IconPinOutline({
+  color = "#1f2937",
+  size = 22,
+}: {
+  color?: string;
+  size?: number;
+}) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 2C8.13401 2 5 5.13401 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13401 15.866 2 12 2Z"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Circle cx={12} cy={9} r={2.5} stroke={color} strokeWidth={1.8} />
+    </Svg>
+  );
+}
+
+function formatDistanceLabel(distanceKm?: number): string {
+  if (distanceKm === undefined || distanceKm === null) return "0m";
+  if (distanceKm < 1) {
+    const meters = Math.round(distanceKm * 1000);
+    return `${meters}m`;
+  }
+  return `${distanceKm.toFixed(1)}km`;
 }
 
 function IconSearch() {
   return (
     <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
       <Circle cx={11} cy={11} r={8} stroke={GRAY_400} strokeWidth={2} />
-      <Path d="M21 21l-4.35-4.35" stroke={GRAY_400} strokeWidth={2} strokeLinecap="round" />
+      <Path
+        d="M21 21l-4.35-4.35"
+        stroke={GRAY_400}
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
     </Svg>
   );
 }
 
-function IconMapPin({ color = PRIMARY, size = 18 }: { color?: string; size?: number }) {
+function IconMapPin({
+  color = PRIMARY,
+  size = 18,
+}: {
+  color?: string;
+  size?: number;
+}) {
   return (
     <Svg width={size} height={size} viewBox="0 0 16 16" fill={color}>
       <Path d="M8 16s6-5.686 6-10A6 6 0 0 0 2 6c0 4.314 6 10 6 10m0-7a3 3 0 1 1 0-6 3 3 0 0 1 0 6" />
@@ -88,7 +160,13 @@ function IconMapPin({ color = PRIMARY, size = 18 }: { color?: string; size?: num
   );
 }
 
-function IconBookmark({ color = GRAY_400, size = 16 }: { color?: string; size?: number }) {
+function IconBookmark({
+  color = GRAY_400,
+  size = 16,
+}: {
+  color?: string;
+  size?: number;
+}) {
   return (
     <Svg width={size} height={size} viewBox="0 0 16 16" fill={color}>
       <Path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5z" />
@@ -101,17 +179,29 @@ function IconEdit({ size = 16 }: { size?: number }) {
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
         d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"
-        stroke={GRAY_400} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
+        stroke={GRAY_400}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
       <Path
         d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
-        stroke={GRAY_400} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
+        stroke={GRAY_400}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </Svg>
   );
 }
 
-function IconTarget({ color = PRIMARY, size = 18 }: { color?: string; size?: number }) {
+function IconTarget({
+  color = PRIMARY,
+  size = 18,
+}: {
+  color?: string;
+  size?: number;
+}) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Circle cx={12} cy={12} r={10} stroke={color} strokeWidth={2} />
@@ -126,7 +216,10 @@ function IconMap({ size = 20 }: { size?: number }) {
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
         d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13V7m0 13l6-3m-6-10l6-3m0 0l5.447 2.724A1 1 0 0121 7.618v10.764a1 1 0 01-1.447.894L15 17m0-13v13"
-        stroke={WHITE} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
+        stroke={WHITE}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </Svg>
   );
@@ -135,7 +228,12 @@ function IconMap({ size = 20 }: { size?: number }) {
 function IconPlus({ size = 14 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path d="M12 5v14M5 12h14" stroke={PRIMARY} strokeWidth={2.5} strokeLinecap="round" />
+      <Path
+        d="M12 5v14M5 12h14"
+        stroke={PRIMARY}
+        strokeWidth={2.5}
+        strokeLinecap="round"
+      />
     </Svg>
   );
 }
@@ -143,7 +241,13 @@ function IconPlus({ size = 14 }: { size?: number }) {
 function IconChevronDown({ size = 16 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path d="M6 9l6 6 6-6" stroke={PRIMARY} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path
+        d="M6 9l6 6 6-6"
+        stroke={PRIMARY}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </Svg>
   );
 }
@@ -151,7 +255,13 @@ function IconChevronDown({ size = 16 }: { size?: number }) {
 function IconChevronUp({ size = 16 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path d="M18 15l-6-6-6 6" stroke={PRIMARY} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path
+        d="M18 15l-6-6-6 6"
+        stroke={PRIMARY}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </Svg>
   );
 }
@@ -159,7 +269,13 @@ function IconChevronUp({ size = 16 }: { size?: number }) {
 function IconTrash({ size = 18 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke={DANGER} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path
+        d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"
+        stroke={DANGER}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </Svg>
   );
 }
@@ -167,7 +283,12 @@ function IconTrash({ size = 18 }: { size?: number }) {
 function IconClose({ size = 18 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path d="M18 6L6 18M6 6l12 12" stroke={GRAY_500} strokeWidth={2.5} strokeLinecap="round" />
+      <Path
+        d="M18 6L6 18M6 6l12 12"
+        stroke={GRAY_500}
+        strokeWidth={2.5}
+        strokeLinecap="round"
+      />
     </Svg>
   );
 }
@@ -203,7 +324,9 @@ function SavedAddressCard({ item, onSelect, onEdit }: SavedAddressCardProps) {
         </View>
         <View style={cardStyles.info}>
           {item.distanceKm !== undefined && (
-            <Text style={cardStyles.distance}>{item.distanceKm.toFixed(1)}km</Text>
+            <Text style={cardStyles.distance}>
+              {item.distanceKm.toFixed(1)}km
+            </Text>
           )}
           <Text style={cardStyles.label} numberOfLines={1}>
             {item.label}
@@ -217,7 +340,11 @@ function SavedAddressCard({ item, onSelect, onEdit }: SavedAddressCardProps) {
           </Text>
         </View>
       </View>
-      <TouchableOpacity onPress={() => onEdit(item)} style={cardStyles.editBtn} hitSlop={8}>
+      <TouchableOpacity
+        onPress={() => onEdit(item)}
+        style={cardStyles.editBtn}
+        hitSlop={8}
+      >
         <IconEdit size={17} />
       </TouchableOpacity>
     </TouchableOpacity>
@@ -267,8 +394,12 @@ function NearbyPlaceCard({ item, onSelect }: NearbyPlaceCardProps) {
       </View>
       <View style={nearbyStyles.info}>
         <Text style={nearbyStyles.distance}>{item.distanceKm}km</Text>
-        <Text style={nearbyStyles.name} numberOfLines={1}>{item.name}</Text>
-        <Text style={nearbyStyles.address} numberOfLines={1}>{item.fullAddress}</Text>
+        <Text style={nearbyStyles.name} numberOfLines={1}>
+          {item.name}
+        </Text>
+        <Text style={nearbyStyles.address} numberOfLines={1}>
+          {item.fullAddress}
+        </Text>
       </View>
     </TouchableOpacity>
   );
@@ -344,7 +475,9 @@ function AddressFormSheet({
     if (!visible) return;
     if (isEdit && editTarget) {
       // Pre-fill dari data yang diedit
-      const preset = LABEL_PRESETS.includes(editTarget.label) ? editTarget.label : "Lainnya";
+      const preset = LABEL_PRESETS.includes(editTarget.label)
+        ? editTarget.label
+        : "Lainnya";
       setLabel(preset);
       setCustomLabel(preset === "Lainnya" ? editTarget.label : "");
       setAddressDetail(editTarget.addressDetail);
@@ -366,7 +499,10 @@ function AddressFormSheet({
 
   const handleSave = async () => {
     if (!resolvedLabel) {
-      Alert.alert("Label wajib diisi", "Pilih atau ketik label untuk alamat ini.");
+      Alert.alert(
+        "Label wajib diisi",
+        "Pilih atau ketik label untuk alamat ini.",
+      );
       return;
     }
     if (!addressDetail.trim()) {
@@ -423,7 +559,10 @@ function AddressFormSheet({
               await removeAddress(editTarget.id);
               onDeleted?.();
             } catch (err: any) {
-              Alert.alert("Gagal menghapus", err?.message ?? "Terjadi kesalahan.");
+              Alert.alert(
+                "Gagal menghapus",
+                err?.message ?? "Terjadi kesalahan.",
+              );
             } finally {
               setDeleting(false);
             }
@@ -442,7 +581,11 @@ function AddressFormSheet({
       statusBarTranslucent
     >
       {/* Backdrop */}
-      <TouchableOpacity style={fs.backdrop} activeOpacity={1} onPress={onClose} />
+      <TouchableOpacity
+        style={fs.backdrop}
+        activeOpacity={1}
+        onPress={onClose}
+      />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -457,15 +600,24 @@ function AddressFormSheet({
             <Text style={fs.sheetTitle}>
               {isEdit ? "Edit Alamat" : "Tambah Alamat Baru"}
             </Text>
-            <TouchableOpacity onPress={onClose} hitSlop={12} style={fs.closeBtn}>
+            <TouchableOpacity
+              onPress={onClose}
+              hitSlop={12}
+              style={fs.closeBtn}
+            >
               <IconClose size={18} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
             {/* Label preset chips */}
             <View style={fs.fieldWrap}>
-              <Text style={fs.fieldLabel}>Label Alamat <Text style={fs.required}>*</Text></Text>
+              <Text style={fs.fieldLabel}>
+                Label Alamat <Text style={fs.required}>*</Text>
+              </Text>
               <View style={fs.chipsRow}>
                 {[...LABEL_PRESETS, "Lainnya"].map((p) => (
                   <TouchableOpacity
@@ -474,7 +626,11 @@ function AddressFormSheet({
                     onPress={() => setLabel(p)}
                     activeOpacity={0.75}
                   >
-                    <Text style={[fs.chipText, label === p && fs.chipTextActive]}>{p}</Text>
+                    <Text
+                      style={[fs.chipText, label === p && fs.chipTextActive]}
+                    >
+                      {p}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -492,7 +648,9 @@ function AddressFormSheet({
 
             {/* Detail Alamat */}
             <View style={fs.fieldWrap}>
-              <Text style={fs.fieldLabel}>Detail Alamat <Text style={fs.required}>*</Text></Text>
+              <Text style={fs.fieldLabel}>
+                Detail Alamat <Text style={fs.required}>*</Text>
+              </Text>
               <TextInput
                 style={[fs.input, fs.inputMulti]}
                 placeholder="Jl. Nama Jalan No. XX, Kelurahan, Kecamatan..."
@@ -504,13 +662,17 @@ function AddressFormSheet({
                 textAlignVertical="top"
               />
               {!isEdit && (
-                <Text style={fs.hint}>📍 Diisi otomatis dari pin peta. Bisa diedit manual.</Text>
+                <Text style={fs.hint}>
+                  📍 Diisi otomatis dari pin peta. Bisa diedit manual.
+                </Text>
               )}
             </View>
 
             {/* Nama Penerima */}
             <View style={fs.fieldWrap}>
-              <Text style={fs.fieldLabel}>Nama Penerima <Text style={fs.required}>*</Text></Text>
+              <Text style={fs.fieldLabel}>
+                Nama Penerima <Text style={fs.required}>*</Text>
+              </Text>
               <TextInput
                 style={fs.input}
                 placeholder="Nama lengkap penerima"
@@ -537,7 +699,9 @@ function AddressFormSheet({
             <View style={fs.toggleRow}>
               <View style={fs.toggleText}>
                 <Text style={fs.toggleLabel}>Jadikan Alamat Utama</Text>
-                <Text style={fs.toggleSub}>Tampil pertama di daftar alamat</Text>
+                <Text style={fs.toggleSub}>
+                  Tampil pertama di daftar alamat
+                </Text>
               </View>
               <Switch
                 value={isPrimary}
@@ -592,7 +756,7 @@ function AddressFormSheet({
 
 const fs = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFill as any,
+    ...(StyleSheet.absoluteFill as any),
     backgroundColor: "rgba(0,0,0,0.45)",
   },
   sheetWrap: {
@@ -644,7 +808,12 @@ const fs = StyleSheet.create({
     justifyContent: "center",
   },
   fieldWrap: { paddingHorizontal: 20, paddingTop: 18 },
-  fieldLabel: { fontSize: 13, fontWeight: "600", color: GRAY_700, marginBottom: 8 },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: GRAY_700,
+    marginBottom: 8,
+  },
   required: { color: DANGER },
   hint: { fontSize: 11, color: GRAY_400, marginTop: 6 },
   input: {
@@ -729,8 +898,12 @@ function SearchResultCard({ item, onSelect }: NearbyPlaceCardProps) {
         <IconMapPin color={PRIMARY} size={18} />
       </View>
       <View style={nearbyStyles.info}>
-        <Text style={nearbyStyles.name} numberOfLines={1}>{item.name}</Text>
-        <Text style={nearbyStyles.address} numberOfLines={1}>{item.fullAddress}</Text>
+        <Text style={nearbyStyles.name} numberOfLines={1}>
+          {item.name}
+        </Text>
+        <Text style={nearbyStyles.address} numberOfLines={1}>
+          {item.fullAddress}
+        </Text>
       </View>
     </TouchableOpacity>
   );
@@ -781,7 +954,25 @@ export default function LocationPickerScreen() {
   // Pin bounce animation
   const pinBounce = useRef(new Animated.Value(0)).current;
 
+  // View mode: 'map' (default dengan mini map) vs 'suggestions' (layout list rekomendasi lokasi)
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const [viewMode, setViewMode] = useState<"map" | "suggestions">(
+    mode === "suggestions" ? "suggestions" : "map"
+  );
+
   // ── Effects ───────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const onBackPress = () => {
+      if (viewMode === "suggestions") {
+        setViewMode("map");
+        return true;
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => sub.remove();
+  }, [viewMode]);
 
   useEffect(() => {
     // Load saved addresses + nearby places saat layar pertama kali dibuka
@@ -887,7 +1078,10 @@ export default function LocationPickerScreen() {
   const handleConfirmPin = async () => {
     if (resolvingMapAddress) return;
     const { latitude, longitude } = mapCoord;
-    const { shortName, fullAddress } = await reverseGeocodeMapbox(latitude, longitude);
+    const { shortName, fullAddress } = await reverseGeocodeMapbox(
+      latitude,
+      longitude,
+    );
     await setActiveLocation({
       lat: latitude,
       lng: longitude,
@@ -934,8 +1128,18 @@ export default function LocationPickerScreen() {
     <SafeAreaView style={s.screen} edges={["top"]}>
       {/* ── 1. Header Hijau ────────────────────────────────────────────── */}
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn} activeOpacity={0.8}>
-          <IconBack />
+        <TouchableOpacity
+          onPress={() => {
+            if (viewMode === "suggestions") {
+              setViewMode("map");
+            } else {
+              router.back();
+            }
+          }}
+          style={s.backBtn}
+          activeOpacity={0.8}
+        >
+          {viewMode === "suggestions" ? <IconArrowLeft /> : <IconBack />}
         </TouchableOpacity>
 
         <View style={s.searchBar}>
@@ -950,213 +1154,352 @@ export default function LocationPickerScreen() {
             autoCorrect={false}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => { setSearchQuery(""); setSearchResults([]); }}>
+            <TouchableOpacity
+              onPress={() => {
+                setSearchQuery("");
+                setSearchResults([]);
+              }}
+            >
               <Text style={s.clearBtn}>✕</Text>
             </TouchableOpacity>
           )}
         </View>
 
-        <TouchableOpacity style={s.mapIconBtn} activeOpacity={0.8} onPress={handleConfirmPin}>
-          <IconMap size={20} />
-        </TouchableOpacity>
+        {viewMode === "map" && (
+          <TouchableOpacity
+            style={s.mapIconBtn}
+            activeOpacity={0.8}
+            onPress={() => setViewMode("suggestions")}
+          >
+            <IconMap size={20} />
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* ── Search overlay ──────────────────────────────────────────────── */}
-      {isSearchMode && (
-        <View style={s.searchOverlay}>
-          {isSearching ? (
-            <View style={s.searchLoading}>
-              <ActivityIndicator size="small" color={PRIMARY} />
-              <Text style={s.searchLoadingText}>Mencari lokasi...</Text>
-            </View>
-          ) : searchResults.length === 0 ? (
-            <View style={s.searchLoading}>
-              <Text style={s.searchLoadingText}>Lokasi tidak ditemukan</Text>
-            </View>
-          ) : (
-            searchResults.map((r) => (
-              <SearchResultCard key={r.id} item={r} onSelect={handleSelectNearby} />
-            ))
-          )}
-        </View>
-      )}
-
-      {!isSearchMode && (
-        <ScrollView style={s.scroll} showsVerticalScrollIndicator={false} stickyHeaderIndices={[]}>
-
-          {/* ── 2. Peta Mini ─────────────────────────────────────────────── */}
-          <View style={s.mapWrap}>
-            {/* Banner notifikasi di atas peta */}
-            <View style={s.notifBanner} pointerEvents="none">
-              <View style={s.notifIcon}>
-                <IconBell size={18} />
-              </View>
-              <Text style={s.notifText}>
-                Mohon periksa pin lokasimu, kami akan mengirimkan pesananmu sesuai pin lokasi
+      {/* ── Mode Saran Lokasi (Layout Desain Baru) ────────────────────────── */}
+      {viewMode === "suggestions" ? (
+        <ScrollView
+          style={s.suggestionsScroll}
+          contentContainerStyle={s.suggestionsContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={s.suggestionsCard}>
+            <View style={s.suggestionsCardHeader}>
+              <Text style={s.suggestionsCardTitle}>
+                {isSearchMode ? "Hasil Pencarian" : "Saran Lokasi Terdekat"}
               </Text>
             </View>
 
-            <Mapbox.MapView
-              ref={mapRef}
-              style={StyleSheet.absoluteFill}
-              scrollEnabled
-              zoomEnabled
-              rotateEnabled={false}
-              onRegionWillChange={() => setIsPanning(true)}
-              onRegionDidChange={handleRegionDidChange}
-              logoEnabled={false}
-              attributionEnabled={false}
-            >
-              <Mapbox.Camera
-                ref={cameraRef}
-                centerCoordinate={[mapCoord.longitude, mapCoord.latitude]}
-                zoomLevel={15}
-                animationDuration={300}
-              />
-            </Mapbox.MapView>
-
-            {/* Pin tetap di tengah */}
-            <View pointerEvents="none" style={s.centerPinWrap}>
-              <Animated.View style={{ transform: [{ translateY: pinBounce }] }}>
-                <IconMapPin color={PRIMARY} size={38} />
-              </Animated.View>
-              <View style={[s.pinShadow, isPanning && s.pinShadowSmall]} />
-            </View>
-
-            {/* Tombol GPS floating */}
-            <TouchableOpacity
-              style={s.gpsBtn}
-              onPress={handleUseCurrentGPS}
-              disabled={detectingGPS}
-              activeOpacity={0.85}
-            >
-              {detectingGPS ? (
-                <ActivityIndicator size="small" color={PRIMARY} />
+            {isSearchMode ? (
+              isSearching ? (
+                <View style={s.suggestionLoadingWrap}>
+                  <ActivityIndicator size="small" color={PRIMARY} />
+                  <Text style={s.suggestionLoadingText}>Mencari lokasi...</Text>
+                </View>
+              ) : searchResults.length === 0 ? (
+                <View style={s.suggestionLoadingWrap}>
+                  <Text style={s.suggestionLoadingText}>
+                    Lokasi tidak ditemukan
+                  </Text>
+                </View>
               ) : (
-                <IconTarget color={PRIMARY} size={20} />
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* ── 3. Row "Antar Ke" ──────────────────────────────────────────── */}
-          <View style={s.deliveryRow}>
-            <View style={s.deliveryLeft}>
-              <IconMapPin color={PRIMARY} size={20} />
-              <View style={s.deliveryTextWrap}>
-                <Text style={s.deliveryLabel}>Antar Ke:</Text>
-                <Text style={s.deliveryAddress} numberOfLines={1}>
-                  {resolvingMapAddress ? "Mencari alamat..." : (mapAddress || currentAddressLabel)}
+                searchResults.map((item, idx) => (
+                  <TouchableOpacity
+                    key={item.id ?? `search-${idx}`}
+                    style={[
+                      s.suggestionItem,
+                      idx === searchResults.length - 1 && s.suggestionItemLast,
+                    ]}
+                    activeOpacity={0.75}
+                    onPress={() => handleSelectNearby(item)}
+                  >
+                    <View style={s.suggestionIconCol}>
+                      <IconPinOutline size={22} color="#1f2937" />
+                      <Text style={s.suggestionDistance}>
+                        {formatDistanceLabel(item.distanceKm)}
+                      </Text>
+                    </View>
+                    <View style={s.suggestionTextCol}>
+                      <Text style={s.suggestionItemTitle} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      <Text style={s.suggestionItemDetail} numberOfLines={2}>
+                        {item.fullAddress}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )
+            ) : isLoadingNearby ? (
+              <View style={s.suggestionLoadingWrap}>
+                <ActivityIndicator size="small" color={PRIMARY} />
+                <Text style={s.suggestionLoadingText}>
+                  Mencari lokasi terdekat...
                 </Text>
               </View>
-            </View>
-            <TouchableOpacity
-              style={s.gpsRowBtn}
-              onPress={handleUseCurrentGPS}
-              activeOpacity={0.8}
-              disabled={detectingGPS}
-            >
-              <IconTarget color={PRIMARY} size={14} />
-              <Text style={s.gpsRowText}>
-                {detectingGPS ? "Mendeteksi..." : "Lokasi Saat Ini"}
-              </Text>
-            </TouchableOpacity>
+            ) : nearbyPlaces.length === 0 ? (
+              <View style={s.suggestionLoadingWrap}>
+                <Text style={s.suggestionLoadingText}>
+                  Tidak ada saran lokasi saat ini
+                </Text>
+              </View>
+            ) : (
+              nearbyPlaces.map((item, idx) => (
+                <TouchableOpacity
+                  key={item.id ?? `nearby-${idx}`}
+                  style={[
+                    s.suggestionItem,
+                    idx === nearbyPlaces.length - 1 && s.suggestionItemLast,
+                  ]}
+                  activeOpacity={0.75}
+                  onPress={() => handleSelectNearby(item)}
+                >
+                  <View style={s.suggestionIconCol}>
+                    <IconPinOutline size={22} color="#1f2937" />
+                    <Text style={s.suggestionDistance}>
+                      {formatDistanceLabel(item.distanceKm)}
+                    </Text>
+                  </View>
+                  <View style={s.suggestionTextCol}>
+                    <Text style={s.suggestionItemTitle} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                    <Text style={s.suggestionItemDetail} numberOfLines={2}>
+                      {item.fullAddress}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
           </View>
-
-          {/* ── 4. Konfirmasi Pin ─────────────────────────────────────────── */}
-          <TouchableOpacity
-            style={[s.confirmBtn, resolvingMapAddress && s.confirmBtnDisabled]}
-            onPress={handleConfirmPin}
-            disabled={resolvingMapAddress}
-            activeOpacity={0.85}
-          >
-            <Text style={s.confirmBtnText}>
-              {resolvingMapAddress ? "Memuat alamat..." : "Gunakan Lokasi Pin Ini"}
-            </Text>
-          </TouchableOpacity>
-
-          {/* ── 5. Section: Alamat Saya ──────────────────────────────────── */}
-          <View style={s.section}>
-            <View style={s.sectionHeader}>
-              <Text style={s.sectionTitle}>Alamat Saya</Text>
-              <TouchableOpacity
-                style={s.addNewBtn}
-                onPress={() => {
-                  setFormTarget(null);
-                  setFormVisible(true);
-                }}
-                activeOpacity={0.8}
-              >
-                <IconPlus size={13} />
-                <Text style={s.addNewText}>Tambahkan Alamat Baru</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={s.sectionCard}>
-              {isLoadingAddresses ? (
-                <View style={s.sectionLoading}>
+        </ScrollView>
+      ) : (
+        <>
+          {/* ── Search overlay ──────────────────────────────────────────────── */}
+          {isSearchMode && (
+            <View style={s.searchOverlay}>
+              {isSearching ? (
+                <View style={s.searchLoading}>
                   <ActivityIndicator size="small" color={PRIMARY} />
-                  <Text style={s.sectionLoadingText}>Memuat alamat...</Text>
+                  <Text style={s.searchLoadingText}>Mencari lokasi...</Text>
                 </View>
-              ) : savedAddresses.length === 0 ? (
-                <View style={s.sectionEmpty}>
-                  <Text style={s.sectionEmptyText}>Belum ada alamat tersimpan</Text>
+              ) : searchResults.length === 0 ? (
+                <View style={s.searchLoading}>
+                  <Text style={s.searchLoadingText}>Lokasi tidak ditemukan</Text>
                 </View>
               ) : (
-                <>
-                  {visibleAddresses.map((addr) => (
-                    <SavedAddressCard
-                      key={addr.id}
-                      item={addr}
-                      onSelect={handleSelectSaved}
-                      onEdit={() => {
-                        setFormTarget(addr);
-                        setFormVisible(true);
-                      }}
-                    />
-                  ))}
-                  {savedAddresses.length > SHOWN_DEFAULT && (
-                    <TouchableOpacity
-                      style={s.showMoreBtn}
-                      onPress={() => setShowAllAddresses(!showAllAddresses)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={s.showMoreText}>
-                        {showAllAddresses
-                          ? "Tampilkan Lebih Sedikit"
-                          : `Lihat Lainnya (${hiddenCount})`}
-                      </Text>
-                      {showAllAddresses ? <IconChevronUp size={15} /> : <IconChevronDown size={15} />}
-                    </TouchableOpacity>
-                  )}
-                </>
-              )}
-            </View>
-          </View>
-
-          {/* ── 6. Section: Saran Lokasi Terdekat ────────────────────────── */}
-          <View style={[s.section, { marginBottom: 32 }]}>
-            <View style={s.sectionHeader}>
-              <Text style={s.sectionTitle}>Saran Lokasi Terdekat</Text>
-            </View>
-
-            <View style={s.sectionCard}>
-              {isLoadingNearby ? (
-                <View style={s.sectionLoading}>
-                  <ActivityIndicator size="small" color={PRIMARY} />
-                  <Text style={s.sectionLoadingText}>Mencari lokasi terdekat...</Text>
-                </View>
-              ) : nearbyPlaces.length === 0 ? (
-                <View style={s.sectionEmpty}>
-                  <Text style={s.sectionEmptyText}>Tidak ada saran lokasi saat ini</Text>
-                </View>
-              ) : (
-                nearbyPlaces.map((place) => (
-                  <NearbyPlaceCard key={place.id} item={place} onSelect={handleSelectNearby} />
+                searchResults.map((r) => (
+                  <SearchResultCard
+                    key={r.id}
+                    item={r}
+                    onSelect={handleSelectNearby}
+                  />
                 ))
               )}
             </View>
-          </View>
-        </ScrollView>
+          )}
+
+          {!isSearchMode && (
+            <ScrollView
+              style={s.scroll}
+              showsVerticalScrollIndicator={false}
+              stickyHeaderIndices={[]}
+            >
+              {/* ── 2. Peta Mini ─────────────────────────────────────────────── */}
+              <View style={s.mapWrap}>
+                {/* Banner notifikasi di atas peta */}
+                <View style={s.notifBanner} pointerEvents="none">
+                  <View style={s.notifIcon}>
+                    <IconBell size={18} />
+                  </View>
+                  <Text style={s.notifText}>
+                    Mohon periksa pin lokasimu, kami akan mencarikan restoran sesuai
+                    pin lokasi
+                  </Text>
+                </View>
+
+                <Mapbox.MapView
+                  ref={mapRef}
+                  style={StyleSheet.absoluteFill}
+                  scrollEnabled
+                  zoomEnabled
+                  rotateEnabled={false}
+                  onRegionWillChange={() => setIsPanning(true)}
+                  onRegionDidChange={handleRegionDidChange}
+                  logoEnabled={false}
+                  attributionEnabled={false}
+                >
+                  <Mapbox.Camera
+                    ref={cameraRef}
+                    centerCoordinate={[mapCoord.longitude, mapCoord.latitude]}
+                    zoomLevel={15}
+                    animationDuration={300}
+                  />
+                </Mapbox.MapView>
+
+                {/* Pin tetap di tengah */}
+                <View pointerEvents="none" style={s.centerPinWrap}>
+                  <Animated.View style={{ transform: [{ translateY: pinBounce }] }}>
+                    <IconMapPin color={PRIMARY} size={38} />
+                  </Animated.View>
+                  <View style={[s.pinShadow, isPanning && s.pinShadowSmall]} />
+                </View>
+
+                {/* Tombol GPS floating */}
+                <TouchableOpacity
+                  style={s.gpsBtn}
+                  onPress={handleUseCurrentGPS}
+                  disabled={detectingGPS}
+                  activeOpacity={0.85}
+                >
+                  {detectingGPS ? (
+                    <ActivityIndicator size="small" color={PRIMARY} />
+                  ) : (
+                    <IconTarget color={PRIMARY} size={20} />
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {/* ── 3. Row "Antar Ke" ──────────────────────────────────────────── */}
+              <View style={s.deliveryRow}>
+                <View style={s.deliveryLeft}>
+                  <IconMapPin color={PRIMARY} size={20} />
+                  <View style={s.deliveryTextWrap}>
+                    <Text style={s.deliveryLabel}>Atur di:</Text>
+                    <Text style={s.deliveryAddress} numberOfLines={1}>
+                      {resolvingMapAddress
+                        ? "Mencari alamat..."
+                        : mapAddress || currentAddressLabel}
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={s.gpsRowBtn}
+                  onPress={handleUseCurrentGPS}
+                  activeOpacity={0.8}
+                  disabled={detectingGPS}
+                >
+                  <IconTarget color={PRIMARY} size={14} />
+                  <Text style={s.gpsRowText}>
+                    {detectingGPS ? "Mendeteksi..." : "Lokasi Saat Ini"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* ── 4. Konfirmasi Pin ─────────────────────────────────────────── */}
+              <TouchableOpacity
+                style={[s.confirmBtn, resolvingMapAddress && s.confirmBtnDisabled]}
+                onPress={handleConfirmPin}
+                disabled={resolvingMapAddress}
+                activeOpacity={0.85}
+              >
+                <Text style={s.confirmBtnText}>
+                  {resolvingMapAddress
+                    ? "Memuat alamat..."
+                    : "Gunakan Lokasi Pin Ini"}
+                </Text>
+              </TouchableOpacity>
+
+              {/* ── 5. Section: Alamat Saya ──────────────────────────────────── */}
+              <View style={s.section}>
+                <View style={s.sectionHeader}>
+                  <Text style={s.sectionTitle}>Alamat Saya</Text>
+                  <TouchableOpacity
+                    style={s.addNewBtn}
+                    onPress={() => {
+                      setFormTarget(null);
+                      setFormVisible(true);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <IconPlus size={13} />
+                    <Text style={s.addNewText}>Tambahkan Alamat Baru</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={s.sectionCard}>
+                  {isLoadingAddresses ? (
+                    <View style={s.sectionLoading}>
+                      <ActivityIndicator size="small" color={PRIMARY} />
+                      <Text style={s.sectionLoadingText}>Memuat alamat...</Text>
+                    </View>
+                  ) : savedAddresses.length === 0 ? (
+                    <View style={s.sectionEmpty}>
+                      <Text style={s.sectionEmptyText}>
+                        Belum ada alamat tersimpan
+                      </Text>
+                    </View>
+                  ) : (
+                    <>
+                      {visibleAddresses.map((addr) => (
+                        <SavedAddressCard
+                          key={addr.id}
+                          item={addr}
+                          onSelect={handleSelectSaved}
+                          onEdit={() => {
+                            setFormTarget(addr);
+                            setFormVisible(true);
+                          }}
+                        />
+                      ))}
+                      {savedAddresses.length > SHOWN_DEFAULT && (
+                        <TouchableOpacity
+                          style={s.showMoreBtn}
+                          onPress={() => setShowAllAddresses(!showAllAddresses)}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={s.showMoreText}>
+                            {showAllAddresses
+                              ? "Tampilkan Lebih Sedikit"
+                              : `Lihat Lainnya (${hiddenCount})`}
+                          </Text>
+                          {showAllAddresses ? (
+                            <IconChevronUp size={15} />
+                          ) : (
+                            <IconChevronDown size={15} />
+                          )}
+                        </TouchableOpacity>
+                      )}
+                    </>
+                  )}
+                </View>
+              </View>
+
+              {/* ── 6. Section: Saran Lokasi Terdekat ────────────────────────── */}
+              <View style={[s.section, { marginBottom: 32 }]}>
+                <View style={s.sectionHeader}>
+                  <Text style={s.sectionTitle}>Saran Lokasi Terdekat</Text>
+                </View>
+
+                <View style={s.sectionCard}>
+                  {isLoadingNearby ? (
+                    <View style={s.sectionLoading}>
+                      <ActivityIndicator size="small" color={PRIMARY} />
+                      <Text style={s.sectionLoadingText}>
+                        Mencari lokasi terdekat...
+                      </Text>
+                    </View>
+                  ) : nearbyPlaces.length === 0 ? (
+                    <View style={s.sectionEmpty}>
+                      <Text style={s.sectionEmptyText}>
+                        Tidak ada saran lokasi saat ini
+                      </Text>
+                    </View>
+                  ) : (
+                    nearbyPlaces.map((place) => (
+                      <NearbyPlaceCard
+                        key={place.id}
+                        item={place}
+                        onSelect={handleSelectNearby}
+                      />
+                    ))
+                  )}
+                </View>
+              </View>
+            </ScrollView>
+          )}
+        </>
       )}
 
       {/* ── Form Sheet ─────────────────────────────────────────────────── */}
@@ -1451,4 +1794,80 @@ const s = StyleSheet.create({
     backgroundColor: GRAY_50,
   },
   showMoreText: { fontSize: 13, color: PRIMARY, fontWeight: "700" },
+
+  // ── Mode Saran Lokasi (Layout Desain Baru) ──────────────────────────────
+  suggestionsScroll: {
+    flex: 1,
+    backgroundColor: WHITE,
+  },
+  suggestionsContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 40,
+  },
+  suggestionsCard: {
+    backgroundColor: "#d5d8dc",
+    borderRadius: 14,
+    overflow: "hidden",
+  },
+  suggestionsCardHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 12,
+    borderBottomWidth: 1.5,
+    borderBottomColor: WHITE,
+  },
+  suggestionsCardTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: GRAY_900,
+  },
+  suggestionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1.5,
+    borderBottomColor: WHITE,
+    backgroundColor: "transparent",
+  },
+  suggestionItemLast: {
+    borderBottomWidth: 0,
+  },
+  suggestionIconCol: {
+    width: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  suggestionDistance: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: GRAY_700,
+    marginTop: 3,
+  },
+  suggestionTextCol: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  suggestionItemTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: GRAY_900,
+  },
+  suggestionItemDetail: {
+    fontSize: 12,
+    color: GRAY_500,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  suggestionLoadingWrap: {
+    padding: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  suggestionLoadingText: {
+    fontSize: 13,
+    color: GRAY_500,
+  },
 });
