@@ -1,9 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Colors, Spacing, FontSize, FontWeight, BorderRadius } from '@/constants/typography';
-import { Order } from '@/types';
-import { orderService } from '@/services/order.service';
+import {
+    BorderRadius,
+    Colors,
+    FontSize,
+    FontWeight,
+    Spacing,
+} from "@/constants/typography";
+import { orderService } from "@/services/order.service";
+import { Order } from "@/types";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import {
+    FlatList,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
 
 export default function MitraOrdersScreen() {
   const router = useRouter();
@@ -34,25 +47,32 @@ export default function MitraOrdersScreen() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'paid': return Colors.status.paid;
-      case 'ready': return Colors.status.ready;
-      case 'completed': return Colors.status.completed;
-      case 'cancelled': return Colors.status.cancelled;
-      default: return Colors.status.pendingPayment;
+      case "paid":
+        return Colors.status.paid;
+      case "ready":
+        return Colors.status.ready;
+      case "completed":
+        return Colors.status.completed;
+      case "cancelled":
+        return Colors.status.cancelled;
+      default:
+        return Colors.status.pendingPayment;
     }
   };
 
   const renderItem = ({ item }: { item: Order }) => {
     const statusStyle = getStatusColor(item.status);
-    
+
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.card}
         onPress={() => router.push(`/(mitra)/orders/${item.id}`)}
       >
         <View style={styles.cardHeader}>
           <Text style={styles.orderId}>Order #{item.id.substring(0, 8)}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
+          <View
+            style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}
+          >
             <Text style={[styles.statusText, { color: statusStyle.text }]}>
               {item.status.toUpperCase()}
             </Text>
@@ -61,10 +81,14 @@ export default function MitraOrdersScreen() {
 
         <View style={styles.cardBody}>
           <Text style={styles.itemName}>
-            {item.orderItems?.[0]?.quantity}x {item.orderItems?.[0]?.product?.name}
-            {item.orderItems && item.orderItems.length > 1 ? ` + ${item.orderItems.length - 1} item lain` : ''}
+            {item.orderItems?.[0]?.qty}x {item.orderItems?.[0]?.product?.name}
+            {item.orderItems && item.orderItems.length > 1
+              ? ` + ${item.orderItems.length - 1} item lain`
+              : ""}
           </Text>
-          <Text style={styles.totalAmount}>Rp {item.totalAmount.toLocaleString('id-ID')}</Text>
+          <Text style={styles.totalAmount}>
+            Rp {item.totalAmount.toLocaleString("id-ID")}
+          </Text>
         </View>
       </TouchableOpacity>
     );
@@ -122,16 +146,16 @@ const styles = StyleSheet.create({
     padding: Spacing[4],
     borderWidth: 1,
     borderColor: Colors.neutral[200],
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,
   },
   cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: Spacing[2],
   },
   orderId: {
@@ -149,9 +173,9 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.bold,
   },
   cardBody: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   itemName: {
     fontSize: FontSize.md,
@@ -166,7 +190,7 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     padding: Spacing[8],
-    alignItems: 'center',
+    alignItems: "center",
   },
   emptyText: {
     fontSize: FontSize.md,

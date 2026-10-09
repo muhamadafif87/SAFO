@@ -40,6 +40,11 @@ yarn-error.*
 
 example
 
+# AI agent folders (local only, not in git)
+.gemini/
+.opencode/
+.claude/
+
 # generated native folders
 /ios
 /android

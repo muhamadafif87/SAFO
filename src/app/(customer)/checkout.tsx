@@ -40,6 +40,16 @@ export default function CheckoutScreen() {
   const handleOrder = async () => {
     if (items.length === 0) return;
 
+    // Pre-flight: cek stok lokal sebelum kirim ke backend
+    const outOfStock = items.find((i) => Number(i.product.stock) < i.qty);
+    if (outOfStock) {
+      Alert.alert(
+        'Stok Tidak Cukup',
+        `Stok "${outOfStock.product.name}" saat ini hanya tersisa ${outOfStock.product.stock}. Silakan kurangi jumlah atau hapus dari pesanan.`,
+      );
+      return;
+    }
+
     setIsLoading(true);
     try {
       // 1. Create order
