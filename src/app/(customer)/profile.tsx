@@ -1,15 +1,14 @@
-import React from 'react';
+import { useAuthStore } from '@/stores/auth.store';
+import { useRouter } from 'expo-router';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
   Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { useAuthStore } from '@/stores/auth.store';
 import Svg, { Path } from 'react-native-svg';
 import { Colors, Spacing, FontSize, FontWeight, BorderRadius } from '@/constants/typography';
 
@@ -25,133 +24,124 @@ const ERROR_TEXT = '#dc2626';
 
 export default function CustomerProfile() {
   const router = useRouter();
-  const { user, clearAuth } = useAuthStore();
+  const { user, mitra } = useAuthStore();
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Konfirmasi Keluar',
-      'Apakah Anda yakin ingin keluar dari akun ini?',
-      [
-        { text: 'Batal', style: 'cancel' },
-        {
-          text: 'Keluar',
-          style: 'destructive',
-          onPress: async () => {
-            await clearAuth();
-            router.replace('/(auth)/login');
-          },
-        },
-      ]
-    );
-  };
-
-  const getInitials = (name?: string) => {
-    if (!name) return 'U';
-    const parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
-  };
+  const isVip = !!user?.isVip;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header Title */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Profil Saya</Text>
-        </View>
-
-        {/* User Card */}
-        <View style={styles.profileCard}>
-          <View style={styles.avatarWrap}>
-            <Text style={styles.avatarText}>{getInitials(user?.name)}</Text>
-          </View>
-          <View style={styles.profileInfo}>
-            <View style={styles.nameRow}>
-              <Text style={styles.userName} numberOfLines={1}>
-                {user?.name || 'Pelanggan SAFO'}
-              </Text>
-              {user?.isVip && (
-                <View style={styles.vipBadge}>
-                  <Text style={styles.vipText}>👑 VIP</Text>
-                </View>
-              )}
-            </View>
-            <Text style={styles.userEmail} numberOfLines={1}>
-              {user?.email || 'email@safo.id'}
-            </Text>
-            {user?.phone ? (
-              <Text style={styles.userPhone}>{user.phone}</Text>
-            ) : null}
-          </View>
-        </View>
-
-        {/* Menu Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionHeader}>Aktivitas & Pesanan</Text>
-          
-          <TouchableOpacity
-            style={styles.menuItem}
-            activeOpacity={0.7}
-            onPress={() => router.push('/(customer)/orders')}
-          >
-            <View style={[styles.menuIconWrap, { backgroundColor: '#eff6ff' }]}>
-              <Svg width={18} height={18} viewBox="0 0 16 16" fill="#3b82f6">
-                <Path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1z" />
-                <Path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0z" />
-              </Svg>
-            </View>
-            <Text style={styles.menuLabel}>Daftar Pesanan</Text>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Account Settings Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionHeader}>Pengaturan Akun</Text>
-          
-          <TouchableOpacity
-            style={styles.menuItem}
-            activeOpacity={0.7}
-            onPress={() => Alert.alert('Informasi', 'Fitur edit profil segera hadir.')}
-          >
-            <View style={[styles.menuIconWrap, { backgroundColor: '#f0fdf4' }]}>
-              <Svg width={18} height={18} viewBox="0 0 16 16" fill={PRIMARY}>
-                <Path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z" />
-              </Svg>
-            </View>
-            <Text style={styles.menuLabel}>Informasi Akun</Text>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.menuItem}
-            activeOpacity={0.7}
-            onPress={() => Alert.alert('Bantuan', 'Hubungi customer service SAFO di support@safo.id')}
-          >
-            <View style={[styles.menuIconWrap, { backgroundColor: '#fef3c7' }]}>
-              <Svg width={18} height={18} viewBox="0 0 16 16" fill="#d97706">
-                <Path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16" />
-                <Path d="M5.255 5.786a.237.237 0 0 0 .241.247h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286m1.557 5.763c0 .533.425.927 1.01.927.609 0 1.028-.394 1.028-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94" />
-              </Svg>
-            </View>
-            <Text style={styles.menuLabel}>Bantuan & FAQ</Text>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Logout Button */}
+      {/* Header: back + title */}
+      <View style={styles.header}>
         <TouchableOpacity
-          style={styles.logoutButton}
-          activeOpacity={0.8}
-          onPress={handleLogout}
+          style={styles.backButton}
+          onPress={() => router.back()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Text style={styles.logoutText}>Keluar dari Akun</Text>
+          <Svg width={20} height={20} viewBox="0 0 16 16" fill={TEXT_DARK}>
+            <Path d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z" />
+          </Svg>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Profil</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* ── Hero card teal gelap ── */}
+        <View style={styles.heroCard}>
+          <View style={styles.avatarWrap}>
+            <PersonIcon color={TEAL_DARK} size={32} />
+          </View>
+          <Text style={styles.heroName}>{user?.name || 'Nama'}</Text>
+          <Text style={styles.heroPhone}>{user?.phone || '-'}</Text>
+        </View>
+
+        {/* ── Kartu VIP ── */}
+        <TouchableOpacity
+          style={styles.vipCard}
+          activeOpacity={0.7}
+          onPress={() => Alert.alert('VIP', 'Fitur VIP segera hadir.')}
+        >
+          <View style={styles.vipIconWrap}>
+            <CrownIcon color={TEAL} size={20} />
+          </View>
+          <View style={styles.vipInfo}>
+            <Text style={styles.vipLabel}>VIP</Text>
+            <Text style={[styles.vipStatus, !isVip && styles.vipStatusInactive]}>
+              {isVip ? 'Aktif' : 'Nonaktif'}
+            </Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
         </TouchableOpacity>
 
-        {/* Version info */}
-        <Text style={styles.versionText}>SAFO App v1.0.0</Text>
+        {/* ── Informasi Pribadi ── */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardHeaderIcon}>
+              <PersonIcon color={TEAL} size={16} />
+            </View>
+            <Text style={styles.cardHeaderTitle}>Informasi Pribadi</Text>
+          </View>
+
+          <View style={styles.infoRow}>
+            <View style={styles.infoIconWrap}>
+              <Text style={styles.infoEmoji}>📍</Text>
+            </View>
+            <Text style={styles.infoText}>{mitra?.address || '-'}</Text>
+            <Text style={styles.chevron}>›</Text>
+          </View>
+
+          <View style={styles.infoRow}>
+            <View style={styles.infoIconWrap}>
+              <Text style={styles.infoEmoji}>📞</Text>
+            </View>
+            <Text style={styles.infoText}>{user?.phone || '-'}</Text>
+            <Text style={styles.chevron}>›</Text>
+          </View>
+
+          <View style={[styles.infoRow, styles.infoRowLast]}>
+            <View style={styles.infoIconWrap}>
+              <Text style={styles.infoEmoji}>✉️</Text>
+            </View>
+            <Text style={[styles.infoText, styles.infoEmail]} numberOfLines={1}>
+              {user?.email || '-'}
+            </Text>
+            <Text style={styles.chevron}>›</Text>
+          </View>
+        </View>
+
+        {/* ── Bantuan ── */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardHeaderIcon}>
+              <LifebuoyIcon color={TEAL} size={16} />
+            </View>
+            <Text style={styles.cardHeaderTitle}>Bantuan</Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.infoRow}
+            activeOpacity={0.7}
+            onPress={() => Alert.alert('Pusat Bantuan', 'Kunjungi support@safo.id untuk bantuan.')}
+          >
+            <View style={[styles.infoIconWrap, { backgroundColor: '#fef3c7' }]}>
+              <QuestionIcon />
+            </View>
+            <Text style={styles.infoText}>Pusat Bantuan</Text>
+            <Text style={styles.chevron}>›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.infoRow, styles.infoRowLast]}
+            activeOpacity={0.7}
+            onPress={() => Alert.alert('Chat Admin', 'Hubungi admin SAFO melalui WhatsApp.')}
+          >
+            <View style={[styles.infoIconWrap, { backgroundColor: '#eff6ff' }]}>
+              <ChatIcon />
+            </View>
+            <Text style={styles.infoText}>Chat Admin</Text>
+            <Text style={styles.chevron}>›</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -167,17 +157,30 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 40,
   },
+
   header: {
-    marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    backgroundColor: '#ffffff',
+  },
+  backButton: {
+    width: 40,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '700',
     color: TEXT_DARK,
   },
-  profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  headerSpacer: {
+    width: 40,
+  },
+
+  scrollContent: {
     padding: 16,
     borderRadius: 16,
     backgroundColor: PRIMARY_DARK,
@@ -191,20 +194,27 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 14,
+    marginBottom: 10,
   },
-  avatarText: {
-    fontSize: 20,
+  heroName: {
+    fontSize: 18,
     fontWeight: '700',
     color: WHITE,
   },
-  profileInfo: {
-    flex: 1,
+  heroPhone: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: 2,
   },
-  nameRow: {
+
+  vipCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    backgroundColor: MINT,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    marginBottom: 16,
   },
   userName: {
     fontSize: 16,
@@ -219,8 +229,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 0,
   },
-  vipText: {
-    fontSize: 10,
+  vipLabel: {
+    fontSize: 16,
     fontWeight: '700',
     color: PRIMARY,
   },
@@ -229,50 +239,54 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 2,
   },
-  userPhone: {
+  vipStatus: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 1,
   },
-  section: {
-    marginBottom: 24,
-  },
-  sectionHeader: {
-    fontSize: 13,
-    fontWeight: '600',
+  vipStatusInactive: {
     color: TEXT_MUTED,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 10,
   },
-  menuItem: {
+
+  card: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 4,
+    marginBottom: 16,
+  },
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 13,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: BORDER_COLOR,
-    marginBottom: 8,
+    marginBottom: 6,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F2F2F2',
   },
-  menuIconWrap: {
-    width: 32,
-    height: 32,
+  cardHeaderIcon: {
+    width: 28,
+    height: 28,
     borderRadius: 8,
+    backgroundColor: MINT,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 10,
   },
-  menuLabel: {
-    flex: 1,
+  cardHeaderTitle: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '700',
     color: TEXT_DARK,
   },
-  chevron: {
-    fontSize: 18,
-    color: '#9ca3af',
+
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F2F2F2',
   },
   logoutButton: {
     marginTop: 12,
@@ -280,16 +294,25 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
   logoutText: {
     fontSize: 14,
     fontWeight: '600',
     color: ERROR_TEXT,
   },
-  versionText: {
-    textAlign: 'center',
-    fontSize: 12,
-    color: '#9ca3af',
-    marginTop: 24,
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: TEXT_DARK,
+  },
+  infoEmail: {
+    color: LINK_BLUE,
+  },
+  chevron: {
+    fontSize: 18,
+    color: '#B0B0B0',
+    marginLeft: 8,
   },
 });

@@ -13,6 +13,7 @@ export const AppDataSource = new DataSource({
     ? {
         url: databaseUrl,
         ssl: { rejectUnauthorized: false },
+        extra: { family: 4 },
       }
     : {
         host: process.env.DB_HOST || 'localhost',
@@ -20,6 +21,7 @@ export const AppDataSource = new DataSource({
         username: process.env.DB_USER || 'safo',
         password: process.env.DB_PASSWORD || 'safo_password',
         database: process.env.DB_NAME || 'safo_db',
+        extra: { family: 4 },
       }),
   synchronize: false,
   logging: true,
