@@ -65,20 +65,14 @@ export default function CheckoutScreen() {
       // 3. Clear cart
       clearCart();
 
-      // 4. Navigate to order detail
-      Alert.alert(
-        'Pesanan Berhasil! 🎉',
-        `Pesanan kamu sudah dikonfirmasi.\nTunjukkan kode pickup ke mitra saat mengambil.`,
-        [
-          {
-            text: 'Lihat Pesanan',
-            onPress: () => router.replace(`/(customer)/orders/${order.id}`),
-          },
-        ],
-        { cancelable: false }
-      );
+      // 4. Langsung ke halaman detail pesanan (tanpa Alert perantara)
+      router.replace(`/(customer)/orders/${order.id}`);
     } catch (err: any) {
-      Alert.alert('Gagal', err.response?.data?.message || 'Gagal membuat pesanan. Coba lagi.');
+      const msg = err.response?.data?.message;
+      const errorText = Array.isArray(msg)
+        ? msg.join('\n')
+        : (msg || err.message || 'Gagal membuat pesanan. Coba lagi.');
+      Alert.alert('Gagal Membuat Pesanan', errorText);
     } finally {
       setIsLoading(false);
     }

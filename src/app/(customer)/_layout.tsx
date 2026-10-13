@@ -223,6 +223,23 @@ export default function CustomerLayout() {
           tabBarStyle: { display: "none" },
         }}
       />
+      <Tabs.Screen
+        name="vip"
+        options={{
+          href: null,
+          title: "VIP",
+          tabBarStyle: { display: "none" },
+        }}
+      />
+      {/* orders/[id] — detail pesanan, dibuka setelah checkout berhasil */}
+      <Tabs.Screen
+        name="orders/[id]"
+        options={{
+          href: null,
+          title: "Detail Pesanan",
+          tabBarStyle: { display: "none" },
+        }}
+      />
     </Tabs>
   );
 }
