@@ -4,11 +4,17 @@ import Constants from "expo-constants";
 import { Platform } from "react-native";
 
 // ── Config ────────────────────────────────────────────────────────────────
-const DEV_API_URL =
-  process.env.EXPO_PUBLIC_API_URL ??
-  (Platform.OS === "web"
-    ? "http://localhost:3000/api"
-    : `http://${Constants.expoConfig?.hostUri?.split(":")[0] ?? "localhost"}:3000/api`);
+const getDevApiUrl = () => {
+  if (Platform.OS !== "web") {
+    const host = Constants.expoConfig?.hostUri?.split(":")[0];
+    if (host && host !== "localhost") {
+      return `http://${host}:3000/api`;
+    }
+  }
+  return process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000/api";
+};
+
+const DEV_API_URL = getDevApiUrl();
 
 const BASE_URL = __DEV__ ? DEV_API_URL : "https://api.safo.app/api";
 

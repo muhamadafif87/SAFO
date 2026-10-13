@@ -128,7 +128,7 @@ export class OrderService {
 
       return manager.findOne(Order, {
         where: { id: order.id },
-        relations: { orderItems: { product: true } },
+        relations: { orderItems: { product: true }, mitra: true },
       }) as Promise<Order>;
     });
   }

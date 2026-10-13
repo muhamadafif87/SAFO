@@ -8,8 +8,8 @@ import {
 import { productService } from "@/services/product.service";
 import { useCartStore } from "@/stores/cart.store";
 import type { Product } from "@/types";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -52,22 +52,24 @@ export default function ProductDetail() {
 
   const { addItem, forceAddItem } = useCartStore();
 
-  useEffect(() => {
-    (async () => {
-      try {
-        if (!id) return;
-        const data = await productService.getById(id);
-        setProduct(data);
-      } catch (err: any) {
-        Alert.alert("Error", err.message || "Gagal memuat produk");
-        router.back();
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [id]);
+  // Refresh data produk setiap kali screen ini mendapat focus,
+  // sehingga stok selalu up-to-date setelah user balik dari checkout.
+  useFocusEffect(
+    useCallback(() => {
+      if (!id) return;
+      setLoading(true);
+      productService
+        .getById(id)
+        .then((data) => setProduct(data))
+        .catch((err: any) => {
+          Alert.alert("Error", err.message || "Gagal memuat produk");
+          router.back();
+        })
+        .finally(() => setLoading(false));
+    }, [id])
+  );
 
-  const handleAddToCart = () => {
+  const handleAddToCart = (directCheckout = false) => {
     if (!product) return;
 
     // Use a custom object extending product to include the note if needed,
@@ -85,11 +87,15 @@ export default function ProductDetail() {
             style: "destructive",
             onPress: () => {
               forceAddItem(product, quantity);
-              Alert.alert(
-                "Ditambahkan!",
-                `${product.name} (x${quantity}) ditambahkan ke pesanan.`,
-              );
-              router.back();
+              if (directCheckout) {
+                router.push("/(customer)/checkout");
+              } else {
+                Alert.alert(
+                  "Ditambahkan!",
+                  `${product.name} (x${quantity}) ditambahkan ke pesanan.`,
+                );
+                router.back();
+              }
             },
           },
         ],
@@ -97,11 +103,15 @@ export default function ProductDetail() {
       return;
     }
 
-    Alert.alert(
-      "Berhasil",
-      `${product.name} (x${quantity}) ditambahkan ke pesanan!`,
-    );
-    router.back();
+    if (directCheckout) {
+      router.push("/(customer)/checkout");
+    } else {
+      Alert.alert(
+        "Berhasil",
+        `${product.name} (x${quantity}) ditambahkan ke pesanan!`,
+      );
+      router.back();
+    }
   };
 
   if (loading) {
@@ -255,16 +265,29 @@ export default function ProductDetail() {
           { paddingBottom: Math.max(insets.bottom, 16) },
         ]}
       >
-        <TouchableOpacity
-          style={[styles.submitBtn, isSoldOut && styles.submitBtnDisabled]}
-          onPress={handleAddToCart}
-          disabled={isSoldOut}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.submitBtnText}>
-            {isSoldOut ? "Stok Habis" : "Masukkan Keranjang"}
-          </Text>
-        </TouchableOpacity>
+        {isSoldOut ? (
+          <View style={[styles.submitBtn, styles.submitBtnDisabled]}>
+            <Text style={styles.submitBtnText}>Stok Habis</Text>
+          </View>
+        ) : (
+          <View style={styles.actionBtnRow}>
+            <TouchableOpacity
+              style={styles.cartOutlineBtn}
+              onPress={() => handleAddToCart(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.cartOutlineText}>+ Keranjang</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.buyNowBtn}
+              onPress={() => handleAddToCart(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.buyNowText}>Beli Langsung</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -331,81 +354,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[3],
-    backgroundColor: Colors.neutral[0],
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral[100],
-  },
-  backBtn: { padding: Spacing[1] },
-  backText: {
-    fontSize: FontSize.md,
-    color: Colors.primary[600],
-    fontWeight: FontWeight.medium,
-  },
-  cartBtn: {
-    backgroundColor: Colors.primary[600],
-    paddingHorizontal: Spacing[3],
-    paddingVertical: Spacing[2],
-    borderRadius: BorderRadius.md,
-  },
-  cartBtnText: {
-    fontSize: FontSize.sm,
-    color: "#fff",
-    fontWeight: FontWeight.bold,
-  },
-
-  productImage: {
-    width: "100%",
-    height: 240,
+    marginBottom: 16,
   },
   mitraName: {
     fontSize: 15,
     color: GRAY_700,
+    fontWeight: "500",
   },
   ratingWrap: {
     flexDirection: "row",
     alignItems: "center",
   },
-  imagePlaceholderIcon: { fontSize: 80 },
-
-  discountBadge: {
-    position: "absolute",
-    top: 56,
-    right: Spacing[4],
-    backgroundColor: Colors.primary[600],
-    paddingHorizontal: Spacing[3],
-    paddingVertical: Spacing[1],
-    borderRadius: BorderRadius.md,
+  star: {
+    fontSize: 13,
+    marginRight: 4,
   },
-  discountBadgeText: {
-    color: "#fff",
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.bold,
-  },
-
-  mitraSection: {
-    backgroundColor: Colors.neutral[0],
-    padding: Spacing[4],
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral[100],
-  },
-  mitraName: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
-    color: Colors.neutral[900],
-  },
-  address: { fontSize: FontSize.sm, color: Colors.neutral[500], marginTop: 2 },
-  distance: {
-    fontSize: FontSize.sm,
-    color: Colors.primary[600],
-    marginTop: Spacing[1],
-  },
-
-  details: {
-    backgroundColor: Colors.neutral[0],
-    padding: Spacing[4],
-    marginTop: Spacing[2],
+  ratingText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: GRAY_700,
   },
   priceRow: {
     flexDirection: "row",
@@ -490,14 +457,6 @@ const styles = StyleSheet.create({
   },
   qtyControls: { flexDirection: "row", alignItems: "center", gap: Spacing[2] },
   qtyBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.neutral[100],
-    alignItems: "center",
-    gap: 12,
-  },
-  qtyBtn: {
     width: 28,
     height: 28,
     backgroundColor: PRIMARY,
@@ -557,6 +516,44 @@ const styles = StyleSheet.create({
   submitBtnText: {
     color: WHITE,
     fontSize: 16,
+    fontWeight: "700",
+  },
+  actionBtnRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  cartOutlineBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: PRIMARY,
+    backgroundColor: WHITE,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cartOutlineText: {
+    color: PRIMARY,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  buyNowBtn: {
+    flex: 1.3,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: PRIMARY,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: Colors.primary[600],
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  buyNowText: {
+    color: WHITE,
+    fontSize: 15,
     fontWeight: "700",
   },
 });

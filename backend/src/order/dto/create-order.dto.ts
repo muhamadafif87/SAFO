@@ -1,5 +1,14 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsUUID, Min } from 'class-validator';
+import {
+  IsArray,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { PaymentMethod } from '../../database/entities/order.enums';
 
 export class CreateOrderItemDto {
@@ -13,9 +22,16 @@ export class CreateOrderItemDto {
 }
 
 export class CreateOrderDto {
+  @IsArray()
+  @ValidateNested({ each: true })
   @Type(() => CreateOrderItemDto)
   items: CreateOrderItemDto[];
 
+  @IsOptional()
+  @IsEnum(PaymentMethod)
   paymentMethod?: PaymentMethod;
+
+  @IsOptional()
+  @IsString()
   note?: string;
 }
