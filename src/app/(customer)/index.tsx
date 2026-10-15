@@ -12,8 +12,10 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  BackHandler,
   FlatList,
   Image,
+  Keyboard,
   Modal,
   RefreshControl,
   ScrollView,
@@ -167,22 +169,75 @@ const headerStyles = StyleSheet.create({
 
 // ─── Search Bar ────────────────────────────────────────────────────────────
 
+function IconChevronLeft({
+  color = PRIMARY,
+  size = 24,
+}: {
+  color?: string;
+  size?: number;
+}) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M15 19l-7-7 7-7"
+        stroke={color}
+        strokeWidth={2.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 interface SearchBarProps {
   value: string;
   onChangeText: (t: string) => void;
+  onFocus?: () => void;
+  isActive?: boolean;
+  onBack?: () => void;
+  autoFocus?: boolean;
 }
 
-function SearchBar({ value, onChangeText }: SearchBarProps) {
+function SearchBar({
+  value,
+  onChangeText,
+  onFocus,
+  isActive = false,
+  onBack,
+  autoFocus = false,
+}: SearchBarProps) {
   return (
-    <View style={searchStyles.wrap}>
-      <View style={searchStyles.bar}>
-        <Text style={searchStyles.icon}>🔍</Text>
+    <View style={[searchStyles.wrap, isActive && searchStyles.wrapActive]}>
+      {isActive && (
+        <TouchableOpacity
+          onPress={onBack}
+          style={searchStyles.backBtn}
+          activeOpacity={0.7}
+        >
+          <IconChevronLeft color={PRIMARY} size={24} />
+        </TouchableOpacity>
+      )}
+
+      <View style={[searchStyles.bar, isActive && searchStyles.barActive]}>
+        <Text style={searchStyles.icon}>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            fill="currentColor"
+            viewBox="0 0 16 16"
+          >
+            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0" />
+          </svg>
+        </Text>
         <TextInput
           style={searchStyles.input}
           placeholder="Cari makanan atau warung..."
           placeholderTextColor={GRAY_400}
           value={value}
           onChangeText={onChangeText}
+          onFocus={onFocus}
+          autoFocus={autoFocus}
           clearButtonMode="while-editing"
           returnKeyType="search"
         />
@@ -207,6 +262,17 @@ const searchStyles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: GRAY_100,
   },
+  wrapActive: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    gap: 8,
+  },
+  backBtn: {
+    padding: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   bar: {
     flexDirection: "row",
     alignItems: "center",
@@ -215,6 +281,13 @@ const searchStyles = StyleSheet.create({
     paddingHorizontal: 14,
     height: 46,
     gap: 8,
+  },
+  barActive: {
+    flex: 1,
+    backgroundColor: WHITE,
+    borderWidth: 1.5,
+    borderColor: GRAY_200,
+    borderRadius: 12,
   },
   icon: { fontSize: 15 },
   input: { flex: 1, fontSize: 15, color: GRAY_900 },
@@ -227,6 +300,310 @@ const searchStyles = StyleSheet.create({
     justifyContent: "center",
   },
   clearText: { color: WHITE, fontSize: 10, fontWeight: "700" },
+});
+
+// ─── Pilihan Makanan (Grid Kategori) ───────────────────────────────────────────
+
+export interface FoodCategoryChoice {
+  id: string;
+  name: string;
+  imageUrl: string;
+}
+
+export const FOOD_CHOICES: FoodCategoryChoice[] = [
+  {
+    id: "ayam-geprek",
+    name: "Ayam Geprek",
+    imageUrl:
+      "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "nasi-goreng",
+    name: "Nasi Goreng",
+    imageUrl:
+      "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "mie-goreng",
+    name: "Mie Goreng",
+    imageUrl:
+      "https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "ayam-goreng",
+    name: "Ayam Goreng",
+    imageUrl:
+      "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "mie-ayam",
+    name: "Mie Ayam",
+    imageUrl:
+      "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "ayam-bakar",
+    name: "Ayam Bakar",
+    imageUrl:
+      "https://images.unsplash.com/photo-1527477378377-f8231268f7d9?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "sate-ayam",
+    name: "Sate Ayam",
+    imageUrl:
+      "https://images.unsplash.com/photo-1555126634-323283e090fa?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "bubur-ayam",
+    name: "Bubur Ayam",
+    imageUrl:
+      "https://images.unsplash.com/photo-1541832676-9b763b0239ab?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "soto-ayam",
+    name: "Soto Ayam",
+    imageUrl:
+      "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "bebek-goreng",
+    name: "Bebek Goreng",
+    imageUrl:
+      "https://images.unsplash.com/photo-1514944298352-ec06670894e7?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "ikan-bakar",
+    name: "Ikan Bakar",
+    imageUrl:
+      "https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "sup-ayam",
+    name: "Sup Ayam",
+    imageUrl:
+      "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=300&q=80",
+  },
+];
+
+const DEFAULT_PRODUCT_PHOTOS: Record<string, string> = {
+  "roti sobek":
+    "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=500&q=80",
+  donat:
+    "https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=500&q=80",
+  geprek:
+    "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&w=500&q=80",
+  soto: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80",
+  liwet:
+    "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=500&q=80",
+  pecel:
+    "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=500&q=80",
+  brownies:
+    "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=500&q=80",
+  cheesecake:
+    "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=500&q=80",
+  pastel:
+    "https://images.unsplash.com/photo-1541832676-9b763b0239ab?auto=format&fit=crop&w=500&q=80",
+  "roti tawar":
+    "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=500&q=80",
+  "roti manis":
+    "https://images.unsplash.com/photo-1589367920969-ab8e050bbb04?auto=format&fit=crop&w=500&q=80",
+  roti: "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=500&q=80",
+  bolu: "https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=500&q=80",
+  croissant:
+    "https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=500&q=80",
+  rames:
+    "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80",
+  puding:
+    "https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?auto=format&fit=crop&w=500&q=80",
+  nasi: "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=500&q=80",
+  mie: "https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&w=500&q=80",
+  ayam: "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=500&q=80",
+};
+
+export function getProductThumbnailUrl(
+  photoUrl?: string,
+  name?: string,
+): string {
+  if (
+    photoUrl &&
+    !photoUrl.includes("storage.safo.id") &&
+    !photoUrl.includes("dashboard") &&
+    photoUrl.startsWith("http")
+  ) {
+    return photoUrl;
+  }
+  if (name) {
+    const lower = name.toLowerCase();
+    for (const [key, url] of Object.entries(DEFAULT_PRODUCT_PHOTOS)) {
+      if (lower.includes(key)) return url;
+    }
+  }
+  return "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80";
+}
+
+interface ProductGridProps {
+  products: Product[];
+  onSelectProduct: (product: Product) => void;
+}
+
+function ProductGridItem({
+  item,
+  width,
+  onPress,
+}: {
+  item: Product;
+  width: number;
+  onPress: () => void;
+}) {
+  const resolvedPhoto = getProductThumbnailUrl(item.photoUrl, item.name);
+  const [imgSrc, setImgSrc] = useState(resolvedPhoto);
+  const isSoldOut = Number(item.stock) <= 0 || item.status === "sold_out";
+
+  useEffect(() => {
+    setImgSrc(getProductThumbnailUrl(item.photoUrl, item.name));
+  }, [item.photoUrl, item.name]);
+
+  return (
+    <TouchableOpacity
+      style={[foodGridStyles.item, { width }]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      {/* Thumbnail Gambar Produk yang langsung redirect ketika diklik */}
+      <TouchableOpacity
+        style={[foodGridStyles.imageWrap, { width, height: width }]}
+        onPress={onPress}
+        activeOpacity={0.85}
+      >
+        <Image
+          source={{ uri: imgSrc }}
+          style={[foodGridStyles.image, { width, height: width }]}
+          resizeMode="cover"
+          onError={() => {
+            const fallback = getProductThumbnailUrl(undefined, item.name);
+            if (imgSrc !== fallback) {
+              setImgSrc(fallback);
+            }
+          }}
+        />
+        {isSoldOut && (
+          <View style={foodGridStyles.soldOutOverlay}>
+            <Text style={foodGridStyles.soldOutLabel}>Habis</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+
+      {/* Nama Produk */}
+      <Text style={foodGridStyles.label} numberOfLines={2}>
+        {item.name}
+      </Text>
+
+      {/* Nama Mitra */}
+      {item.mitra?.businessName ? (
+        <Text style={foodGridStyles.mitraSub} numberOfLines={1}>
+          {item.mitra.businessName}
+        </Text>
+      ) : null}
+    </TouchableOpacity>
+  );
+}
+
+function ProductGrid({ products, onSelectProduct }: ProductGridProps) {
+  const { width } = useWindowDimensions();
+  // 3 kolom: padding 16 kiri/kanan, gap 12 antar kolom
+  const itemWidth = Math.floor((width - 32 - 24) / 3);
+
+  return (
+    <ScrollView
+      style={{ flex: 1 }}
+      showsVerticalScrollIndicator={true}
+      contentContainerStyle={foodGridStyles.scrollContent}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Text style={foodGridStyles.sectionTitle}>Pilihan Makanan</Text>
+      <View style={foodGridStyles.grid}>
+        {products.map((item) => (
+          <ProductGridItem
+            key={item.id}
+            item={item}
+            width={itemWidth}
+            onPress={() => onSelectProduct(item)}
+          />
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+const foodGridStyles = StyleSheet.create({
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 160,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: GRAY_900,
+    marginBottom: 16,
+  },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  item: {
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  imageWrap: {
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: GRAY_100,
+    position: "relative",
+  },
+  image: {
+    borderRadius: 16,
+    backgroundColor: GRAY_100,
+  },
+  soldOutOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 16,
+  },
+  soldOutLabel: {
+    color: WHITE,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: GRAY_900,
+    textAlign: "center",
+    marginTop: 6,
+    lineHeight: 16,
+  },
+  mitraSub: {
+    fontSize: 10,
+    color: GRAY_500,
+    textAlign: "center",
+    marginTop: 2,
+    lineHeight: 13,
+  },
+  priceSub: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: PRIMARY,
+    textAlign: "center",
+    marginTop: 2,
+  },
 });
 
 // ─── Promo Banner Carousel ────────────────────────────────────────────────────
@@ -501,7 +878,8 @@ interface ProductCardProps {
 }
 
 function ProductCard({ item, onPress }: ProductCardProps) {
-  const [imgError, setImgError] = useState(false);
+  const resolvedPhoto = getProductThumbnailUrl(item.photoUrl, item.name);
+  const [imgSrc, setImgSrc] = useState(resolvedPhoto);
   const isSoldOut = Number(item.stock) <= 0 || item.status === "sold_out";
   const discountPct = Math.round(
     ((Number(item.originalPrice) - Number(item.discountPrice)) /
@@ -511,32 +889,39 @@ function ProductCard({ item, onPress }: ProductCardProps) {
   const rating = item.avgRating ?? null;
   const reviewCount = item.reviewCount ?? 0;
 
+  useEffect(() => {
+    setImgSrc(getProductThumbnailUrl(item.photoUrl, item.name));
+  }, [item.photoUrl, item.name]);
+
   return (
     <TouchableOpacity
       style={[cardStyles.container, isSoldOut && cardStyles.soldOut]}
       onPress={onPress}
       activeOpacity={0.88}
     >
-      {/* Image */}
-      <View style={cardStyles.imageWrap}>
-        {item.photoUrl && !imgError ? (
-          <Image
-            source={{ uri: item.photoUrl }}
-            style={cardStyles.image}
-            resizeMode="cover"
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <View style={[cardStyles.image, cardStyles.imagePlaceholder]}>
-            <Text style={cardStyles.imagePlaceholderIcon}>🍱</Text>
-          </View>
-        )}
+      {/* Thumbnail Gambar Produk yang langsung redirect ketika diklik */}
+      <TouchableOpacity
+        style={cardStyles.imageWrap}
+        onPress={onPress}
+        activeOpacity={0.88}
+      >
+        <Image
+          source={{ uri: imgSrc }}
+          style={cardStyles.image}
+          resizeMode="cover"
+          onError={() => {
+            const fallback = getProductThumbnailUrl(undefined, item.name);
+            if (imgSrc !== fallback) {
+              setImgSrc(fallback);
+            }
+          }}
+        />
         {isSoldOut && (
           <View style={cardStyles.soldOutOverlay}>
             <Text style={cardStyles.soldOutLabel}>Habis</Text>
           </View>
         )}
-      </View>
+      </TouchableOpacity>
 
       {/* Content */}
       <View style={cardStyles.content}>
@@ -1033,14 +1418,32 @@ export default function CustomerHome() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchActive, setIsSearchActive] = useState(false);
   const [activeFilter, setActiveFilter] = useState<SortFilter>("nearby");
 
   // Derived dari store — tampilkan label singkat di header
   const address = activeLocation?.address ?? "Mendeteksi lokasi...";
-  const location = activeLocation ? { lat: activeLocation.lat, lng: activeLocation.lng } : null;
+  const location = activeLocation
+    ? { lat: activeLocation.lat, lng: activeLocation.lng }
+    : null;
 
   const isVip = user?.isVip ?? false;
   const cartCount = getTotalItems();
+
+  // Handle hardware back on Android saat search aktif
+  useEffect(() => {
+    const onBackPress = () => {
+      if (isSearchActive) {
+        setIsSearchActive(false);
+        setSearchQuery("");
+        Keyboard.dismiss();
+        return true;
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => sub.remove();
+  }, [isSearchActive]);
 
   // Fetch products
   const fetchProducts = useCallback(
@@ -1100,7 +1503,7 @@ export default function CustomerHome() {
       await Promise.all([fetchProducts(lat, lng, "nearby"), fetchBanners()]);
       setLoading(false);
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Re-fetch when filter changes
@@ -1144,7 +1547,12 @@ export default function CustomerHome() {
     resolvedAddress: string,
     fullAddress?: string,
   ) => {
-    await setActiveLocation({ lat, lng, address: resolvedAddress, fullAddress });
+    await setActiveLocation({
+      lat,
+      lng,
+      address: resolvedAddress,
+      fullAddress,
+    });
     setLoading(true);
     await fetchProducts(lat, lng, activeFilter, searchQuery);
     setLoading(false);
@@ -1160,7 +1568,11 @@ export default function CustomerHome() {
   const ListHeader = (
     <>
       {/* Search */}
-      <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
+      <SearchBar
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        onFocus={() => setIsSearchActive(true)}
+      />
 
       {/* Promo Banner */}
       {banners.length > 0 && <PromoBannerCarousel banners={banners} />}
@@ -1196,6 +1608,69 @@ export default function CustomerHome() {
     </View>
   );
 
+  // ── Mode Pencarian Aktif (Sesuai Desain Wireframe) ────────────────────────
+  if (isSearchActive) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        {/* Header Search Aktif dengan tombol Back */}
+        <SearchBar
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          isActive={true}
+          autoFocus={true}
+          onBack={() => {
+            setIsSearchActive(false);
+            setSearchQuery("");
+            Keyboard.dismiss();
+          }}
+        />
+
+        <View style={{ flex: 1 }}>
+          {loading && products.length === 0 ? (
+            <ActivityIndicator
+              size="large"
+              color={PRIMARY}
+              style={{ marginTop: 60 }}
+            />
+          ) : products.length > 0 ? (
+            /* Grid 3-Kolom Produk dari Database Semua Mitra (Sesuai Wireframe) */
+            <ProductGrid
+              products={products}
+              onSelectProduct={(product) => {
+                router.push(`/(customer)/products/${product.id}`);
+              }}
+            />
+          ) : (
+            /* Tampilan Kosong jika tidak ada produk */
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={styles.listContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              {EmptyComponent}
+            </ScrollView>
+          )}
+        </View>
+
+        {/* Cart FAB */}
+        {cartCount > 0 && (
+          <TouchableOpacity
+            style={styles.cartFab}
+            onPress={() => router.push("/(customer)/checkout")}
+            activeOpacity={0.9}
+          >
+            <Text style={styles.cartFabIcon}>🛒</Text>
+            <View style={styles.cartFabMiddle}>
+              <Text style={styles.cartFabLabel}>{cartCount} item dipilih</Text>
+              <Text style={styles.cartFabSub}>Lanjut ke Checkout</Text>
+            </View>
+            <Text style={styles.cartFabArrow}>→</Text>
+          </TouchableOpacity>
+        )}
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       {/* Location Header */}
@@ -1208,7 +1683,11 @@ export default function CustomerHome() {
       {loading && products.length === 0 ? (
         <>
           {/* Show banner skeleton while loading */}
-          <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
+          <SearchBar
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onFocus={() => setIsSearchActive(true)}
+          />
           {banners.length > 0 && <PromoBannerCarousel banners={banners} />}
           <FilterChips active={activeFilter} onChange={setActiveFilter} />
           <ActivityIndicator

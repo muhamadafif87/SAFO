@@ -52,22 +52,25 @@ export default function ProductDetail() {
 
   const { addItem, forceAddItem } = useCartStore();
 
-  // Refresh data produk setiap kali screen ini mendapat focus,
-  // sehingga stok selalu up-to-date setelah user balik dari checkout.
-  useFocusEffect(
-    useCallback(() => {
-      if (!id) return;
-      setLoading(true);
-      productService
-        .getById(id)
-        .then((data) => setProduct(data))
-        .catch((err: any) => {
-          Alert.alert("Error", err.message || "Gagal memuat produk");
-          router.back();
-        })
-        .finally(() => setLoading(false));
-    }, [id])
-  );
+  const [imgSrc, setImgSrc] = useState<string>("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!id) return;
+        const data = await productService.getById(id);
+        setProduct(data);
+        if (data?.photoUrl) {
+          setImgSrc(data.photoUrl);
+        }
+      } catch (err: any) {
+        Alert.alert("Error", err.message || "Gagal memuat produk");
+        router.back();
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [id]);
 
   const handleAddToCart = (directCheckout = false) => {
     if (!product) return;
@@ -146,10 +149,18 @@ export default function ProductDetail() {
         <View style={styles.imageContainer}>
           <Image
             source={{
-              uri: product.photoUrl || "https://via.placeholder.com/400",
+              uri:
+                imgSrc ||
+                product.photoUrl ||
+                "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80",
             }}
             style={styles.image}
             resizeMode="cover"
+            onError={() => {
+              setImgSrc(
+                "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80",
+              );
+            }}
           />
           {/* Back Button */}
           <TouchableOpacity

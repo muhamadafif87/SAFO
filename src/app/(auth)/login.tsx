@@ -11,14 +11,26 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const isValidEmail = (value: string) => /\S+@\S+\.\S+/.test(value.trim());
 
+// Design tokens
+const PRIMARY = "#ffffff";
+const SECONDARY = "#00615F";
+const FONT_TITLE = "Alkatra_600SemiBold";
+const FONT_LIGHT = "Poppins_300Light";
+const FONT_REGULAR = "Poppins_400Regular";
+const FONT_MEDIUM = "Poppins_500Medium";
+
+const HEADER_HEIGHT = 232;
+
 export default function LoginScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
   const setAuth = useAuthStore((state) => state.setAuth);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -71,85 +83,84 @@ export default function LoginScreen() {
     }
   };
 
+  // Lingkaran besar yang dipotong wrapper -> menghasilkan lengkungan landai di bawah header
+  const circleSize = width * 2.25;
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    // edges tanpa "top" supaya header hijau menutupi area status bar
+    <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={styles.content}>
+        <View style={styles.header}>
+          <View
+            style={[
+              styles.headerCircle,
+              {
+                width: circleSize,
+                height: circleSize,
+                borderRadius: circleSize / 2,
+                left: (width - circleSize) / 2,
+              },
+            ]}
+          />
           <Text style={styles.brand}>safo</Text>
-          <Text style={styles.title}>Login</Text>
+        </View>
+
+        <View style={styles.content}>
+          <Text style={styles.title}>Login ke akun anda</Text>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Email</Text>
             <TextInput
               style={[styles.input, !emailValid && styles.inputError]}
-              placeholder=""
+              placeholder="email"
+              placeholderTextColor="#a9a9a9"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
             />
-            {email.length > 0 && (
-              <Text
-                style={[
-                  styles.validationText,
-                  emailValid ? styles.successText : styles.errorText,
-                ]}
-              >
-                {emailValid ? "Email sudah benar" : "Format email tidak valid"}
-              </Text>
+            {!emailValid && (
+              <Text style={styles.errorText}>Format email tidak valid</Text>
             )}
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Password</Text>
             <TextInput
               style={[styles.input, !passwordValid && styles.inputError]}
+              placeholder="password"
+              placeholderTextColor="#a9a9a9"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
             />
-            {password.length > 0 && (
-              <Text
-                style={[
-                  styles.validationText,
-                  passwordValid ? styles.successText : styles.errorText,
-                ]}
-              >
-                {passwordValid
-                  ? "Kombinasi password sudah kuat"
-                  : "Password minimal 6 karakter"}
-              </Text>
+            {!passwordValid && (
+              <Text style={styles.errorText}>Password minimal 6 karakter</Text>
             )}
           </View>
 
-          <View style={styles.rememberRow}>
-            <View style={styles.checkbox} />
-            <Text style={styles.rememberText}>Remember me</Text>
-          </View>
-
           <TouchableOpacity
-            style={styles.primaryButton}
+            style={[styles.primaryButton, isLoading && styles.buttonDisabled]}
             onPress={handleLogin}
             disabled={isLoading}
+            activeOpacity={0.85}
           >
             <Text style={styles.primaryButtonText}>
-              {isLoading ? "Loading..." : "Sign-in"}
+              {isLoading ? "Loading..." : "Login"}
             </Text>
           </TouchableOpacity>
 
-          <Text style={styles.footerText}>
-            Belum punya akun?{" "}
-            <Text
-              style={styles.footerLink}
-              onPress={() => router.push("/(auth)/register")}
-            >
-              lakukan Registrasi di sini
-            </Text>
-          </Text>
+          <TouchableOpacity
+            style={styles.registerRow}
+            onPress={() => router.push("/(auth)/register")}
+            activeOpacity={0.7}
+          >
+            <View style={styles.line} />
+            <Text style={styles.registerText}>Buat Akun</Text>
+            <View style={styles.line} />
+          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -159,112 +170,108 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#f4f0eb",
+    backgroundColor: PRIMARY,
   },
   container: {
     flex: 1,
-    backgroundColor: "#f4f0eb",
+    backgroundColor: PRIMARY,
+  },
+  header: {
+    height: HEADER_HEIGHT,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerCircle: {
+    position: "absolute",
+    bottom: 0,
+    backgroundColor: SECONDARY,
+  },
+  brand: {
+    fontFamily: FONT_TITLE,
+    fontStyle: "italic",
+    fontSize: 44,
+    color: PRIMARY,
+    marginBottom: 20,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 26,
-    paddingTop: 20,
-    paddingBottom: 30,
-    justifyContent: "center",
-  },
-  brand: {
-    alignSelf: "center",
-    fontSize: 32,
-    fontWeight: "600",
-    color: "#111111",
-    letterSpacing: -2,
-    marginBottom: 12,
+    paddingHorizontal: 32,
+    paddingTop: 48,
   },
   title: {
-    fontSize: 58,
-    lineHeight: 68,
-    fontWeight: "800",
-    color: "#111111",
-    marginBottom: 18,
-    letterSpacing: -3,
+    fontFamily: FONT_REGULAR,
+    fontWeight: "semibold",
+    fontSize: 20,
+    color: "#000000",
+    marginBottom: 34,
   },
   fieldGroup: {
-    marginBottom: 18,
-  },
-  label: {
-    fontSize: 30,
-    color: "#111111",
-    fontWeight: "700",
-    marginBottom: 12,
-    letterSpacing: -1,
+    marginBottom: 32,
   },
   input: {
     width: "100%",
-    backgroundColor: "#f4f4f4",
-    borderRadius: 16,
-    paddingHorizontal: 18,
-    paddingVertical: 18,
-    fontSize: 18,
-    borderWidth: 1,
-    borderColor: "#e4e4e4",
+    height: 52,
+    backgroundColor: PRIMARY,
+    borderRadius: 20,
+    paddingHorizontal: 22,
+    fontFamily: FONT_LIGHT,
+    fontSize: 16,
     color: "#111111",
+    borderWidth: 1,
+    borderColor: "#e6e6e6",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   inputError: {
     borderColor: "#d77d7d",
   },
-  validationText: {
-    marginTop: 8,
-    fontSize: 15,
-    color: "#6b6b6b",
-  },
-  successText: {
-    color: "#2f7d4a",
-  },
   errorText: {
+    marginTop: 6,
+    marginLeft: 8,
+    fontFamily: FONT_REGULAR,
+    fontSize: 12,
     color: "#d95c5c",
   },
-  rememberRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 22,
-    marginTop: 8,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 8,
-    backgroundColor: "#d8d8d8",
-    marginRight: 12,
-  },
-  rememberText: {
-    fontSize: 20,
-    color: "#111111",
-    fontWeight: "600",
-  },
   primaryButton: {
-    backgroundColor: "#0a5d5d",
-    borderRadius: 28,
-    paddingVertical: 20,
+    height: 49,
+    backgroundColor: SECONDARY,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 6,
+    marginTop: 4,
+    shadowColor: "#000000",
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   primaryButtonText: {
-    color: "#ffffff",
-    fontSize: 38,
-    fontWeight: "700",
-    letterSpacing: -1.8,
+    fontFamily: FONT_MEDIUM,
+    fontSize: 17,
+    color: PRIMARY,
   },
-  footerText: {
-    alignSelf: "center",
-    marginTop: 22,
-    color: "#1b1b1b",
-    fontSize: 18,
-    textAlign: "center",
+  registerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 18,
   },
-  footerLink: {
-    color: "#1b1b1b",
-    fontWeight: "700",
-    textDecorationLine: "underline",
+  line: {
+    width: 34,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#6b6b6b",
+  },
+  registerText: {
+    marginHorizontal: 14,
+    fontFamily: FONT_LIGHT,
+    fontSize: 12,
+    color: "#444444",
   },
 });
