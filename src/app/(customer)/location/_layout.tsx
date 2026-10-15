@@ -1,11 +1,11 @@
-import { Stack } from 'expo-router';
+import { Stack } from "expo-router";
 
 export default function LocationLayout() {
   return (
     <Stack
       screenOptions={{
         headerShown: false,
-        animationEnabled: true,
+        animation: "slide_from_right",
       }}
     />
   );

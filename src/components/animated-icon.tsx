@@ -6,7 +6,7 @@ import Animated, { Easing, Keyframe } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
 const INITIAL_SCALE_FACTOR = Dimensions.get('screen').height / 90;
-const DURATION = 600;
+const DURATION = 800;
 
 export function AnimatedSplashOverlay() {
   const [animate, setAnimate] = useState(false);
@@ -16,24 +16,31 @@ export function AnimatedSplashOverlay() {
 
   const splashKeyframe = new Keyframe({
     0: {
-      transform: [{ scale: 1 }],
       opacity: 1,
     },
-    20: {
+    80: {
       opacity: 1,
-    },
-    70: {
-      opacity: 0,
-      easing: Easing.elastic(0.7),
     },
     100: {
       opacity: 0,
-      transform: [{ scale: 1 }],
-      easing: Easing.elastic(0.7),
+      easing: Easing.out(Easing.ease),
     },
   });
 
-  const image = <Image style={styles.image} source={require('@/assets/images/expo-logo.png')} />;
+  const splashContent = (
+    <View style={styles.splashContainer}>
+      {/* Background pattern dengan opacity 30% */}
+      <Image
+        style={[StyleSheet.absoluteFill, styles.patternImage]}
+        source={require('@/assets/images/splash-pattern.jpg')}
+        contentFit="cover"
+      />
+      {/* Teks Logo Safo di tengah */}
+      <View style={styles.logoCenter}>
+        <Animated.Text style={styles.brandTitle}>safo</Animated.Text>
+      </View>
+    </View>
+  );
 
   return animate ? (
     <Animated.View
@@ -44,17 +51,20 @@ export function AnimatedSplashOverlay() {
         }
       })}
       style={styles.splashOverlay}>
-      {image}
+      {splashContent}
     </Animated.View>
   ) : (
     <View
       onLayout={() => {
-        SplashScreen.hideAsync().finally(() => {
-          setAnimate(true);
-        });
+        // Tahan splash sebentar agar branding terlihat sebelum animasi fade out
+        setTimeout(() => {
+          SplashScreen.hideAsync().finally(() => {
+            setAnimate(true);
+          });
+        }, 1200);
       }}
       style={styles.splashOverlay}>
-      {image}
+      {splashContent}
     </View>
   );
 }
@@ -139,10 +149,32 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   splashOverlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: '#208AEF',
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#00615F',
+    zIndex: 9999,
+  },
+  splashContainer: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#00615F',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 1000,
+  },
+  patternImage: {
+    width: '100%',
+    height: '100%',
+    opacity: 0.3,
+  },
+  logoCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandTitle: {
+    fontSize: 54,
+    color: '#ffffff',
+    fontStyle: 'italic',
+    fontWeight: '700',
+    letterSpacing: -0.5,
   },
 });

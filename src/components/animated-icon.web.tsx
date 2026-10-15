@@ -3,10 +3,45 @@ import { StyleSheet, View } from 'react-native';
 import Animated, { Keyframe, Easing } from 'react-native-reanimated';
 
 import classes from './animated-icon.module.css';
-const DURATION = 300;
+import { useState, useEffect } from 'react';
+
+const DURATION = 800;
 
 export function AnimatedSplashOverlay() {
-  return null;
+  const [visible, setVisible] = useState(true);
+  const [fadeOut, setFadeOut] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setFadeOut(true);
+      const hideTimer = setTimeout(() => {
+        setVisible(false);
+      }, 700);
+      return () => clearTimeout(hideTimer);
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <View
+      style={[
+        styles.webSplashOverlay,
+        fadeOut && { opacity: 0, transition: 'opacity 0.7s ease-out' } as any,
+      ]}
+    >
+      <Image
+        style={[StyleSheet.absoluteFill, styles.patternImage]}
+        source={require('@/assets/images/splash-pattern.jpg')}
+        contentFit="cover"
+      />
+      <View style={styles.logoCenter}>
+        <Animated.Text style={styles.brandTitle}>safo</Animated.Text>
+      </View>
+    </View>
+  );
 }
 
 const keyframe = new Keyframe({
@@ -104,5 +139,28 @@ const styles = StyleSheet.create({
     width: 128,
     height: 128,
     position: 'absolute',
+  },
+  webSplashOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#00615F',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 9999,
+  },
+  patternImage: {
+    width: '100%',
+    height: '100%',
+    opacity: 0.3,
+  },
+  logoCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandTitle: {
+    fontSize: 54,
+    color: '#ffffff',
+    fontStyle: 'italic',
+    fontWeight: '700',
+    letterSpacing: -0.5,
   },
 });
