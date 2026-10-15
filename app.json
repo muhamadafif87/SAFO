@@ -47,8 +47,7 @@
       [
         "@rnmapbox/maps",
         {
-          "RNMapboxMapsVersion": "10.16.4",
-          "RNMapboxMapsDownloadToken": "pk.eyJ1IjoibXVoYW1hZGFmaWY4NyIsImEiOiJjbXVoMXlwZ3gwanloMnpvc2lrdDF4ZjYxIn0.3BDPUnW9yGBT6VGJX0QcLg"
+          "RNMapboxMapsVersion": "10.16.4"
         }
       ],
       "expo-web-browser"
