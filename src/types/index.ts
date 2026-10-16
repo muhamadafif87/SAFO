@@ -283,6 +283,7 @@ export interface AuthState {
 export interface CartItem {
   product: Product;
   qty: number;
+  note?: string; // catatan per item, disimpan di cart store
 }
 
 // --- Saved Address ---

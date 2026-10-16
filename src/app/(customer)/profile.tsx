@@ -1,9 +1,11 @@
 import { Colors } from "@/constants/typography";
 import { useAuthStore } from "@/stores/auth.store";
 import { useLocationStore } from "@/stores/location.store";
+import { showAlert, showConfirm } from "@/utils/alert";
 import { useRouter } from "expo-router";
+import { useState } from "react";
 import {
-  Alert,
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -86,21 +88,28 @@ export default function CustomerProfile() {
 
   const isVip = !!user?.isVip;
 
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
   const handleLogout = () => {
-    Alert.alert(
+    showConfirm(
       "Keluar Akun",
       "Apakah Anda yakin ingin keluar dari akun ini?",
-      [
-        { text: "Batal", style: "cancel" },
-        {
-          text: "Keluar",
-          style: "destructive",
-          onPress: async () => {
-            await clearAuth();
-            router.replace("/(auth)/login");
-          },
-        },
-      ]
+      async () => {
+        try {
+          setIsLoggingOut(true);
+          await clearAuth();
+          router.replace("/(auth)/login");
+        } catch (error) {
+          console.error("[profile] Gagal logout:", error);
+          showAlert(
+            "Gagal",
+            "Terjadi kesalahan saat memproses logout. Silakan coba lagi."
+          );
+        } finally {
+          setIsLoggingOut(false);
+        }
+      },
+      { confirmText: "Keluar", cancelText: "Batal", destructive: true },
     );
   };
 
@@ -257,11 +266,19 @@ export default function CustomerProfile() {
 
         {/* ── Logout Button ── */}
         <TouchableOpacity
-          style={styles.logoutButton}
+          style={[
+            styles.logoutButton,
+            isLoggingOut && styles.logoutButtonDisabled,
+          ]}
           activeOpacity={0.8}
           onPress={handleLogout}
+          disabled={isLoggingOut}
         >
-          <Text style={styles.logoutText}>Keluar dari Akun</Text>
+          {isLoggingOut ? (
+            <ActivityIndicator size="small" color={ERROR_TEXT} />
+          ) : (
+            <Text style={styles.logoutText}>Keluar dari Akun</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -441,6 +458,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 20,
+  },
+  logoutButtonDisabled: {
+    opacity: 0.6,
   },
   logoutText: {
     fontSize: 14,

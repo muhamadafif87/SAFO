@@ -48,7 +48,7 @@ export const authService = {
   /**
    * Logout — invalidate refresh token di server.
    */
-  logout: async (): Promise<void> => {
-    await api.post('/auth/logout');
+  logout: async (refreshToken?: string | null): Promise<void> => {
+    await api.post('/auth/logout', { refreshToken }, { timeout: 3500 });
   },
 };

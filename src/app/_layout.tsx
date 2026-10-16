@@ -39,8 +39,8 @@ export default function RootLayout() {
     const inProtectedRoute = !inAuthGroup && !inLandingPage;
 
     if (!isAuthenticated && inProtectedRoute) {
-      // Unauthenticated user mencoba akses halaman protected → redirect ke landing
-      router.replace('/');
+      // Unauthenticated user mencoba akses halaman protected → redirect ke login
+      router.replace('/(auth)/login');
     } else if (isAuthenticated && inAuthGroup) {
       // Redirect sesuai role jika pengguna sudah terautentikasi tapi masih di grup auth
       if (role === 'customer') {
