@@ -14,7 +14,6 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -22,6 +21,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 const PAYMENT_METHODS: {
   id: PaymentMethod;
@@ -39,6 +39,7 @@ const PAYMENT_METHODS: {
 
 export default function CheckoutScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { items, mitraName, getTotalPrice, clearCart } = useCartStore();
 
   const [note, setNote] = useState("");
@@ -103,7 +104,7 @@ export default function CheckoutScreen() {
 
   if (items.length === 0) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top", "bottom", "left", "right"]}>
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => router.back()}
@@ -128,7 +129,7 @@ export default function CheckoutScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -139,8 +140,10 @@ export default function CheckoutScreen() {
       </View>
 
       <ScrollView
+        style={styles.scrollArea}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Pickup Location */}
         <View style={styles.section}>
@@ -257,13 +260,15 @@ export default function CheckoutScreen() {
             </TouchableOpacity>
           ))}
         </View>
-
-        {/* Bottom spacing */}
-        <View style={{ height: 120 }} />
       </ScrollView>
 
       {/* Fixed Bottom Bar */}
-      <View style={styles.bottomBar}>
+      <View
+        style={[
+          styles.bottomBar,
+          { paddingBottom: Math.max(insets.bottom, Spacing[4]) },
+        ]}
+      >
         <View style={styles.summaryRows}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Subtotal</Text>
@@ -329,7 +334,12 @@ const styles = StyleSheet.create({
     color: Colors.neutral[900],
   },
 
-  scroll: { paddingHorizontal: Spacing[4], paddingTop: Spacing[4] },
+  scrollArea: { flex: 1 },
+  scroll: {
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[4],
+    paddingBottom: Spacing[6],
+  },
 
   section: {
     backgroundColor: Colors.neutral[0],
@@ -485,14 +495,9 @@ const styles = StyleSheet.create({
   },
 
   bottomBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: Colors.neutral[0],
     paddingHorizontal: Spacing[4],
     paddingTop: Spacing[4],
-    paddingBottom: Spacing[6],
     borderTopWidth: 1,
     borderTopColor: Colors.neutral[200],
     shadowColor: "#000",

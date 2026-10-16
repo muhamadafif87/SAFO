@@ -20,10 +20,13 @@ interface CartActions {
   forceAddItem: (product: Product, qty: number) => void;
   removeItem: (productId: string) => void;
   updateQty: (productId: string, qty: number) => void;
+  /** Update catatan per item */
+  updateNote: (productId: string, note: string) => void;
   clearCart: () => void;
   getTotalItems: () => number;
   getTotalPrice: () => number;
   getItemQty: (productId: string) => number;
+  getItemNote: (productId: string) => string;
 }
 
 const PLATFORM_FEE_PER_ORDER = 1000; // Rp 1.000 — sesuai SRS §14
@@ -97,6 +100,17 @@ export const useCartStore = create<CartState & CartActions>((set, get) => ({
       ),
     });
   },
+
+  updateNote: (productId, note) => {
+    set({
+      items: get().items.map((i) =>
+        i.product.id === productId ? { ...i, note } : i
+      ),
+    });
+  },
+
+  getItemNote: (productId) =>
+    get().items.find((i) => i.product.id === productId)?.note ?? '',
 
   clearCart: () => set({ items: [], mitraId: null, mitraName: null }),
 

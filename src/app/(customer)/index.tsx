@@ -2,7 +2,7 @@ import { productService } from "@/services/product.service";
 import { useAuthStore } from "@/stores/auth.store";
 import { useCartStore } from "@/stores/cart.store";
 import { useLocationStore } from "@/stores/location.store";
-import type { Product, PromoBanner, SortFilter } from "@/types";
+import type { CartItem, Product, PromoBanner, SortFilter } from "@/types";
 import { reverseGeocodeMapbox } from "@/utils/geocoding";
 import Mapbox from "@rnmapbox/maps";
 import * as Location from "expo-location";
@@ -13,10 +13,12 @@ import {
   Alert,
   Animated,
   BackHandler,
+  Dimensions,
   FlatList,
   Image,
   Keyboard,
   Modal,
+  PanResponder,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -36,9 +38,10 @@ if (MAPBOX_ACCESS_TOKEN) {
 }
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
-const PRIMARY = "#1a5c52";
-const PRIMARY_LIGHT = "#e8f4f1";
-const PRIMARY_DARK = "#123d37";
+const PRIMARY = "#00615F"; // hijau sesuai wireframe
+const PRIMARY_LIGHT = "#e0f2f1";
+const PRIMARY_DARK = "#004140";
+const ACCENT_YELLOW = "#ffd600"; // kuning checkout button sesuai wireframe
 const GOLD = "#f59e0b";
 const BG = "#ffffff";
 const WHITE = "#ffffff";
@@ -49,7 +52,7 @@ const GRAY_300 = "#d1d5db";
 const GRAY_400 = "#9ca3af";
 const GRAY_500 = "#6b7280";
 const GRAY_700 = "#374151";
-const GRAY_900 = "#111827";
+const GRAY_900 = "#00615F";
 const DANGER = "#ef4444";
 
 // ─── Subcomponents ────────────────────────────────────────────────────────────
@@ -1063,7 +1066,7 @@ const cardStyles = StyleSheet.create({
   stockBadge: {
     marginLeft: "auto",
     right: 10,
-    backgroundColor: PRIMARY_LIGHT,
+    backgroundColor: "#00615F",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
@@ -1071,8 +1074,8 @@ const cardStyles = StyleSheet.create({
   stockBadgeSoldOut: { backgroundColor: GRAY_100 },
   stockText: {
     fontSize: 11,
-    fontWeight: "700",
-    color: PRIMARY,
+    fontWeight: "600",
+    color: WHITE,
   },
   stockTextSoldOut: { color: GRAY_500 },
 });
@@ -1400,6 +1403,709 @@ const pickerStyles = StyleSheet.create({
   confirmBtnText: { color: WHITE, fontWeight: "700", fontSize: 15 },
 });
 
+// ─── Cart Bottom Sheet ────────────────────────────────────────────────────────
+
+const SCREEN_HEIGHT = Dimensions.get("window").height;
+const SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.72;
+
+interface CartEditModalProps {
+  visible: boolean;
+  item: CartItem | null;
+  onClose: () => void;
+  onSave: (productId: string, qty: number, note: string) => void;
+}
+
+function CartEditModal({ visible, item, onClose, onSave }: CartEditModalProps) {
+  const [qty, setQty] = useState(item?.qty ?? 1);
+  const [note, setNote] = useState(item?.note ?? "");
+
+  useEffect(() => {
+    if (item) {
+      setQty(item.qty);
+      setNote(item.note ?? "");
+    }
+  }, [item]);
+
+  if (!item) return null;
+
+  const formatPrice = (p: number) => "Rp " + p.toLocaleString("id-ID");
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={editModalStyles.overlay}>
+        <View style={editModalStyles.card}>
+          {/* Handle */}
+          <View style={editModalStyles.handle} />
+
+          {/* Header */}
+          <View style={editModalStyles.header}>
+            <Text style={editModalStyles.title} numberOfLines={1}>
+              Edit Item
+            </Text>
+            <TouchableOpacity
+              onPress={onClose}
+              style={editModalStyles.closeBtn}
+            >
+              <Text style={editModalStyles.closeTxt}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Product info */}
+          <View style={editModalStyles.productRow}>
+            {item.product.photoUrl ? (
+              <Image
+                source={{ uri: item.product.photoUrl }}
+                style={editModalStyles.productImg}
+              />
+            ) : (
+              <View
+                style={[
+                  editModalStyles.productImg,
+                  editModalStyles.imgPlaceholder,
+                ]}
+              >
+                <Text style={{ fontSize: 22 }}>🍽️</Text>
+              </View>
+            )}
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={editModalStyles.productName} numberOfLines={2}>
+                {item.product.name}
+              </Text>
+              <Text style={editModalStyles.productPrice}>
+                {formatPrice(Number(item.product.discountPrice))}
+              </Text>
+            </View>
+          </View>
+
+          {/* Catatan */}
+          <View style={editModalStyles.noteWrap}>
+            <View style={editModalStyles.noteIconRow}>
+              <Text style={{ fontSize: 14 }}>📋</Text>
+              <Text style={editModalStyles.noteLabel}>Tambahkan catatan</Text>
+            </View>
+            <TextInput
+              style={editModalStyles.noteInput}
+              placeholder="Contoh: tidak pedas, tanpa bawang..."
+              placeholderTextColor={GRAY_400}
+              value={note}
+              onChangeText={setNote}
+              multiline
+              maxLength={150}
+            />
+            <Text style={editModalStyles.noteCount}>{note.length}/150</Text>
+          </View>
+
+          {/* Qty control */}
+          <View style={editModalStyles.qtyRow}>
+            <Text style={editModalStyles.qtyLabel}>Jumlah</Text>
+            <View style={editModalStyles.qtyControl}>
+              <TouchableOpacity
+                style={[
+                  editModalStyles.qtyBtn,
+                  qty <= 1 && editModalStyles.qtyBtnDisabled,
+                ]}
+                onPress={() => setQty((q) => Math.max(1, q - 1))}
+                activeOpacity={0.75}
+              >
+                <Text style={editModalStyles.qtyBtnTxt}>−</Text>
+              </TouchableOpacity>
+              <Text style={editModalStyles.qtyNum}>{qty}</Text>
+              <TouchableOpacity
+                style={[
+                  editModalStyles.qtyBtn,
+                  qty >= item.product.stock && editModalStyles.qtyBtnDisabled,
+                ]}
+                onPress={() =>
+                  setQty((q) => Math.min(item.product.stock, q + 1))
+                }
+                activeOpacity={0.75}
+              >
+                <Text style={editModalStyles.qtyBtnTxt}>+</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Save button */}
+          <TouchableOpacity
+            style={editModalStyles.saveBtn}
+            onPress={() => onSave(item.product.id, qty, note)}
+            activeOpacity={0.85}
+          >
+            <Text style={editModalStyles.saveBtnTxt}>Simpan Perubahan</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const editModalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  card: {
+    backgroundColor: WHITE,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+    paddingTop: 12,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: GRAY_200,
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  title: { fontSize: 17, fontWeight: "800", color: GRAY_900, flex: 1 },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: GRAY_100,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closeTxt: { fontSize: 13, color: GRAY_700, fontWeight: "700" },
+  productRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: GRAY_50,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 16,
+  },
+  productImg: {
+    width: 60,
+    height: 60,
+    borderRadius: 10,
+    backgroundColor: GRAY_200,
+  },
+  imgPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  productName: { fontSize: 14, fontWeight: "700", color: GRAY_900 },
+  productPrice: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: PRIMARY,
+    marginTop: 2,
+  },
+  noteWrap: {
+    backgroundColor: GRAY_50,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 16,
+    gap: 6,
+  },
+  noteIconRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  noteLabel: { fontSize: 13, fontWeight: "600", color: GRAY_700 },
+  noteInput: {
+    fontSize: 14,
+    color: GRAY_900,
+    minHeight: 60,
+    textAlignVertical: "top",
+    paddingTop: 4,
+  },
+  noteCount: { fontSize: 11, color: GRAY_400, textAlign: "right" },
+  qtyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  qtyLabel: { fontSize: 15, fontWeight: "700", color: GRAY_900 },
+  qtyControl: { flexDirection: "row", alignItems: "center", gap: 16 },
+  qtyBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: PRIMARY,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qtyBtnDisabled: { backgroundColor: GRAY_200 },
+  qtyBtnTxt: { fontSize: 18, color: WHITE, fontWeight: "800", lineHeight: 22 },
+  qtyNum: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: GRAY_900,
+    minWidth: 24,
+    textAlign: "center",
+  },
+  saveBtn: {
+    backgroundColor: PRIMARY,
+    borderRadius: 14,
+    paddingVertical: 15,
+    alignItems: "center",
+  },
+  saveBtnTxt: { color: WHITE, fontSize: 15, fontWeight: "800" },
+});
+
+// ─── Cart Bottom Sheet (Swipeable) ────────────────────────────────────────────
+
+interface CartBottomSheetProps {
+  visible: boolean;
+  onClose: () => void;
+  onCheckout: () => void;
+}
+
+function CartBottomSheet({
+  visible,
+  onClose,
+  onCheckout,
+}: CartBottomSheetProps) {
+  const { items, updateQty, updateNote, getTotalItems, getTotalPrice } =
+    useCartStore();
+
+  const translateY = useRef(new Animated.Value(SHEET_MAX_HEIGHT)).current;
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+
+  const [editItem, setEditItem] = useState<CartItem | null>(null);
+  const [editVisible, setEditVisible] = useState(false);
+
+  // Animate in/out
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+          damping: 20,
+          stiffness: 180,
+        }),
+        Animated.timing(backdropOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: SHEET_MAX_HEIGHT,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(backdropOpacity, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderMove: (_, gs) => {
+        if (gs.dy > 0) {
+          translateY.setValue(gs.dy);
+        }
+      },
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dy > SHEET_MAX_HEIGHT * 0.3 || gs.vy > 0.5) {
+          Animated.timing(translateY, {
+            toValue: SHEET_MAX_HEIGHT,
+            duration: 220,
+            useNativeDriver: true,
+          }).start(onClose);
+          Animated.timing(backdropOpacity, {
+            toValue: 0,
+            duration: 200,
+            useNativeDriver: true,
+          }).start();
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            damping: 20,
+            stiffness: 180,
+          }).start();
+        }
+      },
+    }),
+  ).current;
+
+  const formatPrice = (p: number) => "Rp " + p.toLocaleString("id-ID");
+
+  const totalItems = getTotalItems();
+  const totalPrice = getTotalPrice();
+
+  return (
+    <>
+      {/* Backdrop */}
+      <Animated.View
+        style={[cartSheetStyles.backdrop, { opacity: backdropOpacity }]}
+        pointerEvents={visible ? "auto" : "none"}
+      >
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          activeOpacity={1}
+        />
+      </Animated.View>
+
+      {/* Sheet */}
+      <Animated.View
+        style={[
+          cartSheetStyles.sheet,
+          { transform: [{ translateY }], maxHeight: SHEET_MAX_HEIGHT },
+        ]}
+      >
+        {/* Drag handle + judul */}
+        <View {...panResponder.panHandlers} style={cartSheetStyles.handleArea}>
+          <View style={cartSheetStyles.handle} />
+          <Text style={cartSheetStyles.sheetTitle}>Keranjang Saya</Text>
+        </View>
+
+        {/* Daftar item */}
+        <ScrollView
+          style={cartSheetStyles.itemList}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {items.map((cartItem) => (
+            <View key={cartItem.product.id} style={cartSheetStyles.itemCard}>
+              {/* Foto produk */}
+              {cartItem.product.photoUrl ? (
+                <Image
+                  source={{ uri: cartItem.product.photoUrl }}
+                  style={cartSheetStyles.itemImg}
+                />
+              ) : (
+                <View
+                  style={[
+                    cartSheetStyles.itemImg,
+                    cartSheetStyles.imgPlaceholder,
+                  ]}
+                >
+                  <Text style={{ fontSize: 22 }}>🍽️</Text>
+                </View>
+              )}
+
+              {/* Info + kontrol */}
+              <View style={cartSheetStyles.itemInfo}>
+                {/* Row: nama + Ubah */}
+                <View style={cartSheetStyles.itemNameRow}>
+                  <Text style={cartSheetStyles.itemName} numberOfLines={1}>
+                    {cartItem.product.name}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setEditItem(cartItem);
+                      setEditVisible(true);
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={cartSheetStyles.editLink}>Ubah</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Catatan */}
+                <TouchableOpacity
+                  style={cartSheetStyles.noteRow}
+                  onPress={() => {
+                    setEditItem(cartItem);
+                    setEditVisible(true);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 12 }}>📋</Text>
+                  <Text style={cartSheetStyles.noteText} numberOfLines={1}>
+                    {cartItem.note ? cartItem.note : "Tambahkan catatan"}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Harga + kontrol qty */}
+                <View style={cartSheetStyles.priceQtyRow}>
+                  <Text style={cartSheetStyles.itemPrice}>
+                    {formatPrice(Number(cartItem.product.discountPrice))}
+                  </Text>
+                  <View style={cartSheetStyles.qtyControl}>
+                    <TouchableOpacity
+                      style={cartSheetStyles.qtyBtn}
+                      onPress={() =>
+                        updateQty(cartItem.product.id, cartItem.qty - 1)
+                      }
+                      activeOpacity={0.75}
+                    >
+                      <Text style={cartSheetStyles.qtyBtnTxt}>−</Text>
+                    </TouchableOpacity>
+                    <Text style={cartSheetStyles.qtyNum}>{cartItem.qty}</Text>
+                    <TouchableOpacity
+                      style={[
+                        cartSheetStyles.qtyBtn,
+                        cartItem.qty >= cartItem.product.stock &&
+                          cartSheetStyles.qtyBtnDisabled,
+                      ]}
+                      onPress={() =>
+                        updateQty(
+                          cartItem.product.id,
+                          Math.min(cartItem.product.stock, cartItem.qty + 1),
+                        )
+                      }
+                      activeOpacity={0.75}
+                    >
+                      <Text style={cartSheetStyles.qtyBtnTxt}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </View>
+          ))}
+          <View style={{ height: 16 }} />
+        </ScrollView>
+
+        {/* FAB bar bawah sheet */}
+        <View style={cartSheetStyles.fabBar}>
+          {/* Ikon keranjang + badge */}
+          <View style={cartSheetStyles.cartIconWrap}>
+            <Text style={cartSheetStyles.cartIcon}>🛒</Text>
+            <View style={cartSheetStyles.badge}>
+              <Text style={cartSheetStyles.badgeTxt}>{totalItems}</Text>
+            </View>
+          </View>
+
+          {/* Total */}
+          <Text style={cartSheetStyles.totalPrice}>
+            {formatPrice(totalPrice)}
+          </Text>
+
+          {/* Checkout button */}
+          <TouchableOpacity
+            style={cartSheetStyles.checkoutBtn}
+            onPress={() => {
+              onClose();
+              onCheckout();
+            }}
+            activeOpacity={0.85}
+          >
+            <Text style={cartSheetStyles.checkoutBtnTxt}>Checkout</Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+
+      {/* Edit item modal */}
+      <CartEditModal
+        visible={editVisible}
+        item={editItem}
+        onClose={() => setEditVisible(false)}
+        onSave={(productId, qty, note) => {
+          updateQty(productId, qty);
+          updateNote(productId, note);
+          setEditVisible(false);
+        }}
+      />
+    </>
+  );
+}
+
+const cartSheetStyles = StyleSheet.create({
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    zIndex: 90,
+  },
+  sheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: WHITE,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    zIndex: 100,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 20,
+  },
+  handleArea: {
+    alignItems: "center",
+    paddingTop: 12,
+    paddingBottom: 8,
+    paddingHorizontal: 16,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: GRAY_300,
+    marginBottom: 14,
+  },
+  sheetTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: GRAY_900,
+    alignSelf: "center",
+  },
+  itemList: {
+    flexGrow: 0,
+    paddingHorizontal: 16,
+  },
+  itemCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: WHITE,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 10,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: GRAY_100,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  itemImg: {
+    width: 72,
+    height: 72,
+    borderRadius: 12,
+    backgroundColor: GRAY_200,
+  },
+  imgPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  itemInfo: { flex: 1, gap: 4 },
+  itemNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  itemName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: GRAY_900,
+    flex: 1,
+    marginRight: 8,
+  },
+  editLink: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: PRIMARY,
+  },
+  noteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  noteText: {
+    fontSize: 12,
+    color: GRAY_400,
+    flex: 1,
+  },
+  priceQtyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  itemPrice: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: PRIMARY,
+  },
+  qtyControl: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  qtyBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: PRIMARY,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qtyBtnDisabled: { backgroundColor: GRAY_200 },
+  qtyBtnTxt: {
+    fontSize: 16,
+    color: WHITE,
+    fontWeight: "800",
+    lineHeight: 20,
+  },
+  qtyNum: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: GRAY_900,
+    minWidth: 20,
+    textAlign: "center",
+  },
+  // FAB bar di dalam bottom sheet
+  fabBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: GRAY_900,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: GRAY_200,
+    gap: 12,
+  },
+  cartIconWrap: { position: "relative" },
+  cartIcon: { fontSize: 26 },
+  badge: {
+    position: "absolute",
+    top: -6,
+    right: -8,
+    backgroundColor: WHITE,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+    borderWidth: 2,
+    borderColor: GRAY_900,
+  },
+  badgeTxt: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#00615F",
+  },
+  totalPrice: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: "800",
+    color: WHITE,
+  },
+  checkoutBtn: {
+    backgroundColor: ACCENT_YELLOW,
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  checkoutBtnTxt: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: GRAY_900,
+  },
+});
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function CustomerHome() {
@@ -1429,6 +2135,12 @@ export default function CustomerHome() {
 
   const isVip = user?.isVip ?? false;
   const cartCount = getTotalItems();
+  const [cartSheetVisible, setCartSheetVisible] = useState(false);
+
+  // Tutup cart sheet saat search aktif
+  useEffect(() => {
+    if (isSearchActive) setCartSheetVisible(false);
+  }, [isSearchActive]);
 
   // Handle hardware back on Android saat search aktif
   useEffect(() => {
@@ -1589,7 +2301,6 @@ export default function CustomerHome() {
               ? "Diskon Terbesar"
               : "Rating Tertinggi"}
         </Text>
-        <Text style={styles.sectionCount}>{products.length} produk</Text>
       </View>
     </>
   );
@@ -1652,21 +2363,43 @@ export default function CustomerHome() {
           )}
         </View>
 
-        {/* Cart FAB */}
+        {/* Cart FAB — membuka bottom sheet */}
         {cartCount > 0 && (
           <TouchableOpacity
             style={styles.cartFab}
-            onPress={() => router.push("/(customer)/checkout")}
-            activeOpacity={0.9}
+            onPress={() => setCartSheetVisible(true)}
+            activeOpacity={0.88}
           >
-            <Text style={styles.cartFabIcon}>🛒</Text>
-            <View style={styles.cartFabMiddle}>
-              <Text style={styles.cartFabLabel}>{cartCount} item dipilih</Text>
-              <Text style={styles.cartFabSub}>Lanjut ke Checkout</Text>
+            <View style={styles.cartFabIconWrap}>
+              <Text style={styles.cartFabIcon}>🛒</Text>
+              <View style={styles.cartFabBadge}>
+                <Text style={styles.cartFabBadgeTxt}>{cartCount}</Text>
+              </View>
             </View>
-            <Text style={styles.cartFabArrow}>→</Text>
+            <View style={styles.cartFabMiddle}>
+              <Text style={styles.cartFabLabel}>
+                {cartCount} item di keranjang
+              </Text>
+              <Text style={styles.cartFabSub}>Ketuk untuk lihat detail</Text>
+            </View>
+            <View style={styles.cartFabPriceWrap}>
+              <Text style={styles.cartFabPrice}>
+                {"Rp " +
+                  useCartStore
+                    .getState()
+                    .getTotalPrice()
+                    .toLocaleString("id-ID")}
+              </Text>
+            </View>
           </TouchableOpacity>
         )}
+
+        {/* Cart Bottom Sheet */}
+        <CartBottomSheet
+          visible={cartSheetVisible}
+          onClose={() => setCartSheetVisible(false)}
+          onCheckout={() => router.push("/(customer)/checkout")}
+        />
       </SafeAreaView>
     );
   }
@@ -1715,21 +2448,40 @@ export default function CustomerHome() {
         />
       )}
 
-      {/* Cart FAB */}
+      {/* Cart FAB — membuka bottom sheet */}
       {cartCount > 0 && (
         <TouchableOpacity
           style={styles.cartFab}
-          onPress={() => router.push("/(customer)/checkout")}
-          activeOpacity={0.9}
+          onPress={() => setCartSheetVisible(true)}
+          activeOpacity={0.88}
         >
-          <Text style={styles.cartFabIcon}>🛒</Text>
-          <View style={styles.cartFabMiddle}>
-            <Text style={styles.cartFabLabel}>{cartCount} item dipilih</Text>
-            <Text style={styles.cartFabSub}>Lanjut ke Checkout</Text>
+          <View style={styles.cartFabIconWrap}>
+            <Text style={styles.cartFabIcon}>🛒</Text>
+            <View style={styles.cartFabBadge}>
+              <Text style={styles.cartFabBadgeTxt}>{cartCount}</Text>
+            </View>
           </View>
-          <Text style={styles.cartFabArrow}>→</Text>
+          <View style={styles.cartFabMiddle}>
+            <Text style={styles.cartFabLabel}>
+              {cartCount} item di keranjang
+            </Text>
+            <Text style={styles.cartFabSub}>Ketuk untuk lihat detail</Text>
+          </View>
+          <View style={styles.cartFabPriceWrap}>
+            <Text style={styles.cartFabPrice}>
+              {"Rp " +
+                useCartStore.getState().getTotalPrice().toLocaleString("id-ID")}
+            </Text>
+          </View>
         </TouchableOpacity>
       )}
+
+      {/* Cart Bottom Sheet */}
+      <CartBottomSheet
+        visible={cartSheetVisible}
+        onClose={() => setCartSheetVisible(false)}
+        onCheckout={() => router.push("/(customer)/checkout")}
+      />
     </SafeAreaView>
   );
 }
@@ -1784,23 +2536,48 @@ const styles = StyleSheet.create({
   // Cart FAB
   cartFab: {
     position: "absolute",
+    height: 80,
     bottom: 24,
     left: 16,
     right: 16,
-    backgroundColor: PRIMARY,
+    backgroundColor: GRAY_900,
     borderRadius: 20,
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
-    shadowColor: PRIMARY_DARK,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 10,
+    gap: 10,
   },
-  cartFabIcon: { fontSize: 22, marginRight: 12 },
+  cartFabIconWrap: { position: "relative" },
+  cartFabIcon: { fontSize: 24 },
+  cartFabBadge: {
+    position: "absolute",
+    top: -6,
+    right: -8,
+    backgroundColor: WHITE,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+    borderWidth: 2,
+    borderColor: GRAY_900,
+  },
+  cartFabBadgeTxt: { fontSize: 10, color: "#00615F", fontWeight: "800" },
   cartFabMiddle: { flex: 1 },
-  cartFabLabel: { fontSize: 15, fontWeight: "700", color: WHITE },
-  cartFabSub: { fontSize: 11, color: "rgba(255,255,255,0.8)", marginTop: 2 },
-  cartFabArrow: { fontSize: 18, color: WHITE, fontWeight: "700" },
+  cartFabLabel: { fontSize: 14, fontWeight: "700", color: WHITE },
+  cartFabSub: { fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 1 },
+  cartFabPriceWrap: {
+    backgroundColor: ACCENT_YELLOW,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  cartFabPrice: { fontSize: 13, fontWeight: "800", color: GRAY_900 },
 });
