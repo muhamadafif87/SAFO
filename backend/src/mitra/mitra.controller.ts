@@ -2,6 +2,7 @@ import { Controller, Get, Patch, Body, Param, Query, Request } from '@nestjs/com
 import { MitraService } from './mitra.service';
 import { UpdateMitraProfileDto } from './dto/update-mitra-profile.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import { UserRole } from '../database/entities/user.entity';
 import { VerificationStatus } from '../database/entities/mitra-profile.entity';
 
@@ -35,5 +36,13 @@ export class MitraController {
   @Patch('admin/:id/verify')
   verify(@Param('id') id: string, @Body('action') action: 'approve' | 'reject') {
     return this.mitraService.verify(id, action);
+  }
+
+  // ─── Public Mitra Detail (for customer checkout / store info) ────────────
+
+  @Public()
+  @Get(':id')
+  getPublicProfile(@Param('id') id: string) {
+    return this.mitraService.getPublicProfile(id);
   }
 }

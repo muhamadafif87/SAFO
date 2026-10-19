@@ -1,15 +1,9 @@
-import {
-  BorderRadius,
-  Colors,
-  FontSize,
-  FontWeight,
-  Spacing,
-} from "@/constants/typography";
+import { Colors, FontSize, FontWeight, Spacing } from "@/constants/typography";
 import { productService } from "@/services/product.service";
 import { useCartStore } from "@/stores/cart.store";
 import type { Product } from "@/types";
-import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -23,6 +17,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const PRIMARY = "#1a5c52";
@@ -167,7 +162,20 @@ export default function ProductDetail() {
             style={[styles.backBtn, { top: Math.max(insets.top, 16) }]}
             onPress={() => router.back()}
           >
-            <Text style={styles.backBtnText}>{"<"}</Text>
+            <Text style={styles.backBtnText}>
+              <Svg
+                width={16}
+                height={16}
+                fill="currentColor"
+                className="bi bi-chevron-left"
+                viewBox="0 0 16 16"
+              >
+                <Path
+                  fillRule="evenodd"
+                  d="M11.354 1.646a.5.5 0 010 .708L5.707 8l5.647 5.646a.5.5 0 01-.708.708l-6-6a.5.5 0 010-.708l6-6a.5.5 0 01.708 0"
+                />
+              </Svg>
+            </Text>
           </TouchableOpacity>
         </View>
 

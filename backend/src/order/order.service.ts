@@ -157,7 +157,7 @@ export class OrderService {
   async getCustomerOrders(customerId: string): Promise<Order[]> {
     return this.orderRepository.find({
       where: { customerId },
-      relations: { orderItems: { product: true }, mitra: true },
+      relations: { orderItems: { product: true }, mitra: true, payments: true },
       order: { createdAt: 'DESC' },
     });
   }
@@ -167,7 +167,7 @@ export class OrderService {
 
     const order = await this.orderRepository.findOne({
       where: { id: orderId, customerId },
-      relations: { orderItems: { product: true }, mitra: true },
+      relations: { orderItems: { product: true }, mitra: true, payments: true },
     });
     if (!order) throw new NotFoundException('Order tidak ditemukan');
     return order;
