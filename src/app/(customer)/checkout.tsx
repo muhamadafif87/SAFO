@@ -7,6 +7,7 @@ import {
   Spacing,
 } from "@/constants/typography";
 import { orderService } from "@/services/order.service";
+import { paymentService } from "@/services/payment.service";
 import { PLATFORM_FEE, useCartStore } from "@/stores/cart.store";
 import type { PaymentMethod } from "@/types";
 import { useRouter } from "expo-router";
@@ -171,31 +172,64 @@ export default function CheckoutScreen() {
 
     setIsLoading(true);
     try {
-      // 1. Create order
+      // 1. Create order in backend (status: PENDING_PAYMENT)
       const order = await orderService.create({
         items: items.map((i) => ({ productId: i.product.id, qty: i.qty })),
         note: note.trim() || undefined,
         paymentMethod,
       });
 
-      // 2. Simulate payment gateway callback (mock)
-      await orderService.payMock(order.id);
+      if (paymentMethod === "qris") {
+        // 2. Create QRIS payment via Midtrans Core API
+        const idempotencyKey = `qris-${order.id}-${Date.now()}`;
+        try {
+          const payment = await paymentService.createQrisPayment(order.id, idempotencyKey);
 
-      // 3. Clear cart
-      clearCart();
+          // 3. Clear cart since order has been created and stock reserved
+          clearCart();
 
-      // 4. Navigate to order detail
-      Alert.alert(
-        "Pesanan Berhasil! 🎉",
-        `Pesanan kamu sudah dikonfirmasi.\nTunjukkan kode pickup ke mitra saat mengambil.`,
-        [
-          {
-            text: "Lihat Pesanan",
-            onPress: () => router.replace(`/(customer)/orders/${order.id}`),
-          },
-        ],
-        { cancelable: false },
-      );
+          // 4. Navigate directly to QRIS Payment Screen
+          router.replace({
+            pathname: "/(customer)/payment/qris",
+            params: {
+              paymentId: payment.paymentId,
+              orderId: order.id,
+              amount: String(payment.amount),
+              qrString: payment.qrString || "",
+              expiresAt: payment.expiresAt || "",
+            },
+          });
+        } catch (payErr: any) {
+          clearCart();
+          Alert.alert(
+            "Pesanan Berhasil Dibuat",
+            payErr.response?.data?.message ||
+              "Pesanan berhasil dibuat, namun pembayaran QRIS belum dapat ditampilkan. Silakan bayar melalui halaman Pesanan.",
+            [
+              {
+                text: "Buka Detail Pesanan",
+                onPress: () => router.replace(`/(customer)/orders/${order.id}`),
+              },
+            ],
+            { cancelable: false },
+          );
+        }
+      } else {
+        // Backward compatibility fallback for any other method
+        await orderService.payMock(order.id);
+        clearCart();
+        Alert.alert(
+          "Pesanan Berhasil! 🎉",
+          `Pesanan kamu sudah dikonfirmasi.\nTunjukkan kode pickup ke mitra saat mengambil.`,
+          [
+            {
+              text: "Lihat Pesanan",
+              onPress: () => router.replace(`/(customer)/orders/${order.id}`),
+            },
+          ],
+          { cancelable: false },
+        );
+      }
     } catch (err: any) {
       Alert.alert(
         "Gagal",

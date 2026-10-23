@@ -1,7 +1,10 @@
 import {
     BadRequestException,
     ForbiddenException,
+    forwardRef,
+    Inject,
     Injectable,
+    Logger,
     NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -22,13 +25,17 @@ function assertUuid(id: string, label = 'ID'): void {
 
 import { OrderItem } from '../database/entities/order-item.entity';
 import { Order, OrderStatus } from '../database/entities/order.entity';
+import { Payment, PaymentStatus } from '../database/entities/payment.entity';
 import { Product, ProductStatus } from '../database/entities/product.entity';
+import { PaymentService } from '../payment/payment.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 
 const PLATFORM_FEE = 1000; // Rp 1.000 fixed fee per SRS
 
 @Injectable()
 export class OrderService {
+  private readonly logger = new Logger(OrderService.name);
+
   constructor(
     @InjectRepository(Order)
     private orderRepository: Repository<Order>,
@@ -37,6 +44,8 @@ export class OrderService {
     @InjectRepository(Product)
     private productRepository: Repository<Product>,
     private dataSource: DataSource,
+    @Inject(forwardRef(() => PaymentService))
+    private paymentService: PaymentService,
   ) {}
 
   /**
@@ -165,11 +174,48 @@ export class OrderService {
   async getOrderById(orderId: string, customerId: string): Promise<Order> {
     assertUuid(orderId, 'Order ID');
 
-    const order = await this.orderRepository.findOne({
+    let order = await this.orderRepository.findOne({
       where: { id: orderId, customerId },
       relations: { orderItems: { product: true }, mitra: true, payments: true },
     });
     if (!order) throw new NotFoundException('Order tidak ditemukan');
+
+    // ── Payment Status Reconciliation for PENDING_PAYMENT orders ──
+    if (order.status === OrderStatus.PENDING_PAYMENT && order.payments && order.payments.length > 0) {
+      // 1. If any payment is already SUCCESS, ensure order status is updated to PAID
+      const successPayment = order.payments.find((p) => p.status === PaymentStatus.SUCCESS);
+      if (successPayment) {
+        order.status = OrderStatus.PAID;
+        await this.orderRepository.save(order);
+        this.logger.log(
+          `[Reconcile] Order ${order.id} marked as PAID due to existing SUCCESS payment ${successPayment.id}`,
+        );
+        return order;
+      }
+
+      // 2. If there is a pending Midtrans payment, actively reconcile with Midtrans API
+      const pendingPayment = order.payments.find(
+        (p) => p.status === PaymentStatus.PENDING && (p.transactionId || p.id),
+      );
+      if (pendingPayment) {
+        try {
+          await this.paymentService.getPaymentStatus(pendingPayment.id, customerId);
+          // Reload fresh order with updated status and relations
+          const refreshedOrder = await this.orderRepository.findOne({
+            where: { id: orderId, customerId },
+            relations: { orderItems: { product: true }, mitra: true, payments: true },
+          });
+          if (refreshedOrder) {
+            order = refreshedOrder;
+          }
+        } catch (err: any) {
+          this.logger.warn(
+            `[Reconcile] Could not reconcile order ${orderId} via payment ${pendingPayment.id}: ${err?.message}`,
+          );
+        }
+      }
+    }
+
     return order;
   }
 
