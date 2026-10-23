@@ -12,10 +12,11 @@ import {
   Linking,
   RefreshControl,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
 import Svg, { Path } from 'react-native-svg';
 import { orderService } from '@/services/order.service';
+import { paymentService } from '@/services/payment.service';
 import type { Order, OrderStatus } from '@/types';
 
 // ─── Status helpers ────────────────────────────────────────────────────────
@@ -44,11 +45,19 @@ const DYNAMIC_STATUS_LABEL: Record<OrderStatus, string> = {
   pending_payment: 'Menunggu Pembayaran',
   paid: 'Pesanan Sedang Disiapkan',
   ready: 'Pesanan Sedang Disiapkan',
-  ready_for_pickup: 'Pesanan Siap Diambil',
-  completed: 'Pesanan Selesai',
+  ready_for_pickup: 'Pesanan Siap Diambil 🍿',
+  completed: 'Pesanan Selesai ✅',
   cancelled: 'Pesanan Dibatalkan',
   expired: 'Pesanan Kedaluwarsa',
 };
+
+// Status-based text color
+function getStatusColor(status: OrderStatus): string {
+  if (status === 'paid' || status === 'ready' || status === 'ready_for_pickup') return '#059669';
+  if (status === 'completed') return '#00615F';
+  if (status === 'cancelled' || status === 'expired') return '#DC2626';
+  return '#E2B640'; // pending_payment
+}
 
 function formatOrderDate(dateStr?: string | Date): string {
   if (!dateStr) return '-';
@@ -78,6 +87,7 @@ export default function CustomerOrderDetail() {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
 
   const orderRef = useRef<Order | null>(null);
 
@@ -97,19 +107,58 @@ export default function CustomerOrderDetail() {
     }
   }, [id, router]);
 
-  useEffect(() => {
-    fetchOrder();
+  const handlePayNow = async () => {
+    if (!order) return;
+    setIsPaying(true);
+    try {
+      const idempotencyKey = `qris-${order.id}-${Date.now()}`;
+      const payment = await paymentService.createQrisPayment(order.id, idempotencyKey);
+      router.push({
+        pathname: '/(customer)/payment/qris',
+        params: {
+          paymentId: payment.paymentId,
+          orderId: order.id,
+          amount: String(payment.amount),
+          qrString: payment.qrString || '',
+          expiresAt: payment.expiresAt || '',
+        },
+      });
+    } catch (err: any) {
+      Alert.alert(
+        'Gagal Memuat Pembayaran',
+        err.response?.data?.message || 'Terjadi kesalahan saat memuat QRIS. Silakan coba lagi.',
+      );
+    } finally {
+      setIsPaying(false);
+    }
+  };
 
-    // Auto-refresh interval while order is active
+  // Re-fetch whenever screen comes into focus (e.g. returning from QRIS screen)
+  useFocusEffect(
+    useCallback(() => {
+      fetchOrder();
+    }, [fetchOrder]),
+  );
+
+  useEffect(() => {
+    // Auto-refresh interval while order is active:
+    // Poll every 4 seconds if pending_payment (reconciles with Midtrans when paid),
+    // or every 8 seconds if order is active (preparing / ready for pickup).
+    const pollInterval = orderRef.current?.status === 'pending_payment' ? 4000 : 8000;
     const interval = setInterval(() => {
       const current = orderRef.current;
-      if (current && current.status !== 'completed' && current.status !== 'cancelled' && current.status !== 'expired') {
+      if (
+        current &&
+        current.status !== 'completed' &&
+        current.status !== 'cancelled' &&
+        current.status !== 'expired'
+      ) {
         fetchOrder();
       }
-    }, 10000);
+    }, pollInterval);
 
     return () => clearInterval(interval);
-  }, [id, fetchOrder]);
+  }, [id, fetchOrder, order?.status]);
 
   const handleViewLocation = () => {
     const { latitude, longitude, address, businessName } = order?.mitra || {};
@@ -187,78 +236,130 @@ export default function CustomerOrderDetail() {
           </Text>
 
           {/* Dynamic Status Text */}
-          <Text style={styles.dynamicStatus}>
+          <Text style={[styles.dynamicStatus, { color: getStatusColor(order.status) }]}>
             {DYNAMIC_STATUS_LABEL[order.status] || 'Pesanan Sedang Disiapkan'}
           </Text>
 
-          {/* ── Status Stepper ── */}
-          <View style={styles.stepperContainer}>
-            <View style={styles.stepperRow}>
-              {STATUS_STEPS.map((step, idx) => {
-                const isPassed = currentStep >= idx;
-                const isActive = currentStep === idx;
-                return (
-                  <React.Fragment key={step.key}>
-                    <View style={styles.stepCircleWrapper}>
-                      <View
-                        style={[
-                          styles.stepCircle,
-                          (isActive || isPassed) && styles.stepCircleActive,
-                        ]}
-                      />
-                    </View>
-                    {idx < STATUS_STEPS.length - 1 && (
-                      <View
-                        style={[
-                          styles.stepLine,
-                          currentStep > idx && styles.stepLineActive,
-                        ]}
-                      />
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </View>
+          {/* ── Status Stepper (only show for active or completed orders) ── */}
+          {order.status !== 'cancelled' && order.status !== 'expired' ? (
+            <View style={styles.stepperContainer}>
+              <View style={styles.stepperRow}>
+                {STATUS_STEPS.map((step, idx) => {
+                  const isPassed = currentStep >= idx;
+                  const isActive = currentStep === idx;
+                  return (
+                    <React.Fragment key={step.key}>
+                      <View style={styles.stepCircleWrapper}>
+                        <View
+                          style={[
+                            styles.stepCircle,
+                            (isActive || isPassed) && styles.stepCircleActive,
+                          ]}
+                        />
+                      </View>
+                      {idx < STATUS_STEPS.length - 1 && (
+                        <View
+                          style={[
+                            styles.stepLine,
+                            currentStep > idx && styles.stepLineActive,
+                          ]}
+                        />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </View>
 
-            {/* Step Labels */}
-            <View style={styles.stepLabelsRow}>
-              {STATUS_STEPS.map((step) => (
-                <View key={step.key} style={styles.stepLabelItem}>
-                  <Text style={styles.stepLabelText}>{step.label}</Text>
-                </View>
-              ))}
+              {/* Step Labels */}
+              <View style={styles.stepLabelsRow}>
+                {STATUS_STEPS.map((step) => (
+                  <View key={step.key} style={styles.stepLabelItem}>
+                    <Text style={styles.stepLabelText}>{step.label}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
-          </View>
+          ) : (
+            <View style={styles.failedBadgeWrapper}>
+              <View style={styles.failedBadge}>
+                <Text style={styles.failedBadgeText}>
+                  {order.status === 'cancelled' ? '❌ Transaksi Dibatalkan' : '⏰ Batas Waktu Pembayaran Habis'}
+                </Text>
+              </View>
+            </View>
+          )}
 
           {/* Divider */}
           <View style={styles.divider} />
 
-          {/* ── Kode Pengambilan ── */}
-          <View style={styles.pickupSection}>
-            <Text style={styles.pickupTitle}>Kode Pengambilan</Text>
-            <Text style={styles.pickupSubtitle}>
-              Tunjukkan QR atau kode 4 digit ini ke petugas toko
-            </Text>
-
-            {/* QR Code with Teal Border */}
-            <View style={styles.qrWrapper}>
-              <QRCode
-                value={`SAFO-PICKUP-${order.pickupCode || order.id.slice(0, 4)}`}
-                size={180}
-                color="#000000"
-                backgroundColor="#ffffff"
-              />
+          {/* ── Kode Pengambilan / Pending Payment / Inactive ── */}
+          {order.status === 'pending_payment' ? (
+            <View style={styles.pendingPaymentSection}>
+              <View style={styles.pendingBadge}>
+                <Text style={styles.pendingBadgeText}>⏳ Menunggu Pembayaran</Text>
+              </View>
+              <Text style={styles.pendingPaymentTitle}>Selesaikan Pembayaran</Text>
+              <Text style={styles.pendingPaymentSubtitle}>
+                Pesanan belum dibayar. Buka QRIS untuk membayar agar pesanan langsung disiapkan oleh mitra.
+              </Text>
+              <TouchableOpacity
+                style={styles.payButton}
+                activeOpacity={0.85}
+                disabled={isPaying}
+                onPress={handlePayNow}
+              >
+                {isPaying ? (
+                  <ActivityIndicator color="#ffffff" size="small" />
+                ) : (
+                  <Text style={styles.payButtonText}>Bayar Sekarang (QRIS)</Text>
+                )}
+              </TouchableOpacity>
             </View>
-
-            {/* 4 Digit Code Boxes */}
-            <View style={styles.pickupCodeRow}>
-              {pickupChars.map((char, index) => (
-                <View key={index} style={styles.pickupBox}>
-                  <Text style={styles.pickupBoxText}>{char}</Text>
-                </View>
-              ))}
+          ) : order.status === 'cancelled' || order.status === 'expired' ? (
+            <View style={styles.inactiveSection}>
+              <Text style={styles.inactiveTitle}>
+                {order.status === 'cancelled' ? 'Pesanan Dibatalkan ❌' : 'Pesanan Kedaluwarsa ⏰'}
+              </Text>
+              <Text style={styles.inactiveSubtitle}>
+                {order.status === 'cancelled'
+                  ? 'Pembayaran tidak berhasil. Stok tetap tersedia — kamu bisa membuat pesanan baru.'
+                  : 'Waktu pembayaran telah habis. Stok tetap tersedia — kamu bisa membuat pesanan baru.'}
+              </Text>
+              <TouchableOpacity
+                style={styles.newOrderBtn}
+                activeOpacity={0.85}
+                onPress={() => router.replace('/(customer)')}
+              >
+                <Text style={styles.newOrderBtnText}>🛒 Buat Pesanan Baru</Text>
+              </TouchableOpacity>
             </View>
-          </View>
+          ) : (
+            <View style={styles.pickupSection}>
+              <Text style={styles.pickupTitle}>Kode Pengambilan</Text>
+              <Text style={styles.pickupSubtitle}>
+                Tunjukkan QR atau kode 4 digit ini ke petugas toko
+              </Text>
+
+              {/* QR Code with Teal Border */}
+              <View style={styles.qrWrapper}>
+                <QRCode
+                  value={`SAFO-PICKUP-${order.pickupCode || order.id.slice(0, 4)}`}
+                  size={180}
+                  color="#000000"
+                  backgroundColor="#ffffff"
+                />
+              </View>
+
+              {/* 4 Digit Code Boxes */}
+              <View style={styles.pickupCodeRow}>
+                {pickupChars.map((char, index) => (
+                  <View key={index} style={styles.pickupBox}>
+                    <Text style={styles.pickupBoxText}>{char}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
 
           {/* Divider */}
           <View style={styles.divider} />
@@ -609,6 +710,125 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 13,
     fontWeight: '600',
+    fontFamily: 'Poppins',
+  },
+
+  // Pending Payment & Inactive Sections
+  pendingPaymentSection: {
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    backgroundColor: '#FFFBEA',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#F6E05E',
+    marginVertical: 4,
+  },
+  pendingBadge: {
+    backgroundColor: '#FEFCBF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    marginBottom: 8,
+  },
+  pendingBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#B7791F',
+    fontFamily: 'Poppins',
+  },
+  pendingPaymentTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#2D3748',
+    fontFamily: 'Poppins',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  pendingPaymentSubtitle: {
+    fontSize: 12,
+    color: '#718096',
+    fontFamily: 'Poppins',
+    textAlign: 'center',
+    marginBottom: 14,
+    paddingHorizontal: 12,
+    lineHeight: 18,
+  },
+  payButton: {
+    backgroundColor: '#00615F',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    shadowColor: '#00615F',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  payButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+    fontFamily: 'Poppins',
+  },
+  inactiveSection: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    backgroundColor: '#F7FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginVertical: 4,
+  },
+  inactiveTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#A0AEC0',
+    fontFamily: 'Poppins',
+    marginBottom: 4,
+  },
+  inactiveSubtitle: {
+    fontSize: 12,
+    color: '#A0AEC0',
+    fontFamily: 'Poppins',
+    textAlign: 'center',
+  },
+  newOrderBtn: {
+    backgroundColor: '#00615F',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    marginTop: 14,
+  },
+  newOrderBtnText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+    fontFamily: 'Poppins',
+  },
+  failedBadgeWrapper: {
+    marginVertical: 10,
+    alignItems: 'center',
+  },
+  failedBadge: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  failedBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#DC2626',
     fontFamily: 'Poppins',
   },
 });

@@ -24,6 +24,7 @@ import { OrderModule } from './order/order.module';
 import { ProductModule } from './product/product.module';
 import { AddressModule } from './address/address.module';
 import { SavedAddress } from './database/entities/saved-address.entity';
+import { PaymentModule } from './payment/payment.module';
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { SavedAddress } from './database/entities/saved-address.entity';
     OrderModule,
     AdminModule,
     AddressModule,
+    PaymentModule,
   ],
   controllers: [AppController],
   providers: [
