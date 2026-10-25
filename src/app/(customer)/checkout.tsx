@@ -231,10 +231,11 @@ export default function CheckoutScreen() {
         );
       }
     } catch (err: any) {
-      Alert.alert(
-        "Gagal",
-        err.response?.data?.message || "Gagal membuat pesanan. Coba lagi.",
-      );
+      const msg = err.response?.data?.message;
+      const errorText = Array.isArray(msg)
+        ? msg.join("\n")
+        : (msg || err.message || "Gagal membuat pesanan. Coba lagi.");
+      Alert.alert("Gagal", errorText);
     } finally {
       setIsLoading(false);
     }
@@ -752,7 +753,7 @@ const styles = StyleSheet.create({
   itemCountTag: {
     fontSize: FontSize.xs,
     color: PRIMARY,
-    fontWeight: FontWeight.semibold,
+    fontWeight: FontWeight.semiBold,
     backgroundColor: "#E6F4F2",
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -869,7 +870,7 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   mapView: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   mapFallback: {
     flex: 1,
@@ -887,7 +888,7 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.medium,
   },
   markerPinOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
   },

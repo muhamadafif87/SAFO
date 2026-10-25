@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -109,7 +110,7 @@ export default function CustomerProfile() {
           setIsLoggingOut(false);
         }
       },
-      { confirmText: "Keluar", cancelText: "Batal", destructive: true },
+      { confirmText: "Keluar", cancelText: "Batal", destructive: true }
     );
   };
 

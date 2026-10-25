@@ -2,8 +2,8 @@ import { Colors, FontSize, FontWeight, Spacing } from "@/constants/typography";
 import { productService } from "@/services/product.service";
 import { useCartStore } from "@/stores/cart.store";
 import type { Product } from "@/types";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -49,23 +49,27 @@ export default function ProductDetail() {
 
   const [imgSrc, setImgSrc] = useState<string>("");
 
-  useEffect(() => {
-    (async () => {
-      try {
-        if (!id) return;
-        const data = await productService.getById(id);
-        setProduct(data);
-        if (data?.photoUrl) {
-          setImgSrc(data.photoUrl);
-        }
-      } catch (err: any) {
-        Alert.alert("Error", err.message || "Gagal memuat produk");
-        router.back();
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [id]);
+  // Refresh data produk setiap kali screen ini mendapat focus,
+  // sehingga stok selalu up-to-date setelah user balik dari checkout.
+  useFocusEffect(
+    useCallback(() => {
+      if (!id) return;
+      setLoading(true);
+      productService
+        .getById(id)
+        .then((data) => {
+          setProduct(data);
+          if (data?.photoUrl) {
+            setImgSrc(data.photoUrl);
+          }
+        })
+        .catch((err: any) => {
+          Alert.alert("Error", err.message || "Gagal memuat produk");
+          router.back();
+        })
+        .finally(() => setLoading(false));
+    }, [id])
+  );
 
   const handleAddToCart = (directCheckout = false) => {
     if (!product) return;
