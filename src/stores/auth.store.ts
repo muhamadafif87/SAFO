@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { storage } from '@/utils/storage';
 import type { AuthState, User, MitraProfile, AuthTokens } from '@/types';
 import { api } from '@/services/api';
+import { authService } from '@/services/auth.service';
+import { useCartStore } from '@/stores/cart.store';
+import { useLocationStore } from '@/stores/location.store';
 
 const TOKEN_KEY_ACCESS = 'safo_access_token';
 const TOKEN_KEY_REFRESH = 'safo_refresh_token';
@@ -39,8 +42,25 @@ export const useAuthStore = create<AuthState & AuthActions>((set) => ({
   },
 
   clearAuth: async () => {
+    try {
+      const refreshToken = await storage.getItemAsync(TOKEN_KEY_REFRESH);
+      await authService.logout(refreshToken);
+    } catch (e) {
+      console.warn('[authStore] Backend logout failed or offline, wiping local session:', e);
+    }
+
     await storage.deleteItemAsync(TOKEN_KEY_ACCESS);
     await storage.deleteItemAsync(TOKEN_KEY_REFRESH);
+
+    try {
+      useCartStore.getState().clearCart();
+    } catch {}
+
+    try {
+      await useLocationStore.getState().clearLocation();
+      useLocationStore.setState({ savedAddresses: [] });
+    } catch {}
+
     set({
       user: null,
       mitra: null,

@@ -27,9 +27,15 @@
     "plugins": [
       "expo-router",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Show current location on map."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#00615F",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
@@ -41,7 +47,7 @@
       [
         "@rnmapbox/maps",
         {
-          "RNMapboxMapsImpl": "mapbox"
+          "RNMapboxMapsVersion": "10.16.4"
         }
       ],
       "expo-web-browser"

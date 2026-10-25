@@ -113,7 +113,7 @@ export interface Order {
   id: string;
   customerId: string;
   mitraId: string;
-  mitra?: Pick<MitraProfile, "businessName" | "address">;
+  mitra?: Pick<MitraProfile, "businessName" | "address" | "latitude" | "longitude">;
   items?: OrderItem[];
   orderItems?: OrderItem[];
   pickupCode: string; // 4-char alphanumeric (e.g. "A3B7")
@@ -121,8 +121,10 @@ export interface Order {
   platformFee: number;
   status: OrderStatus;
   paymentMethod?: PaymentMethod;
+  payments?: Payment[];
   note?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface OrderItem {
@@ -283,6 +285,7 @@ export interface AuthState {
 export interface CartItem {
   product: Product;
   qty: number;
+  note?: string; // catatan per item, disimpan di cart store
 }
 
 // --- Saved Address ---

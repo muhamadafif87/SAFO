@@ -53,4 +53,26 @@ export class MitraService {
 
     return this.mitraProfileRepository.save(profile);
   }
+
+  // ─── Public ───────────────────────────────────────────────────────────────
+
+  async getPublicProfile(id: string): Promise<Partial<MitraProfile>> {
+    const profile = await this.mitraProfileRepository.findOne({
+      where: { id },
+      relations: { operationalHours: true },
+    });
+    if (!profile) {
+      throw new NotFoundException('Mitra tidak ditemukan');
+    }
+    return {
+      id: profile.id,
+      businessName: profile.businessName,
+      category: profile.category,
+      address: profile.address,
+      latitude: profile.latitude,
+      longitude: profile.longitude,
+      photoUrl: profile.photoUrl,
+      operationalHours: profile.operationalHours,
+    };
+  }
 }

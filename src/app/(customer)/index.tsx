@@ -2,7 +2,7 @@ import { productService } from "@/services/product.service";
 import { useAuthStore } from "@/stores/auth.store";
 import { useCartStore } from "@/stores/cart.store";
 import { useLocationStore } from "@/stores/location.store";
-import type { Product, PromoBanner, SortFilter } from "@/types";
+import type { CartItem, Product, PromoBanner, SortFilter } from "@/types";
 import { reverseGeocodeMapbox } from "@/utils/geocoding";
 import Mapbox from "@rnmapbox/maps";
 import * as Location from "expo-location";
@@ -12,9 +12,13 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  BackHandler,
+  Dimensions,
   FlatList,
   Image,
+  Keyboard,
   Modal,
+  PanResponder,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -34,9 +38,10 @@ if (MAPBOX_ACCESS_TOKEN) {
 }
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
-const PRIMARY = "#1a5c52";
-const PRIMARY_LIGHT = "#e8f4f1";
-const PRIMARY_DARK = "#123d37";
+const PRIMARY = "#00615F"; // hijau sesuai wireframe
+const PRIMARY_LIGHT = "#e0f2f1";
+const PRIMARY_DARK = "#004140";
+const ACCENT_YELLOW = "#ffd600"; // kuning checkout button sesuai wireframe
 const GOLD = "#f59e0b";
 const BG = "#ffffff";
 const WHITE = "#ffffff";
@@ -47,7 +52,7 @@ const GRAY_300 = "#d1d5db";
 const GRAY_400 = "#9ca3af";
 const GRAY_500 = "#6b7280";
 const GRAY_700 = "#374151";
-const GRAY_900 = "#111827";
+const GRAY_900 = "#00615F";
 const DANGER = "#ef4444";
 
 // ─── Subcomponents ────────────────────────────────────────────────────────────
@@ -167,22 +172,75 @@ const headerStyles = StyleSheet.create({
 
 // ─── Search Bar ────────────────────────────────────────────────────────────
 
+function IconChevronLeft({
+  color = PRIMARY,
+  size = 24,
+}: {
+  color?: string;
+  size?: number;
+}) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M15 19l-7-7 7-7"
+        stroke={color}
+        strokeWidth={2.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 interface SearchBarProps {
   value: string;
   onChangeText: (t: string) => void;
+  onFocus?: () => void;
+  isActive?: boolean;
+  onBack?: () => void;
+  autoFocus?: boolean;
 }
 
-function SearchBar({ value, onChangeText }: SearchBarProps) {
+function SearchBar({
+  value,
+  onChangeText,
+  onFocus,
+  isActive = false,
+  onBack,
+  autoFocus = false,
+}: SearchBarProps) {
   return (
-    <View style={searchStyles.wrap}>
-      <View style={searchStyles.bar}>
-        <Text style={searchStyles.icon}>🔍</Text>
+    <View style={[searchStyles.wrap, isActive && searchStyles.wrapActive]}>
+      {isActive && (
+        <TouchableOpacity
+          onPress={onBack}
+          style={searchStyles.backBtn}
+          activeOpacity={0.7}
+        >
+          <IconChevronLeft color={PRIMARY} size={24} />
+        </TouchableOpacity>
+      )}
+
+      <View style={[searchStyles.bar, isActive && searchStyles.barActive]}>
+        <Text style={searchStyles.icon}>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            fill="currentColor"
+            viewBox="0 0 16 16"
+          >
+            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0" />
+          </svg>
+        </Text>
         <TextInput
           style={searchStyles.input}
           placeholder="Cari makanan atau warung..."
           placeholderTextColor={GRAY_400}
           value={value}
           onChangeText={onChangeText}
+          onFocus={onFocus}
+          autoFocus={autoFocus}
           clearButtonMode="while-editing"
           returnKeyType="search"
         />
@@ -207,6 +265,17 @@ const searchStyles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: GRAY_100,
   },
+  wrapActive: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    gap: 8,
+  },
+  backBtn: {
+    padding: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   bar: {
     flexDirection: "row",
     alignItems: "center",
@@ -215,6 +284,13 @@ const searchStyles = StyleSheet.create({
     paddingHorizontal: 14,
     height: 46,
     gap: 8,
+  },
+  barActive: {
+    flex: 1,
+    backgroundColor: WHITE,
+    borderWidth: 1.5,
+    borderColor: GRAY_200,
+    borderRadius: 12,
   },
   icon: { fontSize: 15 },
   input: { flex: 1, fontSize: 15, color: GRAY_900 },
@@ -227,6 +303,310 @@ const searchStyles = StyleSheet.create({
     justifyContent: "center",
   },
   clearText: { color: WHITE, fontSize: 10, fontWeight: "700" },
+});
+
+// ─── Pilihan Makanan (Grid Kategori) ───────────────────────────────────────────
+
+export interface FoodCategoryChoice {
+  id: string;
+  name: string;
+  imageUrl: string;
+}
+
+export const FOOD_CHOICES: FoodCategoryChoice[] = [
+  {
+    id: "ayam-geprek",
+    name: "Ayam Geprek",
+    imageUrl:
+      "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "nasi-goreng",
+    name: "Nasi Goreng",
+    imageUrl:
+      "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "mie-goreng",
+    name: "Mie Goreng",
+    imageUrl:
+      "https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "ayam-goreng",
+    name: "Ayam Goreng",
+    imageUrl:
+      "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "mie-ayam",
+    name: "Mie Ayam",
+    imageUrl:
+      "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "ayam-bakar",
+    name: "Ayam Bakar",
+    imageUrl:
+      "https://images.unsplash.com/photo-1527477378377-f8231268f7d9?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "sate-ayam",
+    name: "Sate Ayam",
+    imageUrl:
+      "https://images.unsplash.com/photo-1555126634-323283e090fa?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "bubur-ayam",
+    name: "Bubur Ayam",
+    imageUrl:
+      "https://images.unsplash.com/photo-1541832676-9b763b0239ab?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "soto-ayam",
+    name: "Soto Ayam",
+    imageUrl:
+      "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "bebek-goreng",
+    name: "Bebek Goreng",
+    imageUrl:
+      "https://images.unsplash.com/photo-1514944298352-ec06670894e7?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "ikan-bakar",
+    name: "Ikan Bakar",
+    imageUrl:
+      "https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?auto=format&fit=crop&w=300&q=80",
+  },
+  {
+    id: "sup-ayam",
+    name: "Sup Ayam",
+    imageUrl:
+      "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=300&q=80",
+  },
+];
+
+const DEFAULT_PRODUCT_PHOTOS: Record<string, string> = {
+  "roti sobek":
+    "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=500&q=80",
+  donat:
+    "https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=500&q=80",
+  geprek:
+    "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&w=500&q=80",
+  soto: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80",
+  liwet:
+    "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=500&q=80",
+  pecel:
+    "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=500&q=80",
+  brownies:
+    "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=500&q=80",
+  cheesecake:
+    "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=500&q=80",
+  pastel:
+    "https://images.unsplash.com/photo-1541832676-9b763b0239ab?auto=format&fit=crop&w=500&q=80",
+  "roti tawar":
+    "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=500&q=80",
+  "roti manis":
+    "https://images.unsplash.com/photo-1589367920969-ab8e050bbb04?auto=format&fit=crop&w=500&q=80",
+  roti: "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=500&q=80",
+  bolu: "https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=500&q=80",
+  croissant:
+    "https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=500&q=80",
+  rames:
+    "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80",
+  puding:
+    "https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?auto=format&fit=crop&w=500&q=80",
+  nasi: "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=500&q=80",
+  mie: "https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&w=500&q=80",
+  ayam: "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=500&q=80",
+};
+
+export function getProductThumbnailUrl(
+  photoUrl?: string,
+  name?: string,
+): string {
+  if (
+    photoUrl &&
+    !photoUrl.includes("storage.safo.id") &&
+    !photoUrl.includes("dashboard") &&
+    photoUrl.startsWith("http")
+  ) {
+    return photoUrl;
+  }
+  if (name) {
+    const lower = name.toLowerCase();
+    for (const [key, url] of Object.entries(DEFAULT_PRODUCT_PHOTOS)) {
+      if (lower.includes(key)) return url;
+    }
+  }
+  return "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80";
+}
+
+interface ProductGridProps {
+  products: Product[];
+  onSelectProduct: (product: Product) => void;
+}
+
+function ProductGridItem({
+  item,
+  width,
+  onPress,
+}: {
+  item: Product;
+  width: number;
+  onPress: () => void;
+}) {
+  const resolvedPhoto = getProductThumbnailUrl(item.photoUrl, item.name);
+  const [imgSrc, setImgSrc] = useState(resolvedPhoto);
+  const isSoldOut = Number(item.stock) <= 0 || item.status === "sold_out";
+
+  useEffect(() => {
+    setImgSrc(getProductThumbnailUrl(item.photoUrl, item.name));
+  }, [item.photoUrl, item.name]);
+
+  return (
+    <TouchableOpacity
+      style={[foodGridStyles.item, { width }]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      {/* Thumbnail Gambar Produk yang langsung redirect ketika diklik */}
+      <TouchableOpacity
+        style={[foodGridStyles.imageWrap, { width, height: width }]}
+        onPress={onPress}
+        activeOpacity={0.85}
+      >
+        <Image
+          source={{ uri: imgSrc }}
+          style={[foodGridStyles.image, { width, height: width }]}
+          resizeMode="cover"
+          onError={() => {
+            const fallback = getProductThumbnailUrl(undefined, item.name);
+            if (imgSrc !== fallback) {
+              setImgSrc(fallback);
+            }
+          }}
+        />
+        {isSoldOut && (
+          <View style={foodGridStyles.soldOutOverlay}>
+            <Text style={foodGridStyles.soldOutLabel}>Habis</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+
+      {/* Nama Produk */}
+      <Text style={foodGridStyles.label} numberOfLines={2}>
+        {item.name}
+      </Text>
+
+      {/* Nama Mitra */}
+      {item.mitra?.businessName ? (
+        <Text style={foodGridStyles.mitraSub} numberOfLines={1}>
+          {item.mitra.businessName}
+        </Text>
+      ) : null}
+    </TouchableOpacity>
+  );
+}
+
+function ProductGrid({ products, onSelectProduct }: ProductGridProps) {
+  const { width } = useWindowDimensions();
+  // 3 kolom: padding 16 kiri/kanan, gap 12 antar kolom
+  const itemWidth = Math.floor((width - 32 - 24) / 3);
+
+  return (
+    <ScrollView
+      style={{ flex: 1 }}
+      showsVerticalScrollIndicator={true}
+      contentContainerStyle={foodGridStyles.scrollContent}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Text style={foodGridStyles.sectionTitle}>Pilihan Makanan</Text>
+      <View style={foodGridStyles.grid}>
+        {products.map((item) => (
+          <ProductGridItem
+            key={item.id}
+            item={item}
+            width={itemWidth}
+            onPress={() => onSelectProduct(item)}
+          />
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+const foodGridStyles = StyleSheet.create({
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 160,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: GRAY_900,
+    marginBottom: 16,
+  },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  item: {
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  imageWrap: {
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: GRAY_100,
+    position: "relative",
+  },
+  image: {
+    borderRadius: 16,
+    backgroundColor: GRAY_100,
+  },
+  soldOutOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 16,
+  },
+  soldOutLabel: {
+    color: WHITE,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: GRAY_900,
+    textAlign: "center",
+    marginTop: 6,
+    lineHeight: 16,
+  },
+  mitraSub: {
+    fontSize: 10,
+    color: GRAY_500,
+    textAlign: "center",
+    marginTop: 2,
+    lineHeight: 13,
+  },
+  priceSub: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: PRIMARY,
+    textAlign: "center",
+    marginTop: 2,
+  },
 });
 
 // ─── Promo Banner Carousel ────────────────────────────────────────────────────
@@ -501,7 +881,8 @@ interface ProductCardProps {
 }
 
 function ProductCard({ item, onPress }: ProductCardProps) {
-  const [imgError, setImgError] = useState(false);
+  const resolvedPhoto = getProductThumbnailUrl(item.photoUrl, item.name);
+  const [imgSrc, setImgSrc] = useState(resolvedPhoto);
   const isSoldOut = Number(item.stock) <= 0 || item.status === "sold_out";
   const discountPct = Math.round(
     ((Number(item.originalPrice) - Number(item.discountPrice)) /
@@ -511,32 +892,39 @@ function ProductCard({ item, onPress }: ProductCardProps) {
   const rating = item.avgRating ?? null;
   const reviewCount = item.reviewCount ?? 0;
 
+  useEffect(() => {
+    setImgSrc(getProductThumbnailUrl(item.photoUrl, item.name));
+  }, [item.photoUrl, item.name]);
+
   return (
     <TouchableOpacity
       style={[cardStyles.container, isSoldOut && cardStyles.soldOut]}
       onPress={onPress}
       activeOpacity={0.88}
     >
-      {/* Image */}
-      <View style={cardStyles.imageWrap}>
-        {item.photoUrl && !imgError ? (
-          <Image
-            source={{ uri: item.photoUrl }}
-            style={cardStyles.image}
-            resizeMode="cover"
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <View style={[cardStyles.image, cardStyles.imagePlaceholder]}>
-            <Text style={cardStyles.imagePlaceholderIcon}>🍱</Text>
-          </View>
-        )}
+      {/* Thumbnail Gambar Produk yang langsung redirect ketika diklik */}
+      <TouchableOpacity
+        style={cardStyles.imageWrap}
+        onPress={onPress}
+        activeOpacity={0.88}
+      >
+        <Image
+          source={{ uri: imgSrc }}
+          style={cardStyles.image}
+          resizeMode="cover"
+          onError={() => {
+            const fallback = getProductThumbnailUrl(undefined, item.name);
+            if (imgSrc !== fallback) {
+              setImgSrc(fallback);
+            }
+          }}
+        />
         {isSoldOut && (
           <View style={cardStyles.soldOutOverlay}>
             <Text style={cardStyles.soldOutLabel}>Habis</Text>
           </View>
         )}
-      </View>
+      </TouchableOpacity>
 
       {/* Content */}
       <View style={cardStyles.content}>
@@ -678,7 +1066,7 @@ const cardStyles = StyleSheet.create({
   stockBadge: {
     marginLeft: "auto",
     right: 10,
-    backgroundColor: PRIMARY_LIGHT,
+    backgroundColor: "#00615F",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
@@ -686,8 +1074,8 @@ const cardStyles = StyleSheet.create({
   stockBadgeSoldOut: { backgroundColor: GRAY_100 },
   stockText: {
     fontSize: 11,
-    fontWeight: "700",
-    color: PRIMARY,
+    fontWeight: "600",
+    color: WHITE,
   },
   stockTextSoldOut: { color: GRAY_500 },
 });
@@ -1015,6 +1403,709 @@ const pickerStyles = StyleSheet.create({
   confirmBtnText: { color: WHITE, fontWeight: "700", fontSize: 15 },
 });
 
+// ─── Cart Bottom Sheet ────────────────────────────────────────────────────────
+
+const SCREEN_HEIGHT = Dimensions.get("window").height;
+const SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.72;
+
+interface CartEditModalProps {
+  visible: boolean;
+  item: CartItem | null;
+  onClose: () => void;
+  onSave: (productId: string, qty: number, note: string) => void;
+}
+
+function CartEditModal({ visible, item, onClose, onSave }: CartEditModalProps) {
+  const [qty, setQty] = useState(item?.qty ?? 1);
+  const [note, setNote] = useState(item?.note ?? "");
+
+  useEffect(() => {
+    if (item) {
+      setQty(item.qty);
+      setNote(item.note ?? "");
+    }
+  }, [item]);
+
+  if (!item) return null;
+
+  const formatPrice = (p: number) => "Rp " + p.toLocaleString("id-ID");
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={editModalStyles.overlay}>
+        <View style={editModalStyles.card}>
+          {/* Handle */}
+          <View style={editModalStyles.handle} />
+
+          {/* Header */}
+          <View style={editModalStyles.header}>
+            <Text style={editModalStyles.title} numberOfLines={1}>
+              Edit Item
+            </Text>
+            <TouchableOpacity
+              onPress={onClose}
+              style={editModalStyles.closeBtn}
+            >
+              <Text style={editModalStyles.closeTxt}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Product info */}
+          <View style={editModalStyles.productRow}>
+            {item.product.photoUrl ? (
+              <Image
+                source={{ uri: item.product.photoUrl }}
+                style={editModalStyles.productImg}
+              />
+            ) : (
+              <View
+                style={[
+                  editModalStyles.productImg,
+                  editModalStyles.imgPlaceholder,
+                ]}
+              >
+                <Text style={{ fontSize: 22 }}>🍽️</Text>
+              </View>
+            )}
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={editModalStyles.productName} numberOfLines={2}>
+                {item.product.name}
+              </Text>
+              <Text style={editModalStyles.productPrice}>
+                {formatPrice(Number(item.product.discountPrice))}
+              </Text>
+            </View>
+          </View>
+
+          {/* Catatan */}
+          <View style={editModalStyles.noteWrap}>
+            <View style={editModalStyles.noteIconRow}>
+              <Text style={{ fontSize: 14 }}>📋</Text>
+              <Text style={editModalStyles.noteLabel}>Tambahkan catatan</Text>
+            </View>
+            <TextInput
+              style={editModalStyles.noteInput}
+              placeholder="Contoh: tidak pedas, tanpa bawang..."
+              placeholderTextColor={GRAY_400}
+              value={note}
+              onChangeText={setNote}
+              multiline
+              maxLength={150}
+            />
+            <Text style={editModalStyles.noteCount}>{note.length}/150</Text>
+          </View>
+
+          {/* Qty control */}
+          <View style={editModalStyles.qtyRow}>
+            <Text style={editModalStyles.qtyLabel}>Jumlah</Text>
+            <View style={editModalStyles.qtyControl}>
+              <TouchableOpacity
+                style={[
+                  editModalStyles.qtyBtn,
+                  qty <= 1 && editModalStyles.qtyBtnDisabled,
+                ]}
+                onPress={() => setQty((q) => Math.max(1, q - 1))}
+                activeOpacity={0.75}
+              >
+                <Text style={editModalStyles.qtyBtnTxt}>−</Text>
+              </TouchableOpacity>
+              <Text style={editModalStyles.qtyNum}>{qty}</Text>
+              <TouchableOpacity
+                style={[
+                  editModalStyles.qtyBtn,
+                  qty >= item.product.stock && editModalStyles.qtyBtnDisabled,
+                ]}
+                onPress={() =>
+                  setQty((q) => Math.min(item.product.stock, q + 1))
+                }
+                activeOpacity={0.75}
+              >
+                <Text style={editModalStyles.qtyBtnTxt}>+</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Save button */}
+          <TouchableOpacity
+            style={editModalStyles.saveBtn}
+            onPress={() => onSave(item.product.id, qty, note)}
+            activeOpacity={0.85}
+          >
+            <Text style={editModalStyles.saveBtnTxt}>Simpan Perubahan</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const editModalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  card: {
+    backgroundColor: WHITE,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+    paddingTop: 12,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: GRAY_200,
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  title: { fontSize: 17, fontWeight: "800", color: GRAY_900, flex: 1 },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: GRAY_100,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closeTxt: { fontSize: 13, color: GRAY_700, fontWeight: "700" },
+  productRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: GRAY_50,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 16,
+  },
+  productImg: {
+    width: 60,
+    height: 60,
+    borderRadius: 10,
+    backgroundColor: GRAY_200,
+  },
+  imgPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  productName: { fontSize: 14, fontWeight: "700", color: GRAY_900 },
+  productPrice: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: PRIMARY,
+    marginTop: 2,
+  },
+  noteWrap: {
+    backgroundColor: GRAY_50,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 16,
+    gap: 6,
+  },
+  noteIconRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  noteLabel: { fontSize: 13, fontWeight: "600", color: GRAY_700 },
+  noteInput: {
+    fontSize: 14,
+    color: GRAY_900,
+    minHeight: 60,
+    textAlignVertical: "top",
+    paddingTop: 4,
+  },
+  noteCount: { fontSize: 11, color: GRAY_400, textAlign: "right" },
+  qtyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  qtyLabel: { fontSize: 15, fontWeight: "700", color: GRAY_900 },
+  qtyControl: { flexDirection: "row", alignItems: "center", gap: 16 },
+  qtyBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: PRIMARY,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qtyBtnDisabled: { backgroundColor: GRAY_200 },
+  qtyBtnTxt: { fontSize: 18, color: WHITE, fontWeight: "800", lineHeight: 22 },
+  qtyNum: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: GRAY_900,
+    minWidth: 24,
+    textAlign: "center",
+  },
+  saveBtn: {
+    backgroundColor: PRIMARY,
+    borderRadius: 14,
+    paddingVertical: 15,
+    alignItems: "center",
+  },
+  saveBtnTxt: { color: WHITE, fontSize: 15, fontWeight: "800" },
+});
+
+// ─── Cart Bottom Sheet (Swipeable) ────────────────────────────────────────────
+
+interface CartBottomSheetProps {
+  visible: boolean;
+  onClose: () => void;
+  onCheckout: () => void;
+}
+
+function CartBottomSheet({
+  visible,
+  onClose,
+  onCheckout,
+}: CartBottomSheetProps) {
+  const { items, updateQty, updateNote, getTotalItems, getTotalPrice } =
+    useCartStore();
+
+  const translateY = useRef(new Animated.Value(SHEET_MAX_HEIGHT)).current;
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+
+  const [editItem, setEditItem] = useState<CartItem | null>(null);
+  const [editVisible, setEditVisible] = useState(false);
+
+  // Animate in/out
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+          damping: 20,
+          stiffness: 180,
+        }),
+        Animated.timing(backdropOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: SHEET_MAX_HEIGHT,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(backdropOpacity, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderMove: (_, gs) => {
+        if (gs.dy > 0) {
+          translateY.setValue(gs.dy);
+        }
+      },
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dy > SHEET_MAX_HEIGHT * 0.3 || gs.vy > 0.5) {
+          Animated.timing(translateY, {
+            toValue: SHEET_MAX_HEIGHT,
+            duration: 220,
+            useNativeDriver: true,
+          }).start(onClose);
+          Animated.timing(backdropOpacity, {
+            toValue: 0,
+            duration: 200,
+            useNativeDriver: true,
+          }).start();
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            damping: 20,
+            stiffness: 180,
+          }).start();
+        }
+      },
+    }),
+  ).current;
+
+  const formatPrice = (p: number) => "Rp " + p.toLocaleString("id-ID");
+
+  const totalItems = getTotalItems();
+  const totalPrice = getTotalPrice();
+
+  return (
+    <>
+      {/* Backdrop */}
+      <Animated.View
+        style={[cartSheetStyles.backdrop, { opacity: backdropOpacity }]}
+        pointerEvents={visible ? "auto" : "none"}
+      >
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          activeOpacity={1}
+        />
+      </Animated.View>
+
+      {/* Sheet */}
+      <Animated.View
+        style={[
+          cartSheetStyles.sheet,
+          { transform: [{ translateY }], maxHeight: SHEET_MAX_HEIGHT },
+        ]}
+      >
+        {/* Drag handle + judul */}
+        <View {...panResponder.panHandlers} style={cartSheetStyles.handleArea}>
+          <View style={cartSheetStyles.handle} />
+          <Text style={cartSheetStyles.sheetTitle}>Keranjang Saya</Text>
+        </View>
+
+        {/* Daftar item */}
+        <ScrollView
+          style={cartSheetStyles.itemList}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {items.map((cartItem) => (
+            <View key={cartItem.product.id} style={cartSheetStyles.itemCard}>
+              {/* Foto produk */}
+              {cartItem.product.photoUrl ? (
+                <Image
+                  source={{ uri: cartItem.product.photoUrl }}
+                  style={cartSheetStyles.itemImg}
+                />
+              ) : (
+                <View
+                  style={[
+                    cartSheetStyles.itemImg,
+                    cartSheetStyles.imgPlaceholder,
+                  ]}
+                >
+                  <Text style={{ fontSize: 22 }}>🍽️</Text>
+                </View>
+              )}
+
+              {/* Info + kontrol */}
+              <View style={cartSheetStyles.itemInfo}>
+                {/* Row: nama + Ubah */}
+                <View style={cartSheetStyles.itemNameRow}>
+                  <Text style={cartSheetStyles.itemName} numberOfLines={1}>
+                    {cartItem.product.name}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setEditItem(cartItem);
+                      setEditVisible(true);
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={cartSheetStyles.editLink}>Ubah</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Catatan */}
+                <TouchableOpacity
+                  style={cartSheetStyles.noteRow}
+                  onPress={() => {
+                    setEditItem(cartItem);
+                    setEditVisible(true);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 12 }}>📋</Text>
+                  <Text style={cartSheetStyles.noteText} numberOfLines={1}>
+                    {cartItem.note ? cartItem.note : "Tambahkan catatan"}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Harga + kontrol qty */}
+                <View style={cartSheetStyles.priceQtyRow}>
+                  <Text style={cartSheetStyles.itemPrice}>
+                    {formatPrice(Number(cartItem.product.discountPrice))}
+                  </Text>
+                  <View style={cartSheetStyles.qtyControl}>
+                    <TouchableOpacity
+                      style={cartSheetStyles.qtyBtn}
+                      onPress={() =>
+                        updateQty(cartItem.product.id, cartItem.qty - 1)
+                      }
+                      activeOpacity={0.75}
+                    >
+                      <Text style={cartSheetStyles.qtyBtnTxt}>−</Text>
+                    </TouchableOpacity>
+                    <Text style={cartSheetStyles.qtyNum}>{cartItem.qty}</Text>
+                    <TouchableOpacity
+                      style={[
+                        cartSheetStyles.qtyBtn,
+                        cartItem.qty >= cartItem.product.stock &&
+                          cartSheetStyles.qtyBtnDisabled,
+                      ]}
+                      onPress={() =>
+                        updateQty(
+                          cartItem.product.id,
+                          Math.min(cartItem.product.stock, cartItem.qty + 1),
+                        )
+                      }
+                      activeOpacity={0.75}
+                    >
+                      <Text style={cartSheetStyles.qtyBtnTxt}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </View>
+          ))}
+          <View style={{ height: 16 }} />
+        </ScrollView>
+
+        {/* FAB bar bawah sheet */}
+        <View style={cartSheetStyles.fabBar}>
+          {/* Ikon keranjang + badge */}
+          <View style={cartSheetStyles.cartIconWrap}>
+            <Text style={cartSheetStyles.cartIcon}>🛒</Text>
+            <View style={cartSheetStyles.badge}>
+              <Text style={cartSheetStyles.badgeTxt}>{totalItems}</Text>
+            </View>
+          </View>
+
+          {/* Total */}
+          <Text style={cartSheetStyles.totalPrice}>
+            {formatPrice(totalPrice)}
+          </Text>
+
+          {/* Checkout button */}
+          <TouchableOpacity
+            style={cartSheetStyles.checkoutBtn}
+            onPress={() => {
+              onClose();
+              onCheckout();
+            }}
+            activeOpacity={0.85}
+          >
+            <Text style={cartSheetStyles.checkoutBtnTxt}>Checkout</Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+
+      {/* Edit item modal */}
+      <CartEditModal
+        visible={editVisible}
+        item={editItem}
+        onClose={() => setEditVisible(false)}
+        onSave={(productId, qty, note) => {
+          updateQty(productId, qty);
+          updateNote(productId, note);
+          setEditVisible(false);
+        }}
+      />
+    </>
+  );
+}
+
+const cartSheetStyles = StyleSheet.create({
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    zIndex: 90,
+  },
+  sheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: WHITE,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    zIndex: 100,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 20,
+  },
+  handleArea: {
+    alignItems: "center",
+    paddingTop: 12,
+    paddingBottom: 8,
+    paddingHorizontal: 16,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: GRAY_300,
+    marginBottom: 14,
+  },
+  sheetTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: GRAY_900,
+    alignSelf: "center",
+  },
+  itemList: {
+    flexGrow: 0,
+    paddingHorizontal: 16,
+  },
+  itemCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: WHITE,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 10,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: GRAY_100,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  itemImg: {
+    width: 72,
+    height: 72,
+    borderRadius: 12,
+    backgroundColor: GRAY_200,
+  },
+  imgPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  itemInfo: { flex: 1, gap: 4 },
+  itemNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  itemName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: GRAY_900,
+    flex: 1,
+    marginRight: 8,
+  },
+  editLink: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: PRIMARY,
+  },
+  noteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  noteText: {
+    fontSize: 12,
+    color: GRAY_400,
+    flex: 1,
+  },
+  priceQtyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  itemPrice: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: PRIMARY,
+  },
+  qtyControl: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  qtyBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: PRIMARY,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qtyBtnDisabled: { backgroundColor: GRAY_200 },
+  qtyBtnTxt: {
+    fontSize: 16,
+    color: WHITE,
+    fontWeight: "800",
+    lineHeight: 20,
+  },
+  qtyNum: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: GRAY_900,
+    minWidth: 20,
+    textAlign: "center",
+  },
+  // FAB bar di dalam bottom sheet
+  fabBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: GRAY_900,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: GRAY_200,
+    gap: 12,
+  },
+  cartIconWrap: { position: "relative" },
+  cartIcon: { fontSize: 26 },
+  badge: {
+    position: "absolute",
+    top: -6,
+    right: -8,
+    backgroundColor: WHITE,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+    borderWidth: 2,
+    borderColor: GRAY_900,
+  },
+  badgeTxt: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#00615F",
+  },
+  totalPrice: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: "800",
+    color: WHITE,
+  },
+  checkoutBtn: {
+    backgroundColor: ACCENT_YELLOW,
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  checkoutBtnTxt: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: GRAY_900,
+  },
+});
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function CustomerHome() {
@@ -1033,14 +2124,38 @@ export default function CustomerHome() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchActive, setIsSearchActive] = useState(false);
   const [activeFilter, setActiveFilter] = useState<SortFilter>("nearby");
 
   // Derived dari store — tampilkan label singkat di header
   const address = activeLocation?.address ?? "Mendeteksi lokasi...";
-  const location = activeLocation ? { lat: activeLocation.lat, lng: activeLocation.lng } : null;
+  const location = activeLocation
+    ? { lat: activeLocation.lat, lng: activeLocation.lng }
+    : null;
 
   const isVip = user?.isVip ?? false;
   const cartCount = getTotalItems();
+  const [cartSheetVisible, setCartSheetVisible] = useState(false);
+
+  // Tutup cart sheet saat search aktif
+  useEffect(() => {
+    if (isSearchActive) setCartSheetVisible(false);
+  }, [isSearchActive]);
+
+  // Handle hardware back on Android saat search aktif
+  useEffect(() => {
+    const onBackPress = () => {
+      if (isSearchActive) {
+        setIsSearchActive(false);
+        setSearchQuery("");
+        Keyboard.dismiss();
+        return true;
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => sub.remove();
+  }, [isSearchActive]);
 
   // Fetch products
   const fetchProducts = useCallback(
@@ -1100,7 +2215,7 @@ export default function CustomerHome() {
       await Promise.all([fetchProducts(lat, lng, "nearby"), fetchBanners()]);
       setLoading(false);
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Re-fetch when filter changes
@@ -1144,7 +2259,12 @@ export default function CustomerHome() {
     resolvedAddress: string,
     fullAddress?: string,
   ) => {
-    await setActiveLocation({ lat, lng, address: resolvedAddress, fullAddress });
+    await setActiveLocation({
+      lat,
+      lng,
+      address: resolvedAddress,
+      fullAddress,
+    });
     setLoading(true);
     await fetchProducts(lat, lng, activeFilter, searchQuery);
     setLoading(false);
@@ -1160,7 +2280,11 @@ export default function CustomerHome() {
   const ListHeader = (
     <>
       {/* Search */}
-      <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
+      <SearchBar
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        onFocus={() => setIsSearchActive(true)}
+      />
 
       {/* Promo Banner */}
       {banners.length > 0 && <PromoBannerCarousel banners={banners} />}
@@ -1177,7 +2301,6 @@ export default function CustomerHome() {
               ? "Diskon Terbesar"
               : "Rating Tertinggi"}
         </Text>
-        <Text style={styles.sectionCount}>{products.length} produk</Text>
       </View>
     </>
   );
@@ -1196,6 +2319,91 @@ export default function CustomerHome() {
     </View>
   );
 
+  // ── Mode Pencarian Aktif (Sesuai Desain Wireframe) ────────────────────────
+  if (isSearchActive) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        {/* Header Search Aktif dengan tombol Back */}
+        <SearchBar
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          isActive={true}
+          autoFocus={true}
+          onBack={() => {
+            setIsSearchActive(false);
+            setSearchQuery("");
+            Keyboard.dismiss();
+          }}
+        />
+
+        <View style={{ flex: 1 }}>
+          {loading && products.length === 0 ? (
+            <ActivityIndicator
+              size="large"
+              color={PRIMARY}
+              style={{ marginTop: 60 }}
+            />
+          ) : products.length > 0 ? (
+            /* Grid 3-Kolom Produk dari Database Semua Mitra (Sesuai Wireframe) */
+            <ProductGrid
+              products={products}
+              onSelectProduct={(product) => {
+                router.push(`/(customer)/products/${product.id}`);
+              }}
+            />
+          ) : (
+            /* Tampilan Kosong jika tidak ada produk */
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={styles.listContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              {EmptyComponent}
+            </ScrollView>
+          )}
+        </View>
+
+        {/* Cart FAB — membuka bottom sheet */}
+        {cartCount > 0 && (
+          <TouchableOpacity
+            style={styles.cartFab}
+            onPress={() => setCartSheetVisible(true)}
+            activeOpacity={0.88}
+          >
+            <View style={styles.cartFabIconWrap}>
+              <Text style={styles.cartFabIcon}>🛒</Text>
+              <View style={styles.cartFabBadge}>
+                <Text style={styles.cartFabBadgeTxt}>{cartCount}</Text>
+              </View>
+            </View>
+            <View style={styles.cartFabMiddle}>
+              <Text style={styles.cartFabLabel}>
+                {cartCount} item di keranjang
+              </Text>
+              <Text style={styles.cartFabSub}>Ketuk untuk lihat detail</Text>
+            </View>
+            <View style={styles.cartFabPriceWrap}>
+              <Text style={styles.cartFabPrice}>
+                {"Rp " +
+                  useCartStore
+                    .getState()
+                    .getTotalPrice()
+                    .toLocaleString("id-ID")}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {/* Cart Bottom Sheet */}
+        <CartBottomSheet
+          visible={cartSheetVisible}
+          onClose={() => setCartSheetVisible(false)}
+          onCheckout={() => router.push("/(customer)/checkout")}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       {/* Location Header */}
@@ -1208,7 +2416,11 @@ export default function CustomerHome() {
       {loading && products.length === 0 ? (
         <>
           {/* Show banner skeleton while loading */}
-          <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
+          <SearchBar
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onFocus={() => setIsSearchActive(true)}
+          />
           {banners.length > 0 && <PromoBannerCarousel banners={banners} />}
           <FilterChips active={activeFilter} onChange={setActiveFilter} />
           <ActivityIndicator
@@ -1236,21 +2448,40 @@ export default function CustomerHome() {
         />
       )}
 
-      {/* Cart FAB */}
+      {/* Cart FAB — membuka bottom sheet */}
       {cartCount > 0 && (
         <TouchableOpacity
           style={styles.cartFab}
-          onPress={() => router.push("/(customer)/checkout")}
-          activeOpacity={0.9}
+          onPress={() => setCartSheetVisible(true)}
+          activeOpacity={0.88}
         >
-          <Text style={styles.cartFabIcon}>🛒</Text>
-          <View style={styles.cartFabMiddle}>
-            <Text style={styles.cartFabLabel}>{cartCount} item dipilih</Text>
-            <Text style={styles.cartFabSub}>Lanjut ke Checkout</Text>
+          <View style={styles.cartFabIconWrap}>
+            <Text style={styles.cartFabIcon}>🛒</Text>
+            <View style={styles.cartFabBadge}>
+              <Text style={styles.cartFabBadgeTxt}>{cartCount}</Text>
+            </View>
           </View>
-          <Text style={styles.cartFabArrow}>→</Text>
+          <View style={styles.cartFabMiddle}>
+            <Text style={styles.cartFabLabel}>
+              {cartCount} item di keranjang
+            </Text>
+            <Text style={styles.cartFabSub}>Ketuk untuk lihat detail</Text>
+          </View>
+          <View style={styles.cartFabPriceWrap}>
+            <Text style={styles.cartFabPrice}>
+              {"Rp " +
+                useCartStore.getState().getTotalPrice().toLocaleString("id-ID")}
+            </Text>
+          </View>
         </TouchableOpacity>
       )}
+
+      {/* Cart Bottom Sheet */}
+      <CartBottomSheet
+        visible={cartSheetVisible}
+        onClose={() => setCartSheetVisible(false)}
+        onCheckout={() => router.push("/(customer)/checkout")}
+      />
     </SafeAreaView>
   );
 }
@@ -1305,23 +2536,48 @@ const styles = StyleSheet.create({
   // Cart FAB
   cartFab: {
     position: "absolute",
+    height: 80,
     bottom: 24,
     left: 16,
     right: 16,
-    backgroundColor: PRIMARY,
+    backgroundColor: GRAY_900,
     borderRadius: 20,
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
-    shadowColor: PRIMARY_DARK,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 10,
+    gap: 10,
   },
-  cartFabIcon: { fontSize: 22, marginRight: 12 },
+  cartFabIconWrap: { position: "relative" },
+  cartFabIcon: { fontSize: 24 },
+  cartFabBadge: {
+    position: "absolute",
+    top: -6,
+    right: -8,
+    backgroundColor: WHITE,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+    borderWidth: 2,
+    borderColor: GRAY_900,
+  },
+  cartFabBadgeTxt: { fontSize: 10, color: "#00615F", fontWeight: "800" },
   cartFabMiddle: { flex: 1 },
-  cartFabLabel: { fontSize: 15, fontWeight: "700", color: WHITE },
-  cartFabSub: { fontSize: 11, color: "rgba(255,255,255,0.8)", marginTop: 2 },
-  cartFabArrow: { fontSize: 18, color: WHITE, fontWeight: "700" },
+  cartFabLabel: { fontSize: 14, fontWeight: "700", color: WHITE },
+  cartFabSub: { fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 1 },
+  cartFabPriceWrap: {
+    backgroundColor: ACCENT_YELLOW,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  cartFabPrice: { fontSize: 13, fontWeight: "800", color: GRAY_900 },
 });
