@@ -57,10 +57,17 @@ const foodItems = [
 export default function MarketplaceLandingScreen() {
   const router = useRouter();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const role = useAuthStore((state) => state.user?.role);
+
+  const getDashboardRoute = () => {
+    if (role === "mitra") return "/(mitra)";
+    if (role === "admin") return "/(admin)";
+    return "/(customer)";
+  };
 
   const handleContinue = () => {
     if (isAuthenticated) {
-      router.push("/(customer)");
+      router.push(getDashboardRoute() as any);
       return;
     }
 
@@ -78,7 +85,7 @@ export default function MarketplaceLandingScreen() {
           <TouchableOpacity
             style={styles.headerButton}
             onPress={() =>
-              router.push(isAuthenticated ? "/(customer)" : "/(auth)/login")
+              router.push(isAuthenticated ? (getDashboardRoute() as any) : "/(auth)/login")
             }
           >
             <Text style={styles.headerButtonText}>
@@ -144,7 +151,7 @@ export default function MarketplaceLandingScreen() {
                   style={styles.cardButton}
                   onPress={() =>
                     router.push(
-                      isAuthenticated ? "/(customer)" : "/(auth)/login",
+                      isAuthenticated ? (getDashboardRoute() as any) : "/(auth)/login",
                     )
                   }
                 >

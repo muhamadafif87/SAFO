@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, ILike } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 
@@ -70,6 +70,7 @@ export class AuthService {
 
     // Create user
     const user = this.userRepository.create({
+      name: dto.businessName,
       email: dto.email,
       passwordHash,
       role: UserRole.MITRA,
@@ -94,17 +95,20 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
+    const cleanEmail = dto.email.trim();
     const user = await this.userRepository.findOne({
-      where: { email: dto.email },
+      where: { email: ILike(cleanEmail) },
       relations: { mitraProfile: true },
     });
 
     if (!user) {
+      console.warn(`[AuthService.login] Gagal login: Email "${cleanEmail}" tidak ditemukan di tabel users database Supabase.`);
       throw new UnauthorizedException('Email atau password salah');
     }
 
     const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!isPasswordValid) {
+      console.warn(`[AuthService.login] Gagal login: Password salah untuk user "${user.email}" (Role: ${user.role}). Format hash DB: ${user.passwordHash?.substring(0, 7)}...`);
       throw new UnauthorizedException('Email atau password salah');
     }
 
@@ -116,8 +120,10 @@ export class AuthService {
 
     const { passwordHash, ...userWithoutPassword } = user;
 
+    const isVip = user.role === UserRole.CUSTOMER ? await this.checkIsVip(user.id) : false;
+
     return {
-      user: userWithoutPassword,
+      user: { ...userWithoutPassword, isVip },
       tokens: {
         accessToken,
         refreshToken,
@@ -141,6 +147,19 @@ export class AuthService {
       user: { ...userWithoutPassword, isVip },
       mitra: user.mitraProfile || null,
     };
+  }
+
+  /** DEV ONLY — Reset password by email using bcryptjs hash */
+  async devResetPassword(email: string, newPassword: string) {
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await this.userRepository.findOne({ where: { email: ILike(cleanEmail) } });
+    if (!user) throw new UnauthorizedException(`User "${cleanEmail}" tidak ditemukan`);
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.userRepository.update(user.id, { passwordHash });
+
+    console.log(`[DEV] Reset password for "${user.email}" (${user.role}) — new hash: ${passwordHash.substring(0, 7)}...`);
+    return { message: `Password berhasil direset untuk ${user.email}`, role: user.role };
   }
 
   async refreshToken(token: string) {
