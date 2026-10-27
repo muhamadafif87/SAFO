@@ -87,10 +87,22 @@ export interface Product {
   pickupWindowEnd: string; // ISO timestamp
   status: ProductStatus;
   discountPercent?: number; // calculated
-  avgRating?: number | null;  // calculated: avg of reviews
-  reviewCount?: number;        // calculated: count of reviews
+  discountAmount?: number;
+  formattedDiscount?: string;
+  avgRating?: number | null; // calculated: avg of reviews
+  reviewCount?: number; // calculated: count of reviews
   distanceKm?: number | string | null; // calculated from geo query
+  restaurant?: {
+    id?: string;
+    name: string;
+    rating: number;
+    reviewCount?: number;
+    address?: string;
+    photoUrl?: string;
+  };
 }
+
+export type LiveProduct = Product;
 
 export type Mitra = MitraProfile;
 
