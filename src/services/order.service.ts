@@ -67,6 +67,14 @@ export const orderService = {
   },
 
   /**
+   * Detail pesanan versi mitra (GET /orders/:id hanya untuk customer).
+   */
+  getMitraById: async (id: string): Promise<Order> => {
+    const res = await api.get(`/orders/mitra/${id}`);
+    return normalizeOrder(res.data);
+  },
+
+  /**
    * Update status pesanan (mitra: paid→accepted→completed / cancel).
    */
   updateStatus: async (id: string, status: OrderStatus): Promise<Order> => {

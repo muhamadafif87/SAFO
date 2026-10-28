@@ -326,10 +326,12 @@ export class OrderService {
     return order;
   }
 
-  async getMitraOrders(userId: string): Promise<Order[]> {
-    // Join via mitra profile.
-    // customer di-select kolom demi kolom — sengaja TIDAK pakai
-    // leftJoinAndSelect supaya password_hash tidak ikut terbawa ke response.
+  /**
+   * Query builder bersama untuk pesanan milik satu mitra.
+   * customer di-select kolom demi kolom — sengaja TIDAK pakai
+   * leftJoinAndSelect supaya password_hash tidak ikut terbawa ke response.
+   */
+  private mitraOrdersQuery(userId: string) {
     return this.orderRepository
       .createQueryBuilder('order')
       .innerJoinAndSelect('order.mitra', 'mitra', 'mitra.userId = :userId', {
@@ -343,9 +345,25 @@ export class OrderService {
         'customer.email',
       ])
       .leftJoinAndSelect('order.orderItems', 'items')
-      .leftJoinAndSelect('items.product', 'product')
+      .leftJoinAndSelect('items.product', 'product');
+  }
+
+  async getMitraOrders(userId: string): Promise<Order[]> {
+    return this.mitraOrdersQuery(userId)
       .orderBy('order.createdAt', 'DESC')
       .getMany();
+  }
+
+  /** Detail satu pesanan — hanya bisa diakses pemilik mitra-nya. */
+  async getMitraOrderById(orderId: string, userId: string): Promise<Order> {
+    assertUuid(orderId, 'Order ID');
+
+    const order = await this.mitraOrdersQuery(userId)
+      .andWhere('order.id = :orderId', { orderId })
+      .getOne();
+
+    if (!order) throw new NotFoundException('Order tidak ditemukan');
+    return order;
   }
 
   async verifyPickup(

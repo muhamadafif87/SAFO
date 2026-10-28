@@ -22,6 +22,16 @@ export class OrderController {
     return this.orderService.getMitraOrders(req.user.userId);
   }
 
+  // Detail pesanan untuk mitra — GET /orders/:id sendiri hanya untuk customer.
+  @Roles(UserRole.MITRA)
+  @Get('mitra/:id')
+  getMitraOrderById(
+    @Request() req,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.orderService.getMitraOrderById(id, req.user.userId);
+  }
+
   // ─── Customer ────────────────────────────────────────────────────────────
 
   @Roles(UserRole.CUSTOMER)
