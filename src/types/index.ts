@@ -15,6 +15,7 @@ export type ProductStatus = "active" | "sold_out" | "expired" | "inactive";
 export type OrderStatus =
   | "pending_payment"
   | "paid"
+  | "accepted" // mitra menekan "Terima Pesanan"
   | "ready"
   | "ready_for_pickup" // alias used by backend entity
   | "completed"
