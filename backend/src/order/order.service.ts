@@ -327,12 +327,21 @@ export class OrderService {
   }
 
   async getMitraOrders(userId: string): Promise<Order[]> {
-    // Join via mitra profile
+    // Join via mitra profile.
+    // customer di-select kolom demi kolom — sengaja TIDAK pakai
+    // leftJoinAndSelect supaya password_hash tidak ikut terbawa ke response.
     return this.orderRepository
       .createQueryBuilder('order')
       .innerJoinAndSelect('order.mitra', 'mitra', 'mitra.userId = :userId', {
         userId,
       })
+      .leftJoin('order.customer', 'customer')
+      .addSelect([
+        'customer.id',
+        'customer.name',
+        'customer.phone',
+        'customer.email',
+      ])
       .leftJoinAndSelect('order.orderItems', 'items')
       .leftJoinAndSelect('items.product', 'product')
       .orderBy('order.createdAt', 'DESC')
