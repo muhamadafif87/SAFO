@@ -36,6 +36,9 @@ export class MitraService {
 
   async updateProfile(userId: string, dto: UpdateMitraProfileDto): Promise<MitraProfile> {
     const profile = await this.getProfile(userId);
+    if (dto.phone && profile.userId) {
+      await this.mitraProfileRepository.manager.update(User, { id: profile.userId }, { phone: dto.phone });
+    }
     Object.assign(profile, dto);
     return this.sanitize(await this.mitraProfileRepository.save(profile));
   }

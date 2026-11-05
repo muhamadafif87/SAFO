@@ -16,6 +16,7 @@ export enum OrderStatus {
 export const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.PENDING_PAYMENT]: [
     OrderStatus.PAID,
+    OrderStatus.ACCEPTED,
     OrderStatus.CANCELLED,
     OrderStatus.EXPIRED,
   ],

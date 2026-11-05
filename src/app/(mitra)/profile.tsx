@@ -1,4 +1,5 @@
 import { Colors } from '@/constants/typography';
+import { productService } from '@/services/product.service';
 import { useAuthStore } from '@/stores/auth.store';
 import { showAlert, showConfirm } from '@/utils/alert';
 import { useRouter } from 'expo-router';
@@ -82,6 +83,10 @@ export default function MitraProfile() {
   // isVip mitra belum didukung backend — selalu false, tampil sebagai Nonaktif.
   const isVip = !!user?.isVip;
 
+  const handleEditWarungProfile = () => {
+    router.push('/(mitra)/edit-profile');
+  };
+
   const handleLogout = () => {
     showConfirm(
       'Keluar Akun',
@@ -114,8 +119,12 @@ export default function MitraProfile() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* ── Nama warung ── */}
-        <View style={styles.heroCard}>
+        {/* ── Nama warung (Bisa diklik untuk edit menu/warung) ── */}
+        <TouchableOpacity
+          style={styles.heroCard}
+          activeOpacity={0.8}
+          onPress={handleEditWarungProfile}
+        >
           <View style={styles.avatarWrap}>
             <StoreIcon color={WHITE} size={30} />
           </View>
@@ -129,7 +138,7 @@ export default function MitraProfile() {
               </Text>
             )}
           </View>
-        </View>
+        </TouchableOpacity>
 
         {/* ── VIP ── */}
         <TouchableOpacity
@@ -161,12 +170,14 @@ export default function MitraProfile() {
           </View>
 
           {infoRows.map((row, index) => (
-            <View
+            <TouchableOpacity
               key={row.emoji}
               style={[
                 styles.infoRow,
                 index === infoRows.length - 1 && styles.infoRowLast,
               ]}
+              activeOpacity={0.7}
+              onPress={handleEditWarungProfile}
             >
               <View style={styles.infoIconWrap}>
                 <Text style={styles.infoEmoji}>{row.emoji}</Text>
@@ -178,7 +189,7 @@ export default function MitraProfile() {
                 {row.value}
               </Text>
               <Text style={styles.chevron}>›</Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
 

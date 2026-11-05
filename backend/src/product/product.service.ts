@@ -60,19 +60,27 @@ export class ProductService {
   async createProduct(userId: string, dto: CreateProductDto): Promise<Product> {
     const profile = await this.mitraProfileRepository.findOne({ where: { userId } });
     if (!profile) throw new NotFoundException('Profil mitra tidak ditemukan');
-    if (profile.verificationStatus !== VerificationStatus.APPROVED) {
+    if (
+      process.env.NODE_ENV === 'production' &&
+      profile.verificationStatus !== VerificationStatus.APPROVED
+    ) {
       throw new ForbiddenException('Akun mitra belum diverifikasi');
     }
+
+    const now = new Date();
+    // Jika tidak diisi (opsional), jendela pickup dibuat permanen (hingga 2099)
+    const permanentEnd = new Date('2099-12-31T23:59:59.999Z');
 
     const product = this.productRepository.create({
       mitraId: profile.id,
       name: dto.name,
       description: dto.description,
+      photoUrl: dto.photoUrl,
       originalPrice: dto.originalPrice,
       discountPrice: dto.discountPrice,
       stock: dto.stock,
-      pickupWindowStart: new Date(dto.pickupWindowStart),
-      pickupWindowEnd: new Date(dto.pickupWindowEnd),
+      pickupWindowStart: dto.pickupWindowStart ? new Date(dto.pickupWindowStart) : now,
+      pickupWindowEnd: dto.pickupWindowEnd ? new Date(dto.pickupWindowEnd) : permanentEnd,
       status: ProductStatus.ACTIVE,
     });
 

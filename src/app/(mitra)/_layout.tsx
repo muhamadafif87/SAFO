@@ -58,6 +58,14 @@ export default function MitraLayout() {
         }}
       />
       <Tabs.Screen
+        name="edit-profile"
+        options={{
+          href: null,
+          title: 'Edit Warung',
+          tabBarStyle: { display: 'none' },
+        }}
+      />
+      <Tabs.Screen
         name="vip"
         options={{
           href: null,

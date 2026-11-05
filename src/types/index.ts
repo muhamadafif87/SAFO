@@ -247,8 +247,9 @@ export interface CreateProductRequest {
   originalPrice: number;
   discountPrice: number;
   stock: number;
-  pickupWindowStart: string;
-  pickupWindowEnd: string;
+  pickupWindowStart?: string;
+  pickupWindowEnd?: string;
+  photoUrl?: string;
 }
 
 // Orders

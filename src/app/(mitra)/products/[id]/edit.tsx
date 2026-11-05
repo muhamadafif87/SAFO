@@ -21,29 +21,34 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
-const PRIMARY = Colors.primary[600];
+const PRIMARY = '#0E7465';
 const WHITE = '#ffffff';
-const TEXT_DARK = Colors.neutral[900];
-const TEXT_MUTED = Colors.neutral[500];
-const BORDER = '#EAEEF0';
-const PAGE_BG = '#F4F6F7';
-const INPUT_BG = '#F3F5F6';
+const TEXT_DARK = '#111827';
+const TEXT_MUTED = '#9CA3AF';
+const BORDER = '#E5E7EB';
+const PAGE_BG = '#F8FAFB';
+const INPUT_BG = '#EBEFF0';
 const ERROR_BG = '#FBE9E7';
 const ERROR_TEXT = '#C0392B';
 
-const BackIcon = ({ color }: { color: string }) => (
+const BackIcon = ({ color = TEXT_DARK }: { color?: string }) => (
   <Svg width={20} height={20} viewBox="0 0 16 16" fill={color}>
     <Path d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z" />
   </Svg>
 );
 
-const CameraIcon = ({ color, size = 24 }: { color: string; size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 16 16" fill={color}>
-    <Path d="M6.2 2.5A.5.5 0 0 1 6.66 2h2.68a.5.5 0 0 1 .46.3l.66 1.46 1.53.51A2.5 2.5 0 0 1 14 6.74v4.76a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 2 11.5V6.74a2.5 2.5 0 0 1 1.66-2.35l1.4-.54.66-1.45a.5.5 0 0 1 .48-.3zM8 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" />
+const PhotoAddIcon = ({ color = '#9CA3AF', size = 32 }: { color?: string; size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5">
+    <Path
+      d="M4 16l4.586-4.586a2 2 0 0 1 2.828 0L16 16m-2-2l1.586-1.586a2 2 0 0 1 2.828 0L20 14m-6-6h.01M6 20h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path d="M19 19v-4m-2 2h4" strokeLinecap="round" strokeLinejoin="round" />
   </Svg>
 );
 
-const PencilIcon = ({ color, size = 14 }: { color: string; size?: number }) => (
+const PencilIcon = ({ color = '#6B7280', size = 14 }: { color?: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 16 16" fill={color}>
     <Path d="M11.85.65a1.5 1.5 0 0 1 2.12 0l1.38 1.38a1.5 1.5 0 0 1 0 2.12L5.5 14H2.5a.5.5 0 0 1-.5-.5V10.5L11.85.65z" />
   </Svg>
@@ -65,10 +70,9 @@ export default function MitraEditProductScreen() {
   const [originalPrice, setOriginalPrice] = useState('');
   const [discountPrice, setDiscountPrice] = useState('');
   const [stockInput, setStockInput] = useState('');
-  /** Stok yang benar-benar tersimpan di database — diperbarui setelah simpan. */
   const [savedStock, setSavedStock] = useState(0);
-  const [pickupStart, setPickupStart] = useState('19:00');
-  const [pickupEnd, setPickupEnd] = useState('21:00');
+  const [pickupStart, setPickupStart] = useState('');
+  const [pickupEnd, setPickupEnd] = useState('');
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -85,8 +89,6 @@ export default function MitraEditProductScreen() {
       setStockInput(String(product.stock));
       setSavedStock(product.stock);
       setPhotoUrl(product.photoUrl || null);
-      setPickupStart('19:00');
-      setPickupEnd('21:00');
     } catch {
       showAlert('Gagal', 'Tidak dapat memuat detail produk.');
     } finally {
@@ -95,7 +97,6 @@ export default function MitraEditProductScreen() {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (productId) void loadProduct(productId);
   }, [loadProduct, productId]);
 
@@ -106,7 +107,7 @@ export default function MitraEditProductScreen() {
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.7,
+        quality: 0.8,
       });
       if (result.canceled || !result.assets?.[0]) return;
 
@@ -149,14 +150,37 @@ export default function MitraEditProductScreen() {
 
     setIsSaving(true);
     try {
+      let pickupWindowStart: string | undefined;
+      let pickupWindowEnd: string | undefined;
+
+      if (pickupStart.trim() && pickupEnd.trim()) {
+        const now = new Date();
+        const startParts = pickupStart.trim().split(':').map((p) => parseInt(p, 10));
+        const endParts = pickupEnd.trim().split(':').map((p) => parseInt(p, 10));
+
+        const start = new Date(now);
+        start.setHours(startParts[0] || 0, startParts[1] || 0, 0, 0);
+
+        const end = new Date(now);
+        end.setHours(endParts[0] || 23, endParts[1] || 59, 59, 999);
+
+        pickupWindowStart = start.toISOString();
+        pickupWindowEnd = end.toISOString();
+      } else {
+        pickupWindowStart = new Date().toISOString();
+        pickupWindowEnd = new Date('2099-12-31T23:59:59.999Z').toISOString();
+      }
+
       await productService.update(productId, {
         name: name.trim(),
         description: description.trim(),
         originalPrice: Math.round(original),
         discountPrice: Math.round(discount),
         stock: Math.round(stock),
+        pickupWindowStart,
+        pickupWindowEnd,
       });
-      // Backend sudah menyimpan — tampilkan nilai terbaru di "Stok saat ini".
+
       setSavedStock(Math.round(stock));
       showAlert('Tersimpan', 'Perubahan menu berhasil dikirim ke database.');
     } catch (error: any) {
@@ -189,9 +213,9 @@ export default function MitraEditProductScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingBox}>
-          <ActivityIndicator color={PRIMARY} />
+          <ActivityIndicator color={PRIMARY} size="large" />
         </View>
       </SafeAreaView>
     );
@@ -202,14 +226,14 @@ export default function MitraEditProductScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      {/* ── Header ── */}
+      {/* ── Header: < Edit Menu ── */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <BackIcon color={TEXT_DARK} />
+          <BackIcon color={PRIMARY} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Edit Menu</Text>
         <View style={styles.headerSpacer} />
@@ -219,8 +243,8 @@ export default function MitraEditProductScreen() {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* ── Foto + nama ── */}
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          {/* ── Foto + Nama Menu (Sesuai Wireframe) ── */}
           <View style={styles.productHeader}>
             <TouchableOpacity
               style={styles.photoBox}
@@ -231,7 +255,7 @@ export default function MitraEditProductScreen() {
               {photoUrl ? (
                 <Image source={{ uri: photoUrl }} style={styles.photo} />
               ) : (
-                <CameraIcon color={TEXT_MUTED} />
+                <PhotoAddIcon color="#B0B7BC" size={36} />
               )}
               {isUploading && (
                 <View style={styles.photoOverlay}>
@@ -245,11 +269,11 @@ export default function MitraEditProductScreen() {
                 <TextInput
                   value={name}
                   onChangeText={setName}
-                  placeholder="Nama menu"
+                  placeholder="Nama Menu ..."
                   placeholderTextColor={TEXT_MUTED}
                   style={styles.nameInput}
                 />
-                <PencilIcon color={TEXT_MUTED} />
+                <PencilIcon color="#1F2937" size={14} />
               </View>
               <Text style={styles.businessName} numberOfLines={1}>
                 {mitra?.businessName || 'Nama warung'}
@@ -265,7 +289,7 @@ export default function MitraEditProductScreen() {
             </View>
           </View>
 
-          {/* ── Kelola stok ── */}
+          {/* ── Card 1: Kelola stok ── */}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Kelola stok</Text>
 
@@ -285,9 +309,9 @@ export default function MitraEditProductScreen() {
             </View>
           </View>
 
-          {/* ── Harga & Diskon ── */}
+          {/* ── Card 2: Harga & Diskon ── */}
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Harga &amp; Diskon</Text>
+            <Text style={styles.cardTitle}>Harga & Diskon</Text>
 
             <FieldLabel>Harga Awal</FieldLabel>
             <TextInput
@@ -310,46 +334,7 @@ export default function MitraEditProductScreen() {
             />
           </View>
 
-          {/* ── Informasi lain (di luar wireframe, dipertahankan) ── */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Informasi Lainnya</Text>
-
-            <FieldLabel>Deskripsi</FieldLabel>
-            <TextInput
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Deskripsi menu (opsional)"
-              placeholderTextColor={TEXT_MUTED}
-              multiline
-              style={[styles.input, styles.textarea]}
-            />
-
-            <View style={styles.timeRow}>
-              <View style={styles.flex}>
-                <FieldLabel>Ambil Dari</FieldLabel>
-                <TextInput
-                  value={pickupStart}
-                  onChangeText={setPickupStart}
-                  placeholder="19:00"
-                  placeholderTextColor={TEXT_MUTED}
-                  style={styles.input}
-                />
-              </View>
-              <View style={styles.gap} />
-              <View style={styles.flex}>
-                <FieldLabel>Sampai</FieldLabel>
-                <TextInput
-                  value={pickupEnd}
-                  onChangeText={setPickupEnd}
-                  placeholder="21:00"
-                  placeholderTextColor={TEXT_MUTED}
-                  style={styles.input}
-                />
-              </View>
-            </View>
-          </View>
-
-          {/* ── Aksi ── */}
+          {/* ── Tombol Simpan & Hapus ── */}
           <TouchableOpacity
             style={[styles.saveButton, isSaving && styles.disabledButton]}
             activeOpacity={0.8}
@@ -359,7 +344,7 @@ export default function MitraEditProductScreen() {
             {isSaving ? (
               <ActivityIndicator color={WHITE} />
             ) : (
-              <Text style={styles.saveText}>Simpan</Text>
+              <Text style={styles.saveText}>Simpan Perubahan</Text>
             )}
           </TouchableOpacity>
 
@@ -400,23 +385,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: WHITE,
-    paddingHorizontal: 8,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: BORDER,
   },
   backButton: {
-    width: 36,
+    width: 32,
     alignItems: 'flex-start',
     justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: TEXT_DARK,
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0B3B32',
   },
   headerSpacer: {
-    width: 36,
+    width: 32,
   },
 
   scrollContent: {
@@ -424,17 +409,20 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
 
+  /* Product Header */
   productHeader: {
     flexDirection: 'row',
-    marginBottom: 16,
+    alignItems: 'center',
+    marginBottom: 20,
+    marginTop: 4,
   },
   photoBox: {
-    width: 84,
-    height: 84,
+    width: 86,
+    height: 86,
     borderRadius: 12,
     backgroundColor: WHITE,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: '#DDE2E5',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -442,6 +430,7 @@ const styles = StyleSheet.create({
   photo: {
     width: '100%',
     height: '100%',
+    resizeMode: 'cover',
   },
   photoOverlay: {
     position: 'absolute',
@@ -464,17 +453,17 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   nameInput: {
-    flex: 1,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
     color: TEXT_DARK,
     padding: 0,
+    flexShrink: 1,
   },
   businessName: {
-    fontSize: 12.5,
-    color: TEXT_MUTED,
-    marginTop: 4,
-    marginBottom: 6,
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
+    marginBottom: 4,
   },
   priceRow: {
     flexDirection: 'row',
@@ -487,30 +476,39 @@ const styles = StyleSheet.create({
     color: PRIMARY,
   },
   priceOld: {
-    fontSize: 13,
+    fontSize: 12.5,
     color: TEXT_MUTED,
     textDecorationLine: 'line-through',
   },
 
+  /* Cards matching wireframe */
   card: {
     backgroundColor: WHITE,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: '#E8ECED',
     padding: 14,
     marginBottom: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
   },
   cardTitle: {
     fontSize: 14,
     fontWeight: '700',
     color: TEXT_DARK,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF1F2',
     marginBottom: 12,
   },
 
   fieldLabel: {
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '600',
-    color: TEXT_DARK,
+    color: '#374151',
     marginBottom: 6,
   },
   input: {
@@ -518,51 +516,41 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: INPUT_BG,
     paddingHorizontal: 12,
-    fontSize: 14,
+    fontSize: 13.5,
     color: TEXT_DARK,
     marginBottom: 12,
-  },
-  textarea: {
-    height: 84,
-    paddingTop: 10,
-    textAlignVertical: 'top',
   },
 
   stockRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 4,
+    paddingTop: 2,
   },
   stockLabel: {
     fontSize: 13,
-    color: TEXT_DARK,
-    fontWeight: '500',
+    color: '#374151',
+    fontWeight: '600',
   },
   stockValue: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
     color: PRIMARY,
   },
 
-  timeRow: {
-    flexDirection: 'row',
-  },
-  gap: {
-    width: 12,
-  },
-
+  /* Action Buttons */
   saveButton: {
     backgroundColor: PRIMARY,
     borderRadius: 10,
-    paddingVertical: 15,
+    paddingVertical: 14,
     alignItems: 'center',
+    marginTop: 8,
     marginBottom: 10,
   },
   deleteButton: {
     backgroundColor: ERROR_BG,
     borderRadius: 10,
-    paddingVertical: 15,
+    paddingVertical: 14,
     alignItems: 'center',
   },
   disabledButton: {
@@ -570,12 +558,12 @@ const styles = StyleSheet.create({
   },
   saveText: {
     color: WHITE,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
   },
   deleteText: {
     color: ERROR_TEXT,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
   },
 });

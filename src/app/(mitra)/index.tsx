@@ -2,8 +2,8 @@ import { Colors } from '@/constants/typography';
 import { productService } from '@/services/product.service';
 import { useAuthStore } from '@/stores/auth.store';
 import { Product } from '@/types';
-import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -18,23 +18,24 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
-const PRIMARY = Colors.primary[600];
+const PRIMARY = '#0E7465';
 const MINT = '#D8EDE7';
 const WHITE = '#ffffff';
-const TEXT_DARK = Colors.neutral[900];
-const TEXT_MUTED = Colors.neutral[500];
+const TEXT_DARK = '#111827';
+const TEXT_MUTED = '#6B7280';
 const BORDER = '#EAEEF0';
 const PAGE_BG = '#F4F6F7';
 
-function StoreIcon({ color, size = 18 }: { color: string; size?: number }) {
+function CutleryIcon({ color = PRIMARY, size = 20 }: { color?: string; size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 16 16" fill={color}>
-      <Path d="M2 2.5A.5.5 0 0 1 2.5 2h11a.5.5 0 0 1 .5.5v1.3l-1.4.7A4.5 4.5 0 0 0 8 5.044 4.5 4.5 0 0 0 2.9 4.5L1.5 3.8V2.5zM1 5.11l1.3.65A3.5 3.5 0 0 1 8 4.5a3.5 3.5 0 0 1 5.7 1.26L15 5.11V13a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V5.11zM4.5 14.5a1.5 1.5 0 0 0 1.5-1.5h1a1.5 1.5 0 0 0 3 0h1a1.5 1.5 0 0 0 1.5 1.5v1a.5.5 0 0 1-.5.5H5a.5.5 0 0 1-.5-.5v-1z" />
+      <Path d="M13.5 0a.5.5 0 0 1 .5.5v7.25a2.25 2.25 0 0 1-2 2.236v5.514a.5.5 0 0 1-1 0V9.986a2.25 2.25 0 0 1-2-2.236V.5a.5.5 0 0 1 1 0v7.25a1.25 1.25 0 1 0 2.5 0V.5a.5.5 0 0 1 .5-.5z" />
+      <Path d="M4.5 0a.5.5 0 0 1 .5.5v5.75a1.25 1.25 0 0 0 1 1.22v8.03a.5.5 0 0 1-1 0V7.47a2.25 2.25 0 0 1-2-2.22V.5a.5.5 0 0 1 .5-.5h1.5z" />
     </Svg>
   );
 }
 
-function SearchIcon({ color, size = 16 }: { color: string; size?: number }) {
+function SearchIcon({ color = TEXT_MUTED, size = 16 }: { color?: string; size?: number }) {
   return (
     <Svg
       width={size}
@@ -50,24 +51,6 @@ function SearchIcon({ color, size = 16 }: { color: string; size?: number }) {
   );
 }
 
-function StatBox({
-  label,
-  value,
-  unit,
-}: {
-  label: string;
-  value: number;
-  unit: string;
-}) {
-  return (
-    <View style={styles.statBox}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statUnit}>{unit}</Text>
-    </View>
-  );
-}
-
 export default function MitraHome() {
   const router = useRouter();
   const { mitra } = useAuthStore();
@@ -77,23 +60,24 @@ export default function MitraHome() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [query, setQuery] = useState('');
 
-  // Semua setState dipanggil setelah await, supaya aman dipanggil dari useEffect.
   const fetchProducts = useCallback(async () => {
     try {
       const data = await productService.getMitraProducts();
       setProducts(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('[mitra/home] Gagal memuat produk', error);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
     }
-    setIsLoading(false);
-    setIsRefreshing(false);
   }, []);
 
-  useEffect(() => {
-    // Fetch data saat mount — semua setState terjadi setelah await.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchProducts();
-  }, [fetchProducts]);
+  // Re-fetch setiap kali layar beranda aktif (misal setelah edit stok atau order diterima)
+  useFocusEffect(
+    useCallback(() => {
+      fetchProducts();
+    }, [fetchProducts])
+  );
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -113,16 +97,12 @@ export default function MitraHome() {
   }, [products, query]);
 
   const renderProduct = ({ item }: { item: Product }) => (
-    <TouchableOpacity
-      style={styles.productCard}
-      activeOpacity={0.75}
-      onPress={() => router.push(`/(mitra)/products/${item.id}/edit`)}
-    >
+    <View style={styles.productCard}>
       {item.photoUrl ? (
         <Image source={{ uri: item.photoUrl }} style={styles.productImage} />
       ) : (
         <View style={[styles.productImage, styles.productImagePlaceholder]}>
-          <StoreIcon color={TEXT_MUTED} size={22} />
+          <Text style={{ fontSize: 24 }}>🍲</Text>
         </View>
       )}
 
@@ -140,7 +120,9 @@ export default function MitraHome() {
             </Text>
           )}
         </View>
-        <Text style={styles.productStock}>Stok {item.stock}</Text>
+        <Text style={styles.productStock}>
+          Stok <Text style={styles.stockBold}>{item.stock}</Text>
+        </Text>
       </View>
 
       <TouchableOpacity
@@ -150,7 +132,7 @@ export default function MitraHome() {
       >
         <Text style={styles.editButtonText}>Edit</Text>
       </TouchableOpacity>
-    </TouchableOpacity>
+    </View>
   );
 
   return (
@@ -169,31 +151,82 @@ export default function MitraHome() {
         }
         ListHeaderComponent={
           <View>
-            {/* ── Judul warung ── */}
-            <View style={styles.titleRow}>
+            {/* ── Nama Usaha Mitra ── */}
+            <TouchableOpacity
+              style={styles.titleRow}
+              activeOpacity={0.8}
+              onPress={() => router.push('/(mitra)/edit-profile')}
+            >
               <View style={styles.titleIcon}>
-                <StoreIcon color={PRIMARY} size={16} />
+                <CutleryIcon color={PRIMARY} size={18} />
               </View>
               <Text style={styles.title} numberOfLines={1}>
-                {mitra?.businessName || 'Warung Saya'}
+                {mitra?.businessName || 'Warung Kumlot'}
               </Text>
-            </View>
+            </TouchableOpacity>
 
-            {/* ── Ringkasan Stok ── */}
+            {/* ── Card 1: Ringkasan Stok ── */}
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Ringkasan Stok</Text>
+
+              {/* Box Limit Stok + Tombol VIP */}
+              <View style={styles.limitBox}>
+                <View style={styles.limitInfo}>
+                  <Text style={styles.limitLabel}>Limit Stok Produk</Text>
+                  <Text style={styles.limitCount}>
+                    {stats.active} <Text style={styles.limitTotal}>/ 10</Text>
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.vipButton}
+                  activeOpacity={0.8}
+                  onPress={() => router.push('/(mitra)/vip')}
+                >
+                  <Text style={styles.vipButtonText}>Upgrade VIP</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* 3 Metrik Stok */}
               <View style={styles.statRow}>
-                <StatBox label="Total Produk" value={stats.total} unit="Produk" />
-                <StatBox label="Stok Aktif" value={stats.active} unit="Produk" />
-                <StatBox
-                  label="Stok Habis"
-                  value={stats.soldOut}
-                  unit="Produk"
-                />
+                <View style={styles.statBox}>
+                  <Text style={styles.statLabel}>Total Produk</Text>
+                  <Text style={styles.statNumber}>
+                    {stats.total} <Text style={styles.statUnit}>Produk</Text>
+                  </Text>
+                </View>
+                <View style={[styles.statBox, styles.statBoxBorder]}>
+                  <Text style={styles.statLabel}>Stok Aktif</Text>
+                  <Text style={styles.statNumber}>
+                    {stats.active} <Text style={styles.statUnit}>Produk</Text>
+                  </Text>
+                </View>
+                <View style={styles.statBox}>
+                  <Text style={styles.statLabel}>Stok Habis</Text>
+                  <Text style={styles.statNumber}>
+                    {stats.soldOut} <Text style={styles.statUnit}>Produk</Text>
+                  </Text>
+                </View>
               </View>
             </View>
 
-            {/* ── Cari + Tambah ── */}
+            {/* ── Card 2: Saldo Anda ── */}
+            <View style={styles.card}>
+              <View style={styles.saldoRow}>
+                <View>
+                  <Text style={styles.saldoLabel}>Saldo Anda</Text>
+                  <Text style={styles.saldoAmount}>Rp 000.000,00</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.tarikButton}
+                  activeOpacity={0.8}
+                  onPress={() => router.push('/(mitra)/profile')}
+                >
+                  <Text style={styles.tarikButtonText}>Tarik Saldo</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* ── Baris Cari & Tambah Produk ── */}
             <View style={styles.searchRow}>
               <View style={styles.searchBox}>
                 <SearchIcon color={TEXT_MUTED} />
@@ -208,7 +241,7 @@ export default function MitraHome() {
               </View>
               <TouchableOpacity
                 style={styles.addButton}
-                activeOpacity={0.75}
+                activeOpacity={0.8}
                 onPress={() => router.push('/(mitra)/products/create')}
               >
                 <Text style={styles.addButtonText}>+ Tambah Produk</Text>
@@ -225,7 +258,7 @@ export default function MitraHome() {
             <View style={styles.centerBox}>
               <Text style={styles.emptyTitle}>Belum ada produk</Text>
               <Text style={styles.emptyText}>
-                Tambahkan menu pertama kamu lewat tombol + Tambah Produk.
+                Tambahkan menu flash sale pertama melalui tombol + Tambah Produk.
               </Text>
             </View>
           )
@@ -242,38 +275,45 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 10,
     paddingBottom: 32,
   },
 
+  /* Title Row */
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 16,
   },
   titleIcon: {
-    width: 28,
-    height: 28,
+    width: 34,
+    height: 34,
     borderRadius: 8,
     backgroundColor: MINT,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
+    marginRight: 10,
   },
   title: {
     flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
     color: TEXT_DARK,
   },
 
+  /* Cards */
   card: {
     backgroundColor: WHITE,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: BORDER,
-    padding: 14,
+    padding: 16,
     marginBottom: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
   },
   cardTitle: {
     fontSize: 14,
@@ -281,40 +321,125 @@ const styles = StyleSheet.create({
     color: TEXT_DARK,
     marginBottom: 12,
   },
+
+  /* Limit Box */
+  limitBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 14,
+  },
+  limitInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  limitLabel: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: TEXT_DARK,
+  },
+  limitCount: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: PRIMARY,
+  },
+  limitTotal: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: TEXT_MUTED,
+  },
+  vipButton: {
+    backgroundColor: PRIMARY,
+    borderRadius: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+  },
+  vipButtonText: {
+    color: WHITE,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  /* 3 Stat Columns */
   statRow: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingVertical: 10,
   },
   statBox: {
     flex: 1,
-    backgroundColor: '#F7F9F9',
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
     alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  statBoxBorder: {
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: '#E5E7EB',
   },
   statLabel: {
     fontSize: 11,
     color: TEXT_MUTED,
-    textAlign: 'center',
+    fontWeight: '500',
     marginBottom: 4,
   },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '700',
+  statNumber: {
+    fontSize: 14,
+    fontWeight: '800',
     color: PRIMARY,
   },
   statUnit: {
-    fontSize: 10,
-    color: TEXT_MUTED,
-    marginTop: 1,
+    fontSize: 11,
+    fontWeight: '600',
+    color: PRIMARY,
   },
 
+  /* Saldo Card */
+  saldoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  saldoLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: TEXT_DARK,
+    marginBottom: 4,
+  },
+  saldoAmount: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: PRIMARY,
+  },
+  tarikButton: {
+    backgroundColor: PRIMARY,
+    borderRadius: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  tarikButtonText: {
+    color: WHITE,
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+
+  /* Search & Add */
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 14,
+    gap: 10,
+    marginBottom: 16,
   },
   searchBox: {
     flex: 1,
@@ -325,8 +450,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: BORDER,
-    paddingHorizontal: 10,
-    height: 40,
+    paddingHorizontal: 12,
+    height: 42,
   },
   searchInput: {
     flex: 1,
@@ -337,30 +462,36 @@ const styles = StyleSheet.create({
   addButton: {
     backgroundColor: PRIMARY,
     borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 40,
+    paddingHorizontal: 14,
+    height: 42,
     alignItems: 'center',
     justifyContent: 'center',
   },
   addButtonText: {
     color: WHITE,
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '700',
   },
 
+  /* Product Cards */
   productCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: WHITE,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: BORDER,
-    padding: 10,
-    marginBottom: 10,
+    padding: 12,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
   },
   productImage: {
-    width: 56,
-    height: 56,
+    width: 60,
+    height: 60,
     borderRadius: 10,
     backgroundColor: '#EEF1F2',
   },
@@ -370,27 +501,27 @@ const styles = StyleSheet.create({
   },
   productInfo: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: 12,
   },
   productName: {
-    fontSize: 14,
+    fontSize: 14.5,
     fontWeight: '700',
     color: TEXT_DARK,
-    marginBottom: 2,
+    marginBottom: 3,
   },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 2,
+    marginBottom: 3,
   },
   priceNow: {
-    fontSize: 13,
+    fontSize: 13.5,
     fontWeight: '700',
     color: PRIMARY,
   },
   priceOld: {
-    fontSize: 12,
+    fontSize: 11.5,
     color: TEXT_MUTED,
     textDecorationLine: 'line-through',
   },
@@ -398,21 +529,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: TEXT_MUTED,
   },
+  stockBold: {
+    fontWeight: '700',
+    color: TEXT_DARK,
+  },
+
+  /* Edit Button (Mint Pill) */
   editButton: {
     backgroundColor: MINT,
-    borderRadius: 8,
-    paddingVertical: 8,
+    borderRadius: 16,
+    paddingVertical: 6,
     paddingHorizontal: 16,
   },
   editButtonText: {
+    color: PRIMARY,
     fontSize: 12,
     fontWeight: '700',
-    color: PRIMARY,
   },
 
   centerBox: {
-    paddingVertical: 32,
+    paddingVertical: 40,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyTitle: {
     fontSize: 14,
