@@ -30,7 +30,7 @@ export class AuthController {
 
   @Get('me')
   getProfile(@Request() req) {
-    return this.authService.getProfile(req.user.sub);
+    return this.authService.getProfile(req.user.userId ?? req.user.sub);
   }
 
   @Public()
@@ -42,5 +42,16 @@ export class AuthController {
   @Post('logout')
   logout() {
     return { message: 'Logged out successfully' };
+  }
+
+  /** DEV ONLY — endpoint sementara untuk reset password mitra/customer via bcryptjs */
+  @Public()
+  @Post('dev/reset-password')
+  @HttpCode(HttpStatus.OK)
+  devResetPassword(@Body() body: { email: string; newPassword: string }) {
+    if (process.env.NODE_ENV === 'production') {
+      return { message: 'Not available in production' };
+    }
+    return this.authService.devResetPassword(body.email, body.newPassword);
   }
 }

@@ -54,6 +54,7 @@ export class MitraProfile {
     srid: 4326,
     insert: false,
     update: false,
+    select: false,
   })
   location: string;
 

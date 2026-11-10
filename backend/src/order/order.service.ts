@@ -8,7 +8,7 @@ import {
     NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 
 // UUID v4 regex — guards against sending non-UUID strings to PostgreSQL uuid columns,
 // which would cause: QueryFailedError: invalid input syntax for type uuid (pg 22P02)
@@ -24,8 +24,14 @@ function assertUuid(id: string, label = 'ID'): void {
 }
 
 import { OrderItem } from '../database/entities/order-item.entity';
-import { Order, OrderStatus } from '../database/entities/order.entity';
-import { Payment, PaymentStatus } from '../database/entities/payment.entity';
+import { OrderStatusLog } from '../database/entities/order-status-log.entity';
+import { Order } from '../database/entities/order.entity';
+import {
+  canTransition,
+  OrderStatus,
+  STATUSES_REQUIRING_STOCK_RELEASE,
+} from '../database/entities/order.enums';
+import { PaymentStatus } from '../database/entities/payment.entity';
 import { Product, ProductStatus } from '../database/entities/product.entity';
 import { PaymentService } from '../payment/payment.service';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -47,6 +53,92 @@ export class OrderService {
     @Inject(forwardRef(() => PaymentService))
     private paymentService: PaymentService,
   ) {}
+
+  /** Rejects any status jump that is not part of the canonical order flow. */
+  private assertTransition(from: OrderStatus, to: OrderStatus): void {
+    if (from === to) return;
+    if (!canTransition(from, to)) {
+      throw new BadRequestException(
+        `Transisi status tidak diizinkan: ${from} → ${to}`,
+      );
+    }
+  }
+
+  private async writeStatusLog(
+    manager: EntityManager,
+    orderId: string,
+    from: OrderStatus | null,
+    to: OrderStatus,
+    changedBy: string | null,
+  ): Promise<void> {
+    await manager.insert(OrderStatusLog, {
+      orderId,
+      fromStatus: from,
+      toStatus: to,
+      changedById: changedBy,
+    });
+  }
+
+  /**
+   * Stock is reserved (decremented) at checkout. Cancelling or expiring an order
+   * releases that reservation back to the product so it becomes sellable again.
+   */
+  private async releaseReservedStock(
+    manager: EntityManager,
+    orderId: string,
+  ): Promise<void> {
+    const items = await manager.find(OrderItem, { where: { orderId } });
+
+    for (const item of items) {
+      await manager.increment(
+        Product,
+        { id: item.productId },
+        'stock',
+        item.qty,
+      );
+
+      const product = await manager.findOne(Product, {
+        where: { id: item.productId },
+      });
+      if (
+        product &&
+        product.stock > 0 &&
+        product.status === ProductStatus.SOLD_OUT
+      ) {
+        await manager.update(
+          Product,
+          { id: item.productId },
+          { status: ProductStatus.ACTIVE },
+        );
+      }
+    }
+  }
+
+  /**
+   * Single entry point for status changes: validates the transition, releases
+   * reserved stock when the order ends, and records the audit trail.
+   */
+  private async transitionOrder(
+    manager: EntityManager,
+    order: Order,
+    to: OrderStatus,
+    changedBy: string | null,
+  ): Promise<Order> {
+    this.assertTransition(order.status, to);
+
+    const from = order.status;
+    if (
+      (to === OrderStatus.CANCELLED || to === OrderStatus.EXPIRED) &&
+      STATUSES_REQUIRING_STOCK_RELEASE.includes(from)
+    ) {
+      await this.releaseReservedStock(manager, order.id);
+    }
+
+    order.status = to;
+    const saved = await manager.save(Order, order);
+    await this.writeStatusLog(manager, order.id, from, to, changedBy);
+    return saved;
+  }
 
   /**
    * Create an order using database-backed stock validation.
@@ -108,6 +200,13 @@ export class OrderService {
         paymentMethod,
       });
       await manager.save(Order, order);
+      await this.writeStatusLog(
+        manager,
+        order.id,
+        null,
+        OrderStatus.PENDING_PAYMENT,
+        customerId,
+      );
 
       // Create order items & decrement DB stock
       for (const item of items) {
@@ -158,9 +257,13 @@ export class OrderService {
       throw new BadRequestException('Order sudah dibayar atau dibatalkan');
     }
 
-    order.status = OrderStatus.PAID;
     // Do NOT override paymentMethod — preserve what was set during createOrder
-    return this.orderRepository.save(order);
+    return this.transitionOrder(
+      this.dataSource.manager,
+      order,
+      OrderStatus.PAID,
+      customerId,
+    );
   }
 
   async getCustomerOrders(customerId: string): Promise<Order[]> {
@@ -185,8 +288,12 @@ export class OrderService {
       // 1. If any payment is already SUCCESS, ensure order status is updated to PAID
       const successPayment = order.payments.find((p) => p.status === PaymentStatus.SUCCESS);
       if (successPayment) {
-        order.status = OrderStatus.PAID;
-        await this.orderRepository.save(order);
+        await this.transitionOrder(
+          this.dataSource.manager,
+          order,
+          OrderStatus.PAID,
+          null,
+        );
         this.logger.log(
           `[Reconcile] Order ${order.id} marked as PAID due to existing SUCCESS payment ${successPayment.id}`,
         );
@@ -219,17 +326,44 @@ export class OrderService {
     return order;
   }
 
-  async getMitraOrders(userId: string): Promise<Order[]> {
-    // Join via mitra profile
+  /**
+   * Query builder bersama untuk pesanan milik satu mitra.
+   * customer di-select kolom demi kolom — sengaja TIDAK pakai
+   * leftJoinAndSelect supaya password_hash tidak ikut terbawa ke response.
+   */
+  private mitraOrdersQuery(userId: string) {
     return this.orderRepository
       .createQueryBuilder('order')
       .innerJoinAndSelect('order.mitra', 'mitra', 'mitra.userId = :userId', {
         userId,
       })
+      .leftJoin('order.customer', 'customer')
+      .addSelect([
+        'customer.id',
+        'customer.name',
+        'customer.phone',
+        'customer.email',
+      ])
       .leftJoinAndSelect('order.orderItems', 'items')
-      .leftJoinAndSelect('items.product', 'product')
+      .leftJoinAndSelect('items.product', 'product');
+  }
+
+  async getMitraOrders(userId: string): Promise<Order[]> {
+    return this.mitraOrdersQuery(userId)
       .orderBy('order.createdAt', 'DESC')
       .getMany();
+  }
+
+  /** Detail satu pesanan — hanya bisa diakses pemilik mitra-nya. */
+  async getMitraOrderById(orderId: string, userId: string): Promise<Order> {
+    assertUuid(orderId, 'Order ID');
+
+    const order = await this.mitraOrdersQuery(userId)
+      .andWhere('order.id = :orderId', { orderId })
+      .getOne();
+
+    if (!order) throw new NotFoundException('Order tidak ditemukan');
+    return order;
   }
 
   async verifyPickup(
@@ -244,18 +378,25 @@ export class OrderService {
     if (!order) throw new NotFoundException('Order tidak ditemukan');
 
     if (
-      order.status !== OrderStatus.PAID &&
+      order.status !== OrderStatus.ACCEPTED &&
+      order.status !== OrderStatus.READY &&
       order.status !== OrderStatus.READY_FOR_PICKUP
     ) {
-      throw new BadRequestException('Order belum dibayar atau sudah selesai');
+      throw new BadRequestException(
+        'Pesanan harus diterima mitra sebelum bisa diselesaikan',
+      );
     }
 
     if (order.pickupCode !== pickupCode.toUpperCase()) {
       throw new BadRequestException('Kode pickup salah');
     }
 
-    order.status = OrderStatus.COMPLETED;
-    return this.orderRepository.save(order);
+    return this.transitionOrder(
+      this.dataSource.manager,
+      order,
+      OrderStatus.COMPLETED,
+      mitraUserId,
+    );
   }
 
   async updateOrderStatus(
@@ -269,8 +410,12 @@ export class OrderService {
     const order = orders.find((o) => o.id === orderId);
     if (!order) throw new NotFoundException('Order tidak ditemukan');
 
-    order.status = status;
-    return this.orderRepository.save(order);
+    return this.transitionOrder(
+      this.dataSource.manager,
+      order,
+      status,
+      mitraUserId,
+    );
   }
 
   // Redis is intentionally disabled for now.

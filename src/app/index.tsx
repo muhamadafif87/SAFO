@@ -54,7 +54,7 @@ export default function MarketplaceLandingScreen() {
 
   const handleContinue = () => {
     if (isAuthenticated) {
-      router.push("/(customer)");
+      router.push(getDashboardRoute() as any);
       return;
     }
     router.push("/(auth)/login");
@@ -189,7 +189,7 @@ export default function MarketplaceLandingScreen() {
           <TouchableOpacity
             style={styles.headerButton}
             onPress={() =>
-              router.push(isAuthenticated ? "/(customer)" : "/(auth)/login")
+              router.push(isAuthenticated ? (getDashboardRoute() as any) : "/(auth)/login")
             }
           >
             <Text style={styles.headerButtonText}>

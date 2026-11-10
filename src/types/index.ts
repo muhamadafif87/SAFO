@@ -15,6 +15,7 @@ export type ProductStatus = "active" | "sold_out" | "expired" | "inactive";
 export type OrderStatus =
   | "pending_payment"
   | "paid"
+  | "accepted" // mitra menekan "Terima Pesanan"
   | "ready"
   | "ready_for_pickup" // alias used by backend entity
   | "completed"
@@ -126,6 +127,8 @@ export interface Order {
   customerId: string;
   mitraId: string;
   mitra?: Pick<MitraProfile, "businessName" | "address" | "latitude" | "longitude">;
+  /** Hanya diisi oleh endpoint mitra — cukup untuk tombol "Hubungi Pelanggan". */
+  customer?: Pick<User, "id" | "name" | "phone" | "email">;
   items?: OrderItem[];
   orderItems?: OrderItem[];
   pickupCode: string; // 4-char alphanumeric (e.g. "A3B7")
@@ -256,8 +259,9 @@ export interface CreateProductRequest {
   originalPrice: number;
   discountPrice: number;
   stock: number;
-  pickupWindowStart: string;
-  pickupWindowEnd: string;
+  pickupWindowStart?: string;
+  pickupWindowEnd?: string;
+  photoUrl?: string;
 }
 
 // Orders

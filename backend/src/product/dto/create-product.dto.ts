@@ -27,8 +27,14 @@ export class CreateProductDto {
   stock: number;
 
   @IsDateString()
-  pickupWindowStart: string;
+  @IsOptional()
+  pickupWindowStart?: string;
 
   @IsDateString()
-  pickupWindowEnd: string;
+  @IsOptional()
+  pickupWindowEnd?: string;
+
+  @IsString()
+  @IsOptional()
+  photoUrl?: string;
 }

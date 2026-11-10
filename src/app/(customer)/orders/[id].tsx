@@ -23,14 +23,15 @@ import type { Order, OrderStatus } from '@/types';
 
 const STATUS_STEPS: { key: OrderStatus; label: string }[] = [
   { key: 'paid', label: 'Pesanan Disiapkan' },
-  { key: 'ready_for_pickup', label: 'Pesanan Siap Diambil' },
+  { key: 'accepted', label: 'Pesanan Diterima' },
   { key: 'completed', label: 'Selesai' },
 ];
 
 const STATUS_ORDER_INDEX: Partial<Record<OrderStatus, number>> = {
   pending_payment: -1,
   paid: 0,
-  ready: 0,
+  accepted: 1,
+  ready: 1,
   ready_for_pickup: 1,
   completed: 2,
   cancelled: -1,
@@ -44,7 +45,8 @@ function getStatusIndex(status: OrderStatus): number {
 const DYNAMIC_STATUS_LABEL: Record<OrderStatus, string> = {
   pending_payment: 'Menunggu Pembayaran',
   paid: 'Pesanan Sedang Disiapkan',
-  ready: 'Pesanan Sedang Disiapkan',
+  accepted: 'Pesanan Diterima ✅',
+  ready: 'Pesanan Siap Diambil 🍿',
   ready_for_pickup: 'Pesanan Siap Diambil 🍿',
   completed: 'Pesanan Selesai ✅',
   cancelled: 'Pesanan Dibatalkan',
@@ -53,7 +55,13 @@ const DYNAMIC_STATUS_LABEL: Record<OrderStatus, string> = {
 
 // Status-based text color
 function getStatusColor(status: OrderStatus): string {
-  if (status === 'paid' || status === 'ready' || status === 'ready_for_pickup') return '#059669';
+  if (
+    status === 'paid' ||
+    status === 'accepted' ||
+    status === 'ready' ||
+    status === 'ready_for_pickup'
+  )
+    return '#059669';
   if (status === 'completed') return '#00615F';
   if (status === 'cancelled' || status === 'expired') return '#DC2626';
   return '#E2B640'; // pending_payment
