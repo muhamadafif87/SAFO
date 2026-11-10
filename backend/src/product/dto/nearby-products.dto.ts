@@ -6,11 +6,13 @@ export type SortOption = 'nearby' | 'discount' | 'rating';
 export class NearbyProductsDto {
   @Type(() => Number)
   @IsNumber()
-  lat: number;
+  @IsOptional()
+  lat?: number;
 
   @Type(() => Number)
   @IsNumber()
-  lng: number;
+  @IsOptional()
+  lng?: number;
 
   /** Radius in km, default 5 */
   @Type(() => Number)

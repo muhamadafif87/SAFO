@@ -5,6 +5,7 @@ import {
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { NearbyProductsDto } from './dto/nearby-products.dto';
+import { LiveProductsDto } from './dto/live-products.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { UserRole } from '../database/entities/user.entity';
@@ -19,6 +20,12 @@ export class ProductController {
   @Get('banners')
   getBanners() {
     return this.productService.getBanners();
+  }
+
+  @Public()
+  @Get('live')
+  getLiveProducts(@Query() dto: LiveProductsDto) {
+    return this.productService.findLiveProducts(dto);
   }
 
   @Public()

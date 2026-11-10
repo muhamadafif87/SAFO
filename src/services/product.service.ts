@@ -128,6 +128,20 @@ export const mockBanners: PromoBanner[] = [
 
 export const productService = {
   /**
+   * Ambil daftar produk yang sedang live (status = 'active' & stock > 0).
+   * Dilengkapi nama restoran, rating, info potongan diskon, jarak user, dan foto menu.
+   */
+  getLiveProducts: async (params?: { lat?: number; lng?: number; limit?: number }): Promise<Product[]> => {
+    try {
+      const res = await api.get<Product[]>('/products/live', { params });
+      return res.data;
+    } catch (err) {
+      console.warn('[productService.getLiveProducts] Gagal memuat dari API, fallback ke mockProducts:', err);
+      return mockProducts;
+    }
+  },
+
+  /**
    * Ambil daftar produk flash sale aktif, diurutkan berdasarkan sort param.
    * Always hits backend — no silent mock fallback.
    */
