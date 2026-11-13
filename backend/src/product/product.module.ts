@@ -4,9 +4,13 @@ import { ProductController } from './product.controller';
 import { ProductService } from './product.service';
 import { Product } from '../database/entities/product.entity';
 import { MitraProfile } from '../database/entities/mitra-profile.entity';
+import { StorageModule } from '../storage/storage.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Product, MitraProfile])],
+  imports: [
+    TypeOrmModule.forFeature([Product, MitraProfile]),
+    StorageModule,
+  ],
   controllers: [ProductController],
   providers: [ProductService],
   exports: [ProductService],
