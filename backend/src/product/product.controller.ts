@@ -1,18 +1,29 @@
 import {
-  Controller, Get, Post, Patch, Delete,
-  Body, Param, Query, Request,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpStatus,
+  Param,
+  ParseFilePipeBuilder,
+  Patch,
+  Post,
+  Query, Request,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ProductService } from './product.service';
-import { CreateProductDto } from './dto/create-product.dto';
-import { NearbyProductsDto } from './dto/nearby-products.dto';
-import { LiveProductsDto } from './dto/live-products.dto';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Public } from '../auth/decorators/public.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../database/entities/user.entity';
+import { CreateProductDto } from './dto/create-product.dto';
+import { LiveProductsDto } from './dto/live-products.dto';
+import { NearbyProductsDto } from './dto/nearby-products.dto';
+import { ProductService } from './product.service';
 
 @Controller('products')
 export class ProductController {
-  constructor(private readonly productService: ProductService) {}
+  constructor(private readonly productService: ProductService) { }
 
   // ─── Public / Customer ────────────────────────────────────────────────────
 
@@ -62,6 +73,33 @@ export class ProductController {
     @Body() dto: Partial<CreateProductDto>,
   ) {
     return this.productService.updateProduct(req.user.userId, id, dto);
+  }
+
+  @Roles(UserRole.MITRA)
+  @Post(':id/photo')
+  @UseInterceptors(
+    FileInterceptor('photo', {
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+    }),
+  )
+  uploadPhoto(
+    @Request() req,
+    @Param('id') id: string,
+    @UploadedFile(
+      new ParseFilePipeBuilder()
+        .addFileTypeValidator({
+          fileType: /(jpg|jpeg|png|webp|image\/.*)/i,
+        })
+        .addMaxSizeValidator({
+          maxSize: 5 * 1024 * 1024,
+        })
+        .build({
+          errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+        }),
+    )
+    file: Express.Multer.File,
+  ) {
+    return this.productService.uploadProductPhoto(req.user.userId, id, file);
   }
 
   @Roles(UserRole.MITRA)

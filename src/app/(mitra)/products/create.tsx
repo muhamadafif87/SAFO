@@ -122,7 +122,13 @@ export default function MitraCreateProductScreen() {
         endTimeISO = new Date('2099-12-31T23:59:59.999Z').toISOString();
       }
 
-      // 1. Simpan data produk ke database
+      // 1. Simpan data produk ke database (hanya kirim photoUrl jika sudah remote URL)
+      const isRemoteUrl =
+        Boolean(imageUri &&
+        (imageUri.startsWith('http://') || imageUri.startsWith('https://')) &&
+        !imageUri.startsWith('blob:') &&
+        !imageUri.includes('localhost'));
+
       const created = await productService.create({
         name: name.trim(),
         description: description.trim() || undefined,
@@ -131,15 +137,20 @@ export default function MitraCreateProductScreen() {
         stock: stk,
         pickupWindowStart: startTimeISO,
         pickupWindowEnd: endTimeISO,
-        photoUrl: imageUri || undefined,
+        photoUrl: isRemoteUrl ? imageUri : undefined,
       });
 
-      // 2. Jika ada foto yang dipilih, unggah filenya
-      if (imageUri && created?.id) {
+      // 2. Jika ada foto lokal yang dipilih, unggah filenya ke S3 Supabase
+      if (imageUri && created?.id && !isRemoteUrl) {
         try {
           await productService.uploadPhoto(created.id, imageUri);
-        } catch (uploadErr) {
-          console.warn('[uploadPhoto] Gagal upload foto multipart, memakai local URI:', uploadErr);
+        } catch (uploadErr: any) {
+          console.warn('[uploadPhoto] Gagal upload foto multipart ke Supabase:', uploadErr);
+          const errDetail = uploadErr?.response?.data?.message || uploadErr?.message;
+          Alert.alert(
+            'Perhatian',
+            `Produk berhasil disimpan, namun foto gagal diunggah: ${errDetail}`,
+          );
         }
       }
 

@@ -1,4 +1,3 @@
-import { Colors } from '@/constants/typography';
 import { productService } from '@/services/product.service';
 import { useAuthStore } from '@/stores/auth.store';
 import { Product } from '@/types';

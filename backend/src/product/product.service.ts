@@ -10,6 +10,7 @@ import { MitraProfile, VerificationStatus } from '../database/entities/mitra-pro
 import { CreateProductDto } from './dto/create-product.dto';
 import { NearbyProductsDto } from './dto/nearby-products.dto';
 import { LiveProductsDto } from './dto/live-products.dto';
+import { StorageService } from '../storage/storage.service';
 
 function calculateHaversineDistanceKm(
   lat1: number,
@@ -67,6 +68,7 @@ export class ProductService {
     @InjectRepository(MitraProfile)
     private mitraProfileRepository: Repository<MitraProfile>,
     private dataSource: DataSource,
+    private storageService: StorageService,
   ) {}
 
   // ─── Promo Banners ────────────────────────────────────────────────────────
@@ -91,11 +93,21 @@ export class ProductService {
     // Jika tidak diisi (opsional), jendela pickup dibuat permanen (hingga 2099)
     const permanentEnd = new Date('2099-12-31T23:59:59.999Z');
 
+    let safePhotoUrl = dto.photoUrl?.trim() || null;
+    if (
+      safePhotoUrl &&
+      (safePhotoUrl.startsWith('blob:') ||
+       safePhotoUrl.startsWith('file:') ||
+       safePhotoUrl.includes('localhost:8081'))
+    ) {
+      safePhotoUrl = null;
+    }
+
     const product = this.productRepository.create({
       mitraId: profile.id,
       name: dto.name,
       description: dto.description,
-      photoUrl: dto.photoUrl,
+      photoUrl: safePhotoUrl,
       originalPrice: dto.originalPrice,
       discountPrice: dto.discountPrice,
       stock: dto.stock,
@@ -130,8 +142,18 @@ export class ProductService {
     });
     if (!product) throw new NotFoundException('Produk tidak ditemukan');
 
+    const updates = { ...dto };
+    if (
+      updates.photoUrl &&
+      (updates.photoUrl.startsWith('blob:') ||
+       updates.photoUrl.startsWith('file:') ||
+       updates.photoUrl.includes('localhost:8081'))
+    ) {
+      delete updates.photoUrl;
+    }
+
     Object.assign(product, {
-      ...dto,
+      ...updates,
       pickupWindowStart: dto.pickupWindowStart ? new Date(dto.pickupWindowStart) : product.pickupWindowStart,
       pickupWindowEnd: dto.pickupWindowEnd ? new Date(dto.pickupWindowEnd) : product.pickupWindowEnd,
     });
@@ -151,6 +173,31 @@ export class ProductService {
     // Soft-delete: mark as inactive
     product.status = ProductStatus.INACTIVE;
     await this.productRepository.save(product);
+  }
+
+  async uploadProductPhoto(
+    userId: string,
+    productId: string,
+    file: Express.Multer.File,
+  ): Promise<{ photoUrl: string }> {
+    const profile = await this.mitraProfileRepository.findOne({ where: { userId } });
+    if (!profile) throw new NotFoundException('Profil mitra tidak ditemukan');
+
+    const product = await this.productRepository.findOne({
+      where: { id: productId, mitraId: profile.id },
+    });
+    if (!product) throw new NotFoundException('Produk tidak ditemukan atau bukan milik mitra ini');
+
+    // Hapus foto lama di Supabase jika ada
+    if (product.photoUrl) {
+      await this.storageService.deleteFile(product.photoUrl);
+    }
+
+    const photoUrl = await this.storageService.uploadFile(file, 'products');
+    product.photoUrl = photoUrl;
+    await this.productRepository.save(product);
+
+    return { photoUrl };
   }
 
   // ─── Customer: Discovery ─────────────────────────────────────────────────
