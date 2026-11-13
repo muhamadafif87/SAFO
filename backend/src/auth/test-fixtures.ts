@@ -7,11 +7,12 @@ export const TEST_PASSWORD = 'password123';
 
 export type RepositoryMock<T> = Pick<
   Repository<T>,
-  'findOne' | 'create' | 'save'
+  'findOne' | 'create' | 'save' | 'count'
 > & {
   findOne: jest.Mock;
   create: jest.Mock;
   save: jest.Mock;
+  count: jest.Mock;
 };
 
 export function createRepositoryMock<T>(): RepositoryMock<T> {
@@ -19,6 +20,7 @@ export function createRepositoryMock<T>(): RepositoryMock<T> {
     findOne: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
+    count: jest.fn(),
   };
 }
 

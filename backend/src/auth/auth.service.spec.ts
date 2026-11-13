@@ -2,6 +2,8 @@ import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { Order } from '../database/entities/order.entity';
 import { MitraProfile } from '../database/entities/mitra-profile.entity';
 import { User } from '../database/entities/user.entity';
 import { AuthService } from './auth.service';
@@ -16,11 +18,14 @@ describe('AuthService', () => {
   let service: AuthService;
   let userRepository: RepositoryMock<User>;
   let mitraProfileRepository: RepositoryMock<MitraProfile>;
+  let orderRepository: RepositoryMock<Order>;
   let jwtService: { sign: jest.Mock; verify: jest.Mock };
 
   beforeEach(async () => {
     userRepository = createRepositoryMock<User>();
     mitraProfileRepository = createRepositoryMock<MitraProfile>();
+    orderRepository = createRepositoryMock<Order>();
+    orderRepository.count = jest.fn().mockResolvedValue(0);
     jwtService = { sign: jest.fn(), verify: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -31,7 +36,9 @@ describe('AuthService', () => {
           provide: getRepositoryToken(MitraProfile),
           useValue: mitraProfileRepository,
         },
+        { provide: getRepositoryToken(Order), useValue: orderRepository },
         { provide: JwtService, useValue: jwtService },
+        { provide: DataSource, useValue: { createQueryRunner: jest.fn() } },
       ],
     }).compile();
 
@@ -80,6 +87,7 @@ describe('AuthService', () => {
     userRepository.save.mockResolvedValue(undefined);
 
     const result = await service.registerCustomer({
+      name: 'Customer Test',
       email: 'new.customer@test.safo.local',
       password: TEST_PASSWORD,
       phone: '081111111111',
@@ -97,8 +105,10 @@ describe('AuthService', () => {
 
     await expect(
       service.registerCustomer({
+        name: 'Customer Test',
         email: 'customer@test.safo.local',
         password: TEST_PASSWORD,
+        phone: '081111111111',
       }),
     ).rejects.toThrow(ConflictException);
   });

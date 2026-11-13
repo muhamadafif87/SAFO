@@ -39,10 +39,7 @@ if (MAPBOX_ACCESS_TOKEN) {
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const PRIMARY = "#00615F"; // hijau sesuai wireframe
-const PRIMARY_LIGHT = "#e0f2f1";
-const PRIMARY_DARK = "#004140";
 const ACCENT_YELLOW = "#ffd600"; // kuning checkout button sesuai wireframe
-const GOLD = "#f59e0b";
 const BG = "#ffffff";
 const WHITE = "#ffffff";
 const GRAY_50 = "#f9fafb";
@@ -89,17 +86,16 @@ function LocationHeader({ address, isVip, onEditPress }: LocationHeaderProps) {
     <View style={headerStyles.container}>
       <View style={headerStyles.left}>
         <View style={headerStyles.pinRow}>
-          <View style={headerStyles.pinIcon}>
-            <Svg width="16" height="16" fill={PRIMARY} viewBox="0 0 16 16">
-              <Path d="M8 16s6-5.686 6-10A6 6 0 0 0 2 6c0 4.314 6 10 6 10m0-7a3 3 0 1 1 0-6 3 3 0 0 1 0 6" />
-            </Svg>
-          </View>
+          <Image
+            source={require("@/assets/images/figma/location-pin.png")}
+            style={[headerStyles.pinIcon, { tintColor: PRIMARY }]}
+          />
           <View style={headerStyles.addressWrap}>
             <TouchableOpacity onPress={onEditPress} activeOpacity={0.7}>
+              <Text style={headerStyles.locationLabel}>Lokasi</Text>
               <Text style={headerStyles.address} numberOfLines={1}>
                 {address}
               </Text>
-              <Text style={headerStyles.editHint}>Ketuk untuk ubah ›</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -108,7 +104,10 @@ function LocationHeader({ address, isVip, onEditPress }: LocationHeaderProps) {
         <Animated.View
           style={[headerStyles.vipBadge, { transform: [{ scale: pulseAnim }] }]}
         >
-          <Text style={headerStyles.vipCrown}>👑</Text>
+          <Image
+            source={require("@/assets/images/figma/vip-crown.png")}
+            style={[headerStyles.vipCrown, { tintColor: WHITE }]}
+          />
           <Text style={headerStyles.vipText}>VIP</Text>
         </Animated.View>
       )}
@@ -121,52 +120,33 @@ const headerStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
+    paddingHorizontal: 30,
     paddingVertical: 12,
     backgroundColor: WHITE,
-    borderBottomWidth: 1,
-    borderBottomColor: GRAY_100,
   },
   left: { flex: 1 },
-  pinRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  pinIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: PRIMARY_LIGHT,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pinEmoji: { fontSize: 18 },
+  pinRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  pinIcon: { width: 28, height: 32, resizeMode: "contain" },
   addressWrap: { flex: 1 },
   locationLabel: {
-    fontSize: 11,
-    color: GRAY_400,
-    fontWeight: "600",
-    letterSpacing: 0.5,
+    fontSize: 13,
+    color: "#000000",
   },
-  address: { fontSize: 15, fontWeight: "700", color: GRAY_900, marginTop: 1 },
-  editHint: { fontSize: 11, color: PRIMARY, marginTop: 1 },
+  address: { fontSize: 14, fontWeight: "700", color: "#000000" },
   vipBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: GOLD,
-    paddingHorizontal: 10,
+    backgroundColor: PRIMARY,
+    paddingHorizontal: 6,
     paddingVertical: 5,
     borderRadius: 999,
     gap: 4,
-    shadowColor: GOLD,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 4,
   },
-  vipCrown: { fontSize: 13 },
+  vipCrown: { width: 15, height: 18, resizeMode: "contain" },
   vipText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "800",
     color: WHITE,
-    letterSpacing: 0.5,
   },
 });
 
@@ -222,17 +202,10 @@ function SearchBar({
       )}
 
       <View style={[searchStyles.bar, isActive && searchStyles.barActive]}>
-        <Text style={searchStyles.icon}>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            fill="currentColor"
-            viewBox="0 0 16 16"
-          >
-            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0" />
-          </svg>
-        </Text>
+        <Image
+          source={require("@/assets/images/figma/search.png")}
+          style={[searchStyles.icon, { tintColor: "#737373" }]}
+        />
         <TextInput
           style={searchStyles.input}
           placeholder="Cari makanan atau warung..."
@@ -259,11 +232,9 @@ function SearchBar({
 
 const searchStyles = StyleSheet.create({
   wrap: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 30,
+    paddingVertical: 6,
     backgroundColor: WHITE,
-    borderBottomWidth: 1,
-    borderBottomColor: GRAY_100,
   },
   wrapActive: {
     flexDirection: "row",
@@ -279,11 +250,18 @@ const searchStyles = StyleSheet.create({
   bar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: GRAY_100,
-    borderRadius: 999,
+    backgroundColor: WHITE,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
     paddingHorizontal: 14,
     height: 46,
     gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   barActive: {
     flex: 1,
@@ -292,8 +270,8 @@ const searchStyles = StyleSheet.create({
     borderColor: GRAY_200,
     borderRadius: 12,
   },
-  icon: { fontSize: 15 },
-  input: { flex: 1, fontSize: 15, color: GRAY_900 },
+  icon: { width: 18, height: 18, resizeMode: "contain" },
+  input: { flex: 1, fontSize: 13, color: "#000000" },
   clearBtn: {
     width: 22,
     height: 22,
@@ -615,7 +593,7 @@ interface PromoBannerCarouselProps {
   banners: PromoBanner[];
 }
 
-const BANNER_MARGIN = 16;
+const BANNER_MARGIN = 30;
 
 function PromoBannerCarousel({ banners }: PromoBannerCarouselProps) {
   const [activeIdx, setActiveIdx] = useState(0);
@@ -630,7 +608,7 @@ function PromoBannerCarousel({ banners }: PromoBannerCarouselProps) {
   // enak dilihat baik di HP kecil maupun tablet — bukan angka fixed 110
   // untuk semua ukuran layar.
   const bannerHeight = Math.round(
-    Math.min(140, Math.max(96, bannerWidth * 0.32)),
+    Math.min(132, Math.max(100, bannerWidth * (120 / 342))),
   );
 
   // Auto-scroll
@@ -682,7 +660,7 @@ function PromoBannerCarousel({ banners }: PromoBannerCarouselProps) {
               {
                 width: bannerWidth,
                 height: bannerHeight,
-                backgroundColor: item.bgColor,
+                backgroundColor: PRIMARY,
               },
             ]}
           >
@@ -694,22 +672,11 @@ function PromoBannerCarousel({ banners }: PromoBannerCarouselProps) {
                 {item.subtitle}
               </Text>
             </View>
-            <View
-              style={[
-                bannerStyles.emojiCircle,
-                { backgroundColor: item.accentColor + "33" },
-              ]}
-            >
-              <Text style={bannerStyles.emoji}>{item.emoji}</Text>
-              <View
-                style={[
-                  bannerStyles.percentCircle,
-                  { backgroundColor: item.accentColor },
-                ]}
-              >
-                <Text style={bannerStyles.percentText}>%</Text>
-              </View>
-            </View>
+            <Image
+              source={require("@/assets/images/figma/promo-countdown.png")}
+              style={bannerStyles.illustration}
+              resizeMode="cover"
+            />
           </View>
         )}
       />
@@ -737,46 +704,26 @@ const bannerStyles = StyleSheet.create({
     marginBottom: 4,
   },
   card: {
-    borderRadius: 18,
+    borderRadius: 13,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
+    paddingHorizontal: 19,
     overflow: "hidden",
   },
   textWrap: { flex: 1 },
   title: {
-    fontSize: 17,
-    fontWeight: "800",
+    fontSize: 14,
+    fontWeight: "700",
     color: WHITE,
-    letterSpacing: -0.3,
   },
   subtitle: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.82)",
+    fontSize: 12,
+    color: WHITE,
     marginTop: 4,
     lineHeight: 18,
   },
-  emojiCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-  },
-  emoji: { fontSize: 36 },
-  percentCircle: {
-    position: "absolute",
-    bottom: 2,
-    right: 2,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  percentText: { fontSize: 12, fontWeight: "900", color: WHITE },
+  illustration: { width: 134, height: 114, marginRight: -4 },
   dotsRow: {
     flexDirection: "row",
     justifyContent: "center",
@@ -842,31 +789,30 @@ function FilterChips({ active, onChange }: FilterChipsProps) {
 
 const chipStyles = StyleSheet.create({
   wrapper: {
-    marginTop: 14,
-    marginBottom: 6,
+    marginTop: 22,
+    marginBottom: 13,
   },
   row: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 30,
     gap: 8,
     flexDirection: "row",
     alignItems: "center",
   },
   chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1.5,
-    borderColor: GRAY_200,
-    backgroundColor: WHITE,
+    height: 34,
+    paddingHorizontal: 10,
+    borderRadius: 13,
+    backgroundColor: "#f2f2f2",
+    alignItems: "center",
+    justifyContent: "center",
   },
   chipActive: {
-    backgroundColor: PRIMARY_LIGHT,
-    borderColor: PRIMARY_LIGHT,
+    backgroundColor: "#d9eeec",
   },
   chipText: {
     fontSize: 13,
-    fontWeight: "600",
-    color: GRAY_700,
+    fontWeight: "500",
+    color: "#000000",
   },
   chipTextActive: {
     color: PRIMARY,
@@ -941,7 +887,11 @@ function ProductCard({ item, onPress }: ProductCardProps) {
         {/* Rating */}
         {rating !== null && (
           <View style={cardStyles.ratingRow}>
-            <Text style={cardStyles.ratingStar}>⭐</Text>
+            <Image
+              source={require("@/assets/images/figma/rating-star.png")}
+              style={cardStyles.ratingStar}
+              resizeMode="contain"
+            />
             <Text style={cardStyles.ratingValue}>
               {Number(rating).toFixed(1)}
             </Text>
@@ -981,32 +931,32 @@ function ProductCard({ item, onPress }: ProductCardProps) {
 const cardStyles = StyleSheet.create({
   container: {
     flexDirection: "row",
-    justifyContent: "center",
+    justifyContent: "flex-start",
     backgroundColor: WHITE,
     alignSelf: "center",
-    width: "92%",
-    marginBottom: 2,
+    width: "90%",
+    marginBottom: 0,
     borderBottomWidth: 1,
-    borderBottomColor: GRAY_100,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    gap: 12,
+    borderBottomColor: "#dfd1d1",
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    gap: 11,
     alignItems: "center",
   },
   soldOut: { opacity: 0.6 },
 
   imageWrap: {
     position: "relative",
-    width: 100,
-    height: 100,
-    borderRadius: 14,
+    width: 120,
+    height: 110,
+    borderRadius: 15,
     overflow: "hidden",
     flexShrink: 0,
   },
   image: {
-    width: 100,
-    height: 100,
-    borderRadius: 14,
+    width: 120,
+    height: 110,
+    borderRadius: 15,
   },
   imagePlaceholder: {
     backgroundColor: GRAY_100,
@@ -1026,14 +976,14 @@ const cardStyles = StyleSheet.create({
   content: { flex: 1, justifyContent: "center" },
 
   productName: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "700",
-    color: GRAY_900,
+    color: "#000000",
     marginBottom: 2,
   },
   mitraName: {
-    fontSize: 12,
-    color: GRAY_500,
+    fontSize: 13,
+    color: "#000000",
     marginBottom: 4,
   },
 
@@ -1043,38 +993,39 @@ const cardStyles = StyleSheet.create({
     gap: 2,
     marginBottom: 6,
   },
-  ratingStar: { fontSize: 12 },
-  ratingValue: { fontSize: 13, fontWeight: "700", color: GRAY_700 },
+  ratingStar: { width: 18, height: 18 },
+  ratingValue: { fontSize: 12, fontWeight: "400", color: "#000000" },
   ratingCount: { fontSize: 12, color: GRAY_400 },
 
   priceRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 4,
   },
   discountPrice: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: PRIMARY_DARK,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#000000",
   },
   originalPrice: {
-    fontSize: 12,
+    fontSize: 11,
     color: GRAY_400,
     textDecorationLine: "line-through",
     flexShrink: 1,
   },
   stockBadge: {
     marginLeft: "auto",
-    right: 10,
     backgroundColor: "#00615F",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
+    width: 74,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
   },
   stockBadgeSoldOut: { backgroundColor: GRAY_100 },
   stockText: {
-    fontSize: 11,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "400",
     color: WHITE,
   },
   stockTextSoldOut: { color: GRAY_500 },
@@ -2106,12 +2057,86 @@ const cartSheetStyles = StyleSheet.create({
   },
 });
 
-// ─── Main Screen ──────────────────────────────────────────────────────────────
+interface CartFloatingBarProps {
+  itemCount: number;
+  totalPrice: number;
+  onOpenCart: () => void;
+  onCheckout: () => void;
+}
 
+function CartFloatingBar({
+  itemCount,
+  totalPrice,
+  onOpenCart,
+  onCheckout,
+}: CartFloatingBarProps) {
+  const { width } = useWindowDimensions();
+  const scaleX = Math.min(1, Math.max(0.6, (width - 32) / 340));
+
+  return (
+    <View style={[styles.cartFab, { transform: [{ scaleX }] }]}>
+      <TouchableOpacity
+        style={styles.cartFabDetails}
+        onPress={onOpenCart}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={`Buka keranjang, ${itemCount} item`}
+      >
+        <View style={styles.cartFabIconWrap}>
+          <Image
+            source={require("@/assets/images/figma/cart-basket.png")}
+            style={styles.cartFabIcon}
+            resizeMode="contain"
+          />
+          <View style={styles.cartFabBadge}>
+            <Image
+              source={require("@/assets/images/figma/cart-count-circle.png")}
+              style={styles.cartFabBadgeImage}
+              resizeMode="stretch"
+            />
+            <Text style={styles.cartFabBadgeTxt}>{itemCount}</Text>
+          </View>
+        </View>
+        <Text
+          style={styles.cartFabPrice}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
+          {"Rp" + totalPrice.toLocaleString("id-ID")}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.cartFabExpand}
+        onPress={onOpenCart}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel="Lihat keranjang"
+      >
+        <Image
+          source={require("@/assets/images/figma/cart-chevron-up.png")}
+          style={styles.cartFabChevron}
+          resizeMode="contain"
+        />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.cartFabCheckout}
+        onPress={onCheckout}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+      >
+        <Text style={styles.cartFabCheckoutText}>Checkout</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function CustomerHome() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { getTotalItems } = useCartStore();
+  const { getTotalItems, getTotalPrice } = useCartStore();
   const {
     activeLocation,
     setActiveLocation,
@@ -2291,17 +2316,6 @@ export default function CustomerHome() {
 
       {/* Filter Chips */}
       <FilterChips active={activeFilter} onChange={setActiveFilter} />
-
-      {/* Section label */}
-      <View style={styles.sectionRow}>
-        <Text style={styles.sectionTitle}>
-          {activeFilter === "nearby"
-            ? "Terdekat di Sekitarmu"
-            : activeFilter === "discount"
-              ? "Diskon Terbesar"
-              : "Rating Tertinggi"}
-        </Text>
-      </View>
     </>
   );
 
@@ -2365,33 +2379,12 @@ export default function CustomerHome() {
 
         {/* Cart FAB — membuka bottom sheet */}
         {cartCount > 0 && (
-          <TouchableOpacity
-            style={styles.cartFab}
-            onPress={() => setCartSheetVisible(true)}
-            activeOpacity={0.88}
-          >
-            <View style={styles.cartFabIconWrap}>
-              <Text style={styles.cartFabIcon}>🛒</Text>
-              <View style={styles.cartFabBadge}>
-                <Text style={styles.cartFabBadgeTxt}>{cartCount}</Text>
-              </View>
-            </View>
-            <View style={styles.cartFabMiddle}>
-              <Text style={styles.cartFabLabel}>
-                {cartCount} item di keranjang
-              </Text>
-              <Text style={styles.cartFabSub}>Ketuk untuk lihat detail</Text>
-            </View>
-            <View style={styles.cartFabPriceWrap}>
-              <Text style={styles.cartFabPrice}>
-                {"Rp " +
-                  useCartStore
-                    .getState()
-                    .getTotalPrice()
-                    .toLocaleString("id-ID")}
-              </Text>
-            </View>
-          </TouchableOpacity>
+          <CartFloatingBar
+            itemCount={cartCount}
+            totalPrice={getTotalPrice()}
+            onOpenCart={() => setCartSheetVisible(true)}
+            onCheckout={() => router.push("/(customer)/checkout")}
+          />
         )}
 
         {/* Cart Bottom Sheet */}
@@ -2450,30 +2443,12 @@ export default function CustomerHome() {
 
       {/* Cart FAB — membuka bottom sheet */}
       {cartCount > 0 && (
-        <TouchableOpacity
-          style={styles.cartFab}
-          onPress={() => setCartSheetVisible(true)}
-          activeOpacity={0.88}
-        >
-          <View style={styles.cartFabIconWrap}>
-            <Text style={styles.cartFabIcon}>🛒</Text>
-            <View style={styles.cartFabBadge}>
-              <Text style={styles.cartFabBadgeTxt}>{cartCount}</Text>
-            </View>
-          </View>
-          <View style={styles.cartFabMiddle}>
-            <Text style={styles.cartFabLabel}>
-              {cartCount} item di keranjang
-            </Text>
-            <Text style={styles.cartFabSub}>Ketuk untuk lihat detail</Text>
-          </View>
-          <View style={styles.cartFabPriceWrap}>
-            <Text style={styles.cartFabPrice}>
-              {"Rp " +
-                useCartStore.getState().getTotalPrice().toLocaleString("id-ID")}
-            </Text>
-          </View>
-        </TouchableOpacity>
+        <CartFloatingBar
+          itemCount={cartCount}
+          totalPrice={getTotalPrice()}
+          onOpenCart={() => setCartSheetVisible(true)}
+          onCheckout={() => router.push("/(customer)/checkout")}
+        />
       )}
 
       {/* Cart Bottom Sheet */}
@@ -2497,23 +2472,6 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
     backgroundColor: BG,
   },
-  sectionRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 6,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: GRAY_900,
-  },
-  sectionCount: {
-    fontSize: 12,
-    color: GRAY_400,
-  },
   emptyWrap: {
     paddingHorizontal: 32,
     paddingTop: 60,
@@ -2536,48 +2494,90 @@ const styles = StyleSheet.create({
   // Cart FAB
   cartFab: {
     position: "absolute",
-    height: 80,
+    height: 88,
     bottom: 24,
-    left: 16,
-    right: 16,
-    backgroundColor: GRAY_900,
-    borderRadius: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 10,
-    gap: 10,
+    left: "50%",
+    marginLeft: -170,
+    width: 340,
+    backgroundColor: PRIMARY,
+    borderRadius: 12,
+    overflow: "hidden",
   },
-  cartFabIconWrap: { position: "relative" },
-  cartFabIcon: { fontSize: 24 },
+  cartFabDetails: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 200,
+  },
+  cartFabIconWrap: {
+    position: "absolute",
+    left: 21,
+    top: 37,
+    width: 40,
+    height: 42,
+  },
+  cartFabIcon: { width: 40, height: 42 },
   cartFabBadge: {
     position: "absolute",
-    top: -6,
-    right: -8,
-    backgroundColor: WHITE,
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
+    top: -13,
+    right: -20,
+    width: 24,
+    height: 24,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 3,
-    borderWidth: 2,
-    borderColor: GRAY_900,
   },
-  cartFabBadgeTxt: { fontSize: 10, color: "#00615F", fontWeight: "800" },
-  cartFabMiddle: { flex: 1 },
-  cartFabLabel: { fontSize: 14, fontWeight: "700", color: WHITE },
-  cartFabSub: { fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 1 },
-  cartFabPriceWrap: {
+  cartFabBadgeImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: 24,
+    height: 24,
+  },
+  cartFabBadgeTxt: {
+    fontSize: 16,
+    lineHeight: 18,
+    color: PRIMARY,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  cartFabExpand: {
+    position: "absolute",
+    left: "50%",
+    top: 7,
+    width: 26,
+    height: 19,
+    marginLeft: -13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cartFabChevron: {
+    width: 26,
+    height: 16,
+  },
+  cartFabCheckout: {
+    position: "absolute",
+    right: 21,
+    top: 44,
+    width: 106,
+    height: 35,
+    borderRadius: 4,
     backgroundColor: ACCENT_YELLOW,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  cartFabPrice: { fontSize: 13, fontWeight: "800", color: GRAY_900 },
+  cartFabCheckoutText: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#000000",
+  },
+  cartFabPrice: {
+    position: "absolute",
+    left: 79,
+    top: 51,
+    width: 133,
+    height: 27,
+    fontSize: 24,
+    lineHeight: 29,
+    fontWeight: "700",
+    color: WHITE,
+  },
 });
