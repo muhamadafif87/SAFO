@@ -226,7 +226,7 @@ export default function MarketplaceLandingScreen() {
 
         <View style={styles.sectionRow}>
           <View>
-            <Text style={styles.sectionTitle}>Menu Live Hari Ini</Text>
+            <Text style={styles.sectionTitle}>Menu Hari Ini</Text>
             <Text style={styles.sectionSubtitle}>
               Makanan lezat & surplus siap santap dengan harga hemat
             </Text>
