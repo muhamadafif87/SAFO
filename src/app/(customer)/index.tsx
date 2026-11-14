@@ -1872,7 +1872,7 @@ function CartBottomSheet({
 
 const cartSheetStyles = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...(StyleSheet.absoluteFill as any),
     backgroundColor: "rgba(0,0,0,0.45)",
     zIndex: 90,
   },
@@ -2528,7 +2528,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   cartFabBadgeImage: {
-    ...StyleSheet.absoluteFillObject,
+    ...(StyleSheet.absoluteFill as any),
     width: 24,
     height: 24,
   },

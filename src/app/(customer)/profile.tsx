@@ -2,10 +2,13 @@ import { Colors } from "@/constants/typography";
 import { useAuthStore } from "@/stores/auth.store";
 import { useLocationStore } from "@/stores/location.store";
 import { showAlert, showConfirm } from "@/utils/alert";
+import { Asset } from "expo-asset";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
+  Alert,
   ActivityIndicator,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,73 +16,36 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Svg, { Path } from "react-native-svg";
+import Svg, { Path, SvgUri } from "react-native-svg";
 
-const PRIMARY = Colors.primary[600];
-const PRIMARY_LIGHT = Colors.primary[50];
-const PRIMARY_DARK = Colors.primary[700];
+const PRIMARY = "#00615f";
+const PRIMARY_LIGHT = "#cee7e5";
 const WHITE = "#ffffff";
-const TEXT_DARK = Colors.neutral[900];
 const TEXT_MUTED = Colors.neutral[500];
-const BORDER = Colors.neutral[100];
-const ERROR_BG = "#fee2e2";
-const ERROR_TEXT = "#dc2626";
-const MINT = "#D8EDE7";
-const TEAL = PRIMARY;
-const TEAL_DARK = PRIMARY_DARK;
+const BORDER = "#eaeaea";
+const ERROR_BG = "#f0a8a8";
+const ERROR_TEXT = "#da3232";
 
-const PersonIcon = ({ color, size = 18 }: { color: string; size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 16 16" fill={color}>
-    <Path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0" />
-    <Path
-      fillRule="evenodd"
-      d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1"
-    />
-  </Svg>
-);
-
-const CrownIcon = ({ color, size = 18 }: { color: string; size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 16 16" fill={color}>
-    <Path d="M2 4.5l3.5 3L8 3.5l2.5 4 3.5-3-1.4 7.5H3.4L2 4.5z" />
-    <Path d="M3.4 12.5h9.2V14H3.4z" />
-  </Svg>
-);
-
-const LifebuoyIcon = ({
-  color,
-  size = 18,
+function FigmaAssetIcon({
+  source,
+  size,
 }: {
-  color: string;
-  size?: number;
-}) => (
-  <Svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke={color}
-    strokeWidth="1.4"
-  >
-    <Path
-      d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zM8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"
-      strokeLinejoin="round"
-    />
-    <Path d="M8 1v4M8 11v4M1 8h4M11 8h4" strokeLinecap="round" />
-  </Svg>
-);
+  source: number;
+  size: number;
+}) {
+  const uri = Asset.fromModule(source).uri;
 
-const QuestionIcon = () => (
-  <Svg width={18} height={18} viewBox="0 0 16 16" fill="#d97706">
-    <Path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16" />
-    <Path d="M5.255 5.786a.237.237 0 0 0 .241.247h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286m1.557 5.763c0 .533.425.927 1.01.927.609 0 1.028-.394 1.028-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94" />
-  </Svg>
-);
-
-const ChatIcon = () => (
-  <Svg width={18} height={18} viewBox="0 0 16 16" fill="#2563eb">
-    <Path d="M8 1C4.14 1 1 3.806 1 7.267c0 1.917.977 3.626 2.508 4.742-.062.47-.27 1.086-.73 1.53-.06.057-.014.153.066.142 1.09-.137 1.909-.59 2.469-1.023A7.83 7.83 0 0 0 8 13.533c3.86 0 7-2.806 7-6.267S11.86 1 8 1m-4.5 7a1 1 0 1 1 0-2 1 1 0 0 1 0 2m4.5 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2m4.5 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2" />
-  </Svg>
-);
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <SvgUri
+        uri={uri}
+        width={size}
+        height={size}
+        onError={(error) => console.error("[profile] Gagal memuat ikon:", error)}
+      />
+    </View>
+  );
+}
 
 export default function CustomerProfile() {
   const router = useRouter();
@@ -122,7 +88,7 @@ export default function CustomerProfile() {
           onPress={() => router.back()}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Svg width={20} height={20} viewBox="0 0 16 16" fill={TEXT_DARK}>
+          <Svg width={20} height={20} viewBox="0 0 16 16" fill={PRIMARY}>
             <Path d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z" />
           </Svg>
         </TouchableOpacity>
@@ -131,13 +97,18 @@ export default function CustomerProfile() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* ── Hero card teal gelap ── */}
+        {/* ── Kartu profil ── */}
         <View style={styles.heroCard}>
           <View style={styles.avatarWrap}>
-            <PersonIcon color={WHITE} size={32} />
+            <FigmaAssetIcon
+              source={require("@/assets/images/figma/profile-circle.svg")}
+              size={76}
+            />
           </View>
-          <Text style={styles.heroName}>{user?.name || "Pelanggan SAFO"}</Text>
-          <Text style={styles.heroPhone}>{user?.phone || "-"}</Text>
+          <View style={styles.heroInfo}>
+            <Text style={styles.heroName}>{user?.name || "Pelanggan SAFO"}</Text>
+            <Text style={styles.heroPhone}>{user?.phone || "-"}</Text>
+          </View>
         </View>
 
         {/* ── Kartu VIP ── */}
@@ -147,10 +118,14 @@ export default function CustomerProfile() {
           onPress={() => router.push("/(customer)/vip")}
         >
           <View style={styles.vipIconWrap}>
-            <CrownIcon color={PRIMARY} size={20} />
+            <Image
+              source={require("@/assets/images/figma/vip-crown.png")}
+              style={styles.vipCrown}
+              resizeMode="contain"
+            />
           </View>
           <View style={styles.vipInfo}>
-            <Text style={styles.vipLabel}>VIP Member</Text>
+            <Text style={styles.vipLabel}>VIP</Text>
             <Text
               style={[styles.vipStatus, !isVip && styles.vipStatusInactive]}
             >
@@ -164,14 +139,31 @@ export default function CustomerProfile() {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.cardHeaderIcon}>
-              <PersonIcon color={PRIMARY} size={16} />
+              <FigmaAssetIcon
+                source={require("@/assets/images/figma/profile-person.svg")}
+                size={20}
+              />
             </View>
             <Text style={styles.cardHeaderTitle}>Informasi Pribadi</Text>
+            <TouchableOpacity
+              style={styles.editButton}
+              activeOpacity={0.7}
+              onPress={() => router.push("/(customer)/location-picker")}
+            >
+              <FigmaAssetIcon
+                source={require("@/assets/images/figma/edit-pencil.svg")}
+                size={14}
+              />
+              <Text style={styles.editText}>Edit</Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.infoRow}>
             <View style={styles.infoIconWrap}>
-              <Text style={styles.infoEmoji}>📍</Text>
+              <FigmaAssetIcon
+                source={require("@/assets/images/figma/location-pin-outline.svg")}
+                size={16}
+              />
             </View>
             <Text style={styles.infoText}>
               {activeLocation?.address || "Alamat belum diatur"}
@@ -181,7 +173,10 @@ export default function CustomerProfile() {
 
           <View style={styles.infoRow}>
             <View style={styles.infoIconWrap}>
-              <Text style={styles.infoEmoji}>📞</Text>
+              <FigmaAssetIcon
+                source={require("@/assets/images/figma/phone.svg")}
+                size={14}
+              />
             </View>
             <Text style={styles.infoText}>{user?.phone || "-"}</Text>
             <Text style={styles.chevron}>›</Text>
@@ -189,7 +184,10 @@ export default function CustomerProfile() {
 
           <View style={[styles.infoRow, styles.infoRowLast]}>
             <View style={styles.infoIconWrap}>
-              <Text style={styles.infoEmoji}>✉️</Text>
+              <FigmaAssetIcon
+                source={require("@/assets/images/figma/mail-outline.svg")}
+                size={16}
+              />
             </View>
             <Text style={[styles.infoText, styles.infoEmail]} numberOfLines={1}>
               {user?.email || "-"}
@@ -198,36 +196,14 @@ export default function CustomerProfile() {
           </View>
         </View>
 
-        {/* ── Aktivitas & Pesanan ── */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.cardHeaderIcon}>
-              <Svg width={16} height={16} viewBox="0 0 16 16" fill={PRIMARY}>
-                <Path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 1 1 1-1h1z" />
-                <Path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0z" />
-              </Svg>
-            </View>
-            <Text style={styles.cardHeaderTitle}>Pesanan</Text>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.infoRow, styles.infoRowLast]}
-            activeOpacity={0.7}
-            onPress={() => router.push("/(customer)/orders")}
-          >
-            <View style={[styles.infoIconWrap, { backgroundColor: "#eff6ff" }]}>
-              <Text style={styles.infoEmoji}>🛍️</Text>
-            </View>
-            <Text style={styles.infoText}>Riwayat Pesanan</Text>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* ── Bantuan ── */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.cardHeaderIcon}>
-              <LifebuoyIcon color={PRIMARY} size={16} />
+              <FigmaAssetIcon
+                source={require("@/assets/images/figma/customer-service.svg")}
+                size={18}
+              />
             </View>
             <Text style={styles.cardHeaderTitle}>Bantuan</Text>
           </View>
@@ -242,8 +218,11 @@ export default function CustomerProfile() {
               )
             }
           >
-            <View style={[styles.infoIconWrap, { backgroundColor: "#fef3c7" }]}>
-              <QuestionIcon />
+            <View style={styles.infoIconWrap}>
+              <FigmaAssetIcon
+                source={require("@/assets/images/figma/help-circle.svg")}
+                size={16}
+              />
             </View>
             <Text style={styles.infoText}>Pusat Bantuan</Text>
             <Text style={styles.chevron}>›</Text>
@@ -256,8 +235,11 @@ export default function CustomerProfile() {
               Alert.alert("Chat Admin", "Hubungi admin SAFO melalui WhatsApp.")
             }
           >
-            <View style={[styles.infoIconWrap, { backgroundColor: "#eff6ff" }]}>
-              <ChatIcon />
+            <View style={styles.infoIconWrap}>
+              <FigmaAssetIcon
+                source={require("@/assets/images/figma/chat.svg")}
+                size={13}
+              />
             </View>
             <Text style={styles.infoText}>Chat Admin</Text>
             <Text style={styles.chevron}>›</Text>
@@ -291,90 +273,108 @@ const styles = StyleSheet.create({
     backgroundColor: WHITE,
   },
   scrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 30,
     paddingTop: 12,
-    paddingBottom: 40,
+    paddingBottom: 24,
   },
 
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 8,
+    paddingHorizontal: 28,
     paddingVertical: 10,
-    backgroundColor: "#ffffff",
+    backgroundColor: WHITE,
   },
   backButton: {
-    width: 40,
+    width: 28,
     alignItems: "flex-start",
     justifyContent: "center",
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
-    color: TEXT_DARK,
+    color: "#000000",
+    marginLeft: 14,
   },
   headerSpacer: {
-    width: 40,
+    flex: 1,
   },
 
   heroCard: {
-    padding: 20,
-    borderRadius: 16,
-    backgroundColor: PRIMARY_DARK,
+    height: 120,
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    backgroundColor: PRIMARY,
+    marginBottom: 27,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
+    elevation: 2,
   },
   avatarWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    width: 76,
+    height: 76,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 10,
+    marginRight: 16,
+  },
+  heroInfo: {
+    flex: 1,
   },
   heroName: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: "700",
     color: WHITE,
   },
   heroPhone: {
-    fontSize: 13,
-    color: "rgba(255, 255, 255, 0.85)",
-    marginTop: 2,
+    fontSize: 11,
+    color: WHITE,
+    marginTop: 3,
   },
 
   vipCard: {
+    height: 72,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: MINT,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    marginBottom: 16,
+    backgroundColor: PRIMARY_LIGHT,
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    marginBottom: 26,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.16,
+    shadowRadius: 4,
+    elevation: 2,
   },
   vipIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: WHITE,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: PRIMARY,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginRight: 15,
+  },
+  vipCrown: {
+    width: 24,
+    height: 24,
+    tintColor: WHITE,
   },
   vipInfo: {
     flex: 1,
   },
   vipLabel: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "700",
-    color: TEXT_DARK,
+    color: "#000000",
   },
   vipStatus: {
-    fontSize: 12,
+    fontSize: 11,
     color: PRIMARY,
-    fontWeight: "600",
+    fontWeight: "500",
     marginTop: 1,
   },
   vipStatusInactive: {
@@ -382,64 +382,79 @@ const styles = StyleSheet.create({
   },
 
   card: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
+    backgroundColor: WHITE,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: BORDER,
     paddingHorizontal: 14,
-    paddingTop: 12,
+    paddingTop: 8,
     paddingBottom: 4,
-    marginBottom: 16,
+    marginBottom: 26,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.13,
+    shadowRadius: 4,
+    elevation: 1,
   },
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 6,
-    paddingBottom: 10,
+    minHeight: 37,
+    paddingBottom: 7,
     borderBottomWidth: 1,
-    borderBottomColor: "#F2F2F2",
+    borderBottomColor: "#eaeaea",
   },
   cardHeaderIcon: {
     width: 28,
     height: 28,
-    borderRadius: 8,
+    borderRadius: 14,
     backgroundColor: PRIMARY_LIGHT,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
+    marginRight: 12,
   },
   cardHeaderTitle: {
-    fontSize: 14,
+    flex: 1,
+    fontSize: 13,
     fontWeight: "700",
-    color: TEXT_DARK,
+    color: "#000000",
+  },
+  editButton: {
+    width: 42,
+    height: 24,
+    borderRadius: 10,
+    backgroundColor: "#eaeaea",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+  },
+  editText: {
+    fontSize: 10,
+    color: PRIMARY,
   },
 
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
+    minHeight: 29,
     borderBottomWidth: 1,
-    borderBottomColor: "#F2F2F2",
+    borderBottomColor: "#f2f2f2",
   },
   infoRowLast: {
     borderBottomWidth: 0,
   },
   infoIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "#F0F6F4",
+    width: 20,
+    height: 20,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
-  },
-  infoEmoji: {
-    fontSize: 16,
+    marginRight: 10,
   },
   infoText: {
     flex: 1,
-    fontSize: 13,
-    color: TEXT_DARK,
+    fontSize: 10,
+    color: "#000000",
   },
   infoEmail: {
     color: PRIMARY,
@@ -451,13 +466,18 @@ const styles = StyleSheet.create({
   },
 
   logoutButton: {
-    marginTop: 4,
+    height: 43,
+    marginTop: -16,
     backgroundColor: ERROR_BG,
-    paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 20,
+    marginBottom: 8,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.16,
+    shadowRadius: 4,
+    elevation: 2,
   },
   logoutButtonDisabled: {
     opacity: 0.6,

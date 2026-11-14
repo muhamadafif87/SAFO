@@ -1,15 +1,8 @@
-import {
-  BorderRadius,
-  Colors,
-  FontSize,
-  FontWeight,
-  Spacing,
-} from "@/constants/typography";
 import { productService } from "@/services/product.service";
 import { useCartStore } from "@/stores/cart.store";
 import type { Product } from "@/types";
-import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -23,21 +16,21 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
 
-// ─── Design Tokens ────────────────────────────────────────────────────────────
-const PRIMARY = "#1a5c52";
-const PRIMARY_LIGHT = "#e8f4f1";
-const WHITE = "#ffffff";
-const GRAY_50 = "#f9fafb";
-const GRAY_100 = "#f3f4f6";
-const GRAY_200 = "#e5e7eb";
-const GRAY_300 = "#d1d5db";
-const GRAY_400 = "#9ca3af";
-const GRAY_500 = "#6b7280";
-const GRAY_700 = "#374151";
-const GRAY_900 = "#111827";
-const RED = "#ef4444";
-const YELLOW = "#fbbf24";
+// ─── Design Tokens (from Figma node 2:2) ───────────────────────────────────────
+const PRIMARY = "#00615F";
+const PRIMARY_LIGHT = "#CEE7E5";
+const WHITE = "#FFFFFF";
+const TEXT_BLACK = "#000000";
+const TEXT_DARK = "#363434";
+const TEXT_MUTED = "#685A5A";
+const TEXT_STRIKE = "#B9B9B9";
+const INPUT_BG = "#F3F3F3";
+const DIVIDER = "#EAEAEA";
+const DANGER_RED = "#FF0000";
+const GRAY_400 = "#9CA3AF";
+
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function ProductDetail() {
@@ -51,7 +44,6 @@ export default function ProductDetail() {
   const [note, setNote] = useState("");
 
   const { addItem, forceAddItem } = useCartStore();
-
   const [imgSrc, setImgSrc] = useState<string>("");
 
   useEffect(() => {
@@ -75,8 +67,6 @@ export default function ProductDetail() {
   const handleAddToCart = (directCheckout = false) => {
     if (!product) return;
 
-    // Use a custom object extending product to include the note if needed,
-    // or typically we store notes per order item. The cartStore adds items.
     const result = addItem(product, quantity);
 
     if (result === "mitra_conflict") {
@@ -128,16 +118,27 @@ export default function ProductDetail() {
   if (!product) return null;
 
   const discountAmount =
-    Number(product.originalPrice) - Number(product.discountPrice);
+    Math.max(0, Number(product.originalPrice) - Number(product.discountPrice));
 
-  const formatTime = (iso: string) =>
-    new Date(iso).toLocaleTimeString("id-ID", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const formatTime = (iso?: string | null) => {
+    if (!iso) return "--.--";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d
+      .toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+      .replace(":", ".");
+  };
 
-  const maxQty = Math.min(product.stock, 10);
+  const maxQty = Math.max(1, Math.min(product.stock, 99));
   const isSoldOut = product.stock <= 0 || product.status === "sold_out";
+
+  const ratingValue = product.avgRating
+    ? Number(product.avgRating).toFixed(1).replace(".", ",")
+    : "4,8";
+  const reviewCount = product.reviewCount ?? 120;
 
   return (
     <View style={styles.container}>
@@ -162,27 +163,44 @@ export default function ProductDetail() {
               );
             }}
           />
-          {/* Back Button */}
+
+          {/* Back Button (Teal Chevron) */}
           <TouchableOpacity
-            style={[styles.backBtn, { top: Math.max(insets.top, 16) }]}
+            style={[styles.backBtn, { top: Math.max(insets.top + 6, 20) }]}
             onPress={() => router.back()}
+            activeOpacity={0.7}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <Text style={styles.backBtnText}>{"<"}</Text>
+            <Svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <Path
+                d="M15 19L8 12L15 5"
+                stroke={PRIMARY}
+                strokeWidth="2.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
           </TouchableOpacity>
         </View>
 
         {/* Content Sheet (overlapping image) */}
         <View style={styles.sheet}>
-          {/* Title Row */}
+          {/* Title */}
           <Text style={styles.title}>{product.name}</Text>
 
           {/* Subtitle Row (Mitra Name + Rating) */}
           <View style={styles.mitraRow}>
-            <Text style={styles.mitraName}>{product.mitra?.businessName}</Text>
+            <Text style={styles.mitraName}>
+              {product.mitra?.businessName || "Mitra"}
+            </Text>
             <View style={styles.ratingWrap}>
-              <Text style={styles.star}>⭐</Text>
+              <Image
+                source={require("@/assets/images/figma/rating-star.png")}
+                style={styles.starIcon}
+                resizeMode="contain"
+              />
               <Text style={styles.ratingText}>
-                {product.avgRating} ({product.reviewCount})
+                {ratingValue} ({reviewCount})
               </Text>
             </View>
           </View>
@@ -193,21 +211,27 @@ export default function ProductDetail() {
               <Text style={styles.discountPrice}>
                 Rp {Number(product.discountPrice).toLocaleString("id-ID")}
               </Text>
-              <Text style={styles.originalPrice}>
-                Rp{Number(product.originalPrice).toLocaleString("id-ID")}
-              </Text>
+              {Number(product.originalPrice) > Number(product.discountPrice) && (
+                <Text style={styles.originalPrice}>
+                  Rp{Number(product.originalPrice).toLocaleString("id-ID")}
+                </Text>
+              )}
             </View>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                Hemat Rp {discountAmount.toLocaleString("id-ID")}
-              </Text>
-            </View>
+            {discountAmount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  Hemat Rp {discountAmount.toLocaleString("id-ID")}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Description Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Deskripsi</Text>
-            <Text style={styles.descText}>{product.description}</Text>
+            <Text style={styles.descText}>
+              {product.description || "Tidak ada deskripsi."}
+            </Text>
           </View>
 
           <View style={styles.divider} />
@@ -228,7 +252,9 @@ export default function ProductDetail() {
 
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Lokasi Toko</Text>
-            <Text style={styles.infoValue}>{product.mitra?.address}</Text>
+            <Text style={[styles.infoValue, styles.locationText]} numberOfLines={2}>
+              {product.mitra?.address || "-"}
+            </Text>
           </View>
 
           <View style={styles.divider} />
@@ -240,6 +266,7 @@ export default function ProductDetail() {
               <TouchableOpacity
                 style={styles.qtyBtn}
                 onPress={() => setQuantity(Math.max(1, quantity - 1))}
+                activeOpacity={0.7}
               >
                 <Text style={styles.qtyBtnText}>-</Text>
               </TouchableOpacity>
@@ -247,6 +274,7 @@ export default function ProductDetail() {
               <TouchableOpacity
                 style={styles.qtyBtn}
                 onPress={() => setQuantity(Math.min(maxQty, quantity + 1))}
+                activeOpacity={0.7}
               >
                 <Text style={styles.qtyBtnText}>+</Text>
               </TouchableOpacity>
@@ -261,7 +289,7 @@ export default function ProductDetail() {
             <TextInput
               style={styles.noteInput}
               placeholder="Contoh : tidak pedas, tambah alat makan"
-              placeholderTextColor={GRAY_400}
+              placeholderTextColor="#8E8E93"
               value={note}
               onChangeText={setNote}
             />
@@ -281,23 +309,13 @@ export default function ProductDetail() {
             <Text style={styles.submitBtnText}>Stok Habis</Text>
           </View>
         ) : (
-          <View style={styles.actionBtnRow}>
-            <TouchableOpacity
-              style={styles.cartOutlineBtn}
-              onPress={() => handleAddToCart(false)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.cartOutlineText}>+ Keranjang</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.buyNowBtn}
-              onPress={() => handleAddToCart(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.buyNowText}>Beli Langsung</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.submitBtn}
+            onPress={() => handleAddToCart(false)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.submitBtnText}>Masukkan Keranjang</Text>
+          </TouchableOpacity>
         )}
       </View>
     </View>
@@ -313,13 +331,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: WHITE,
   },
   scrollContent: {
-    paddingBottom: 100, // space for bottom bar
+    paddingBottom: 100, // Space for bottom button
   },
   imageContainer: {
     width: SCREEN_WIDTH,
-    height: SCREEN_WIDTH * 0.8, // Adjust ratio as needed
+    height: 283,
     position: "relative",
   },
   image: {
@@ -328,38 +347,27 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     position: "absolute",
-    left: 16,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: WHITE,
+    left: 20,
+    width: 32,
+    height: 32,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  backBtnText: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: PRIMARY,
-    marginLeft: -2,
+    zIndex: 10,
   },
   sheet: {
     backgroundColor: WHITE,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    marginTop: -24, // Pull up over the image
-    paddingHorizontal: 20,
-    paddingTop: 24,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    marginTop: -20, // Overlap the food image
+    paddingHorizontal: 24,
+    paddingTop: 20,
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "700",
-    color: GRAY_900,
-    marginBottom: 6,
+    color: TEXT_BLACK,
+    marginBottom: 4,
+    letterSpacing: -0.4,
   },
   mitraRow: {
     flexDirection: "row",
@@ -368,28 +376,29 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   mitraName: {
-    fontSize: 15,
-    color: GRAY_700,
+    fontSize: 16,
+    color: TEXT_MUTED,
     fontWeight: "500",
   },
   ratingWrap: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 4,
   },
-  star: {
-    fontSize: 13,
-    marginRight: 4,
+  starIcon: {
+    width: 16,
+    height: 16,
   },
   ratingText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: GRAY_700,
+    fontSize: 14,
+    fontWeight: "400",
+    color: TEXT_MUTED,
   },
   priceRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 24,
+    marginBottom: 20,
   },
   priceLeft: {
     flexDirection: "row",
@@ -397,44 +406,51 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   discountPrice: {
-    fontSize: 22,
-    fontWeight: "800",
+    fontSize: 24,
+    fontWeight: "700",
     color: PRIMARY,
+    letterSpacing: -0.8,
   },
   originalPrice: {
-    fontSize: 14,
-    color: GRAY_400,
+    fontSize: 15,
+    color: TEXT_STRIKE,
     textDecorationLine: "line-through",
+    letterSpacing: -0.5,
   },
   badge: {
     backgroundColor: PRIMARY_LIGHT,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    height: 29,
     borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
   },
   badgeText: {
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: 13,
+    fontWeight: "600",
     color: PRIMARY,
+    letterSpacing: -0.4,
   },
   section: {
     marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 15,
-    fontWeight: "700",
-    color: GRAY_900,
-    marginBottom: 8,
+    fontWeight: "600",
+    color: TEXT_DARK,
+    marginBottom: 6,
+    letterSpacing: -0.4,
   },
   descText: {
     fontSize: 14,
-    color: GRAY_700,
+    color: TEXT_DARK,
     lineHeight: 20,
+    letterSpacing: -0.4,
   },
   divider: {
     height: 1,
-    backgroundColor: GRAY_200,
-    marginVertical: 16,
+    backgroundColor: DIVIDER,
+    marginVertical: 14,
   },
   infoRow: {
     flexDirection: "row",
@@ -443,60 +459,70 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   infoLabel: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: GRAY_900,
+    fontSize: 15,
+    fontWeight: "600",
+    color: TEXT_DARK,
+    letterSpacing: -0.4,
   },
   stockValue: {
     fontSize: 14,
-    fontWeight: "700",
-    color: RED,
+    fontWeight: "600",
+    color: DANGER_RED,
+    letterSpacing: -0.4,
   },
   infoValue: {
-    fontSize: 13,
-    color: GRAY_900,
+    fontSize: 14,
+    fontWeight: "500",
+    color: TEXT_DARK,
+    letterSpacing: -0.4,
+  },
+  locationText: {
+    flex: 1,
+    textAlign: "right",
+    marginLeft: 16,
   },
   qtyRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  qtyLabel: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.medium,
-    color: Colors.neutral[700],
+  qtyControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
-  qtyControls: { flexDirection: "row", alignItems: "center", gap: Spacing[2] },
   qtyBtn: {
-    width: 28,
-    height: 28,
+    width: 20,
+    height: 20,
     backgroundColor: PRIMARY,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 4,
+    borderRadius: 3,
   },
   qtyBtnText: {
     color: WHITE,
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "700",
-    lineHeight: 20,
+    lineHeight: 16,
+    textAlign: "center",
   },
   qtyNumber: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: GRAY_900,
+    fontSize: 15,
+    fontWeight: "600",
+    color: TEXT_BLACK,
+    minWidth: 16,
+    textAlign: "center",
   },
   noteSection: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   noteInput: {
-    backgroundColor: GRAY_50,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 13,
-    color: GRAY_900,
-    borderWidth: 1,
-    borderColor: GRAY_200,
+    backgroundColor: INPUT_BG,
+    borderRadius: 6,
+    height: 46,
+    paddingHorizontal: 14,
+    fontSize: 12,
+    color: TEXT_DARK,
   },
   bottomBar: {
     position: "absolute",
@@ -504,67 +530,25 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: WHITE,
-    paddingTop: 16,
-    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingHorizontal: 24,
     borderTopWidth: 1,
-    borderTopColor: GRAY_200,
+    borderTopColor: DIVIDER,
   },
   submitBtn: {
     backgroundColor: PRIMARY,
-    paddingVertical: 16,
-    borderRadius: 8,
+    height: 52,
+    borderRadius: 6,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: Colors.primary[600],
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 3,
   },
   submitBtnDisabled: {
     backgroundColor: GRAY_400,
   },
   submitBtnText: {
     color: WHITE,
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "700",
-  },
-  actionBtnRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  cartOutlineBtn: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: PRIMARY,
-    backgroundColor: WHITE,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  cartOutlineText: {
-    color: PRIMARY,
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  buyNowBtn: {
-    flex: 1.3,
-    paddingVertical: 14,
-    borderRadius: 10,
-    backgroundColor: PRIMARY,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: Colors.primary[600],
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  buyNowText: {
-    color: WHITE,
-    fontSize: 15,
-    fontWeight: "700",
+    letterSpacing: -0.4,
   },
 });

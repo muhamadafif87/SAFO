@@ -30,12 +30,14 @@ export default function MitraOrderDetailScreen() {
       .catch(() => Alert.alert("Error", "Gagal memuat pesanan"));
   }, [id]);
 
-  const handleUpdateStatus = async (status: "ready" | "completed") => {
+  const handleUpdateStatus = async (
+    status: "processing" | "ready_for_pickup",
+  ) => {
     setIsUpdating(true);
     try {
       const updated = await orderService.updateStatus(
         id as string,
-        status as any,
+        status,
       );
       setOrder(updated);
       Alert.alert("Sukses", `Status pesanan diubah menjadi ${status}`);
@@ -97,16 +99,32 @@ export default function MitraOrderDetailScreen() {
         </Text>
       </View>
 
+      <Button
+        title="💬 Hubungi Pelanggan"
+        variant="secondary"
+        onPress={() => router.push(`/(mitra)/chat/${order.id}`)}
+        style={{ marginBottom: Spacing[4] }}
+      />
+
       {order.status === "paid" && (
         <Button
-          title="Tandai Siap Diambil"
-          onPress={() => handleUpdateStatus("ready")}
+          title="Terima Pesanan"
+          onPress={() => handleUpdateStatus("processing")}
           isLoading={isUpdating}
           style={styles.actionButton}
         />
       )}
 
-      {(order.status === "paid" || order.status === "ready") && (
+      {(order.status === "processing" || order.status === "ready") && (
+        <Button
+          title="Tandai Siap Diambil"
+          onPress={() => handleUpdateStatus("ready_for_pickup")}
+          isLoading={isUpdating}
+          style={styles.actionButton}
+        />
+      )}
+
+      {order.status === "ready_for_pickup" && (
         <View style={styles.verifySection}>
           <Text style={styles.sectionTitle}>Verifikasi Pickup</Text>
           <Text style={styles.sectionDesc}>

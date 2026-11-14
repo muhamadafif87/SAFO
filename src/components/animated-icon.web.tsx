@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   webSplashOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...(StyleSheet.absoluteFill as any),
     backgroundColor: '#00615F',
     alignItems: 'center',
     justifyContent: 'center',

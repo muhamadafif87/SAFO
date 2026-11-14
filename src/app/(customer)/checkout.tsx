@@ -1,11 +1,4 @@
 import { Button } from "@/components/ui/Button";
-import {
-  BorderRadius,
-  Colors,
-  FontSize,
-  FontWeight,
-  Spacing,
-} from "@/constants/typography";
 import { orderService } from "@/services/order.service";
 import { PLATFORM_FEE, useCartStore } from "@/stores/cart.store";
 import type { PaymentMethod } from "@/types";
@@ -14,6 +7,7 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -22,25 +16,33 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
+
+// ─── Design Tokens (Figma node 35:135) ─────────────────────────────────────────
+const PRIMARY = "#00615F";
+const WHITE = "#FFFFFF";
+const TEXT_BLACK = "#000000";
+const TEXT_DARK = "#363434";
+const DIVIDER = "#EAEAEA";
+const INPUT_BG = "#F3F3F3";
+const GRAY_400 = "#9CA3AF";
 
 const PAYMENT_METHODS: {
   id: PaymentMethod;
   label: string;
   desc: string;
-  icon: string;
 }[] = [
   {
     id: "qris",
     label: "QRIS",
     desc: "Scan QR dari semua aplikasi",
-    icon: "📷",
   },
 ];
 
 export default function CheckoutScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { items, mitraName, getTotalPrice, clearCart } = useCartStore();
+  const { items, mitraName, updateQty, clearCart } = useCartStore();
 
   const [note, setNote] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("qris");
@@ -51,6 +53,27 @@ export default function CheckoutScreen() {
     0,
   );
   const total = subtotal + PLATFORM_FEE;
+
+  const firstProduct = items[0]?.product;
+  const formatTime = (iso?: string | null) => {
+    if (!iso) return "--.--";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d
+      .toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+      .replace(":", ".");
+  };
+
+  const pickupTimeDisplay =
+    firstProduct?.pickupWindowStart && firstProduct?.pickupWindowEnd
+      ? `${formatTime(firstProduct.pickupWindowStart)} - ${formatTime(firstProduct.pickupWindowEnd)} WIB`
+      : "17.00 - 20.00 WIB";
+
+  const mitraAddress =
+    firstProduct?.mitra?.address || "Jl. Kartika No 12, Jebres, Surakarta";
 
   const handleOrder = async () => {
     if (items.length === 0) return;
@@ -109,11 +132,21 @@ export default function CheckoutScreen() {
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            activeOpacity={0.7}
           >
-            <Text style={styles.backText}>← Kembali</Text>
+            <Svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <Path
+                d="M15 19L8 12L15 5"
+                stroke={PRIMARY}
+                strokeWidth="2.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Checkout</Text>
-          <View style={{ width: 80 }} />
+          <Text style={styles.headerTitle}>Konfirmasi Pesanan</Text>
+          <View style={styles.headerSpacer} />
         </View>
         <View style={styles.emptyWrap}>
           <Text style={styles.emptyIcon}>🛒</Text>
@@ -132,11 +165,24 @@ export default function CheckoutScreen() {
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>← Kembali</Text>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          activeOpacity={0.7}
+        >
+          <Svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <Path
+              d="M15 19L8 12L15 5"
+              stroke={PRIMARY}
+              strokeWidth="2.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </Svg>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Checkout</Text>
-        <View style={{ width: 80 }} />
+        <Text style={styles.headerTitle}>Konfirmasi Pesanan</Text>
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView
@@ -145,131 +191,95 @@ export default function CheckoutScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Pickup Location */}
-        <View style={styles.section}>
-          <View style={styles.sectionTitleRow}>
-            <Text style={styles.sectionIcon}>📍</Text>
-            <Text style={styles.sectionTitle}>Lokasi Pengambilan</Text>
-          </View>
-          <View style={styles.locationCard}>
-            <Text style={styles.mitraName}>{mitraName || "Nama Mitra"}</Text>
-            <Text style={styles.pickupNote}>
-              Ambil langsung di toko (self-pickup)
-            </Text>
-          </View>
+        {/* Card 1: Alamat Warung */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Alamat Warung</Text>
+          <View style={styles.cardDivider} />
+          <Text style={styles.mitraName}>{mitraName || "Geprek Kumlot"}</Text>
+          <Text style={styles.mitraAddress}>{mitraAddress}</Text>
         </View>
 
-        {/* Order Summary */}
-        <View style={styles.section}>
-          <View style={styles.sectionTitleRow}>
-            <Text style={styles.sectionIcon}>🛒</Text>
-            <Text style={styles.sectionTitle}>Ringkasan Pesanan</Text>
-          </View>
+        {/* Card 2: Waktu Pick-up */}
+        <View style={styles.cardRowContainer}>
+          <Text style={styles.cardTitle}>Waktu Pick-up</Text>
+          <Text style={styles.pickupTimeText}>{pickupTimeDisplay}</Text>
+        </View>
+
+        {/* Card 3: Detail Pesanan */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Detail Pesanan</Text>
+          <View style={styles.cardDivider} />
           {items.map((item) => (
             <View key={item.product.id} style={styles.itemRow}>
-              <View style={styles.itemLeft}>
-                <Text style={styles.itemName} numberOfLines={2}>
+              {item.product.photoUrl ? (
+                <Image
+                  source={{ uri: item.product.photoUrl }}
+                  style={styles.itemImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={[styles.itemImage, styles.imagePlaceholder]}>
+                  <Text style={styles.placeholderIcon}>🍱</Text>
+                </View>
+              )}
+
+              <View style={styles.itemInfo}>
+                <Text style={styles.itemName} numberOfLines={1}>
                   {item.product.name}
                 </Text>
                 <Text style={styles.itemPrice}>
-                  Rp{" "}
-                  {Number(item.product.discountPrice).toLocaleString("id-ID")} /
-                  pcs
+                  Rp {Number(item.product.discountPrice).toLocaleString("id-ID")}
                 </Text>
               </View>
-              <View style={styles.itemRight}>
-                <Text style={styles.itemQtyLabel}>x{item.qty}</Text>
-                <Text style={styles.itemSubtotal}>
-                  Rp{" "}
-                  {(
-                    Number(item.product.discountPrice) * item.qty
-                  ).toLocaleString("id-ID")}
-                </Text>
+
+              {/* Stepper Kontrol Kuantitas */}
+              <View style={styles.stepperContainer}>
+                <TouchableOpacity
+                  style={styles.stepperBtn}
+                  onPress={() => updateQty(item.product.id, item.qty - 1)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.stepperBtnText}>-</Text>
+                </TouchableOpacity>
+                <Text style={styles.stepperQty}>{item.qty}</Text>
+                <TouchableOpacity
+                  style={styles.stepperBtn}
+                  onPress={() => updateQty(item.product.id, item.qty + 1)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.stepperBtnText}>+</Text>
+                </TouchableOpacity>
               </View>
             </View>
           ))}
+
           <TouchableOpacity
             style={styles.addMoreBtn}
             onPress={() => router.back()}
+            activeOpacity={0.7}
           >
             <Text style={styles.addMoreText}>+ Tambah dari toko ini</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Catatan Pesanan */}
-        <View style={styles.section}>
-          <View style={styles.sectionTitleRow}>
-            <Text style={styles.sectionIcon}>📝</Text>
-            <Text style={styles.sectionTitle}>Catatan Pesanan</Text>
-            <Text style={styles.optionalTag}>(opsional)</Text>
-          </View>
+        {/* Card 4: Catatan Pesanan */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Catatan Pesanan</Text>
+          <View style={styles.cardDivider} />
           <TextInput
             style={styles.noteInput}
-            placeholder="Contoh: tanpa bawang, pisahkan saus..."
-            placeholderTextColor={Colors.neutral[400]}
+            placeholder="Contoh : tidak pedas, tambah alat makan"
+            placeholderTextColor="#8E8E93"
             value={note}
             onChangeText={setNote}
             multiline
-            numberOfLines={3}
-            maxLength={200}
+            numberOfLines={2}
           />
-          <Text style={styles.charCount}>{note.length}/200</Text>
         </View>
 
-        {/* Metode Pembayaran */}
-        <View style={styles.section}>
-          <View style={styles.sectionTitleRow}>
-            <Text style={styles.sectionIcon}>💳</Text>
-            <Text style={styles.sectionTitle}>Metode Pembayaran</Text>
-          </View>
-          {PAYMENT_METHODS.map((method) => (
-            <TouchableOpacity
-              key={method.id}
-              style={[
-                styles.paymentOption,
-                paymentMethod === method.id && styles.paymentOptionSelected,
-              ]}
-              onPress={() => setPaymentMethod(method.id)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.paymentLeft}>
-                <Text style={styles.paymentIcon}>{method.icon}</Text>
-                <View>
-                  <Text
-                    style={[
-                      styles.paymentLabel,
-                      paymentMethod === method.id &&
-                        styles.paymentLabelSelected,
-                    ]}
-                  >
-                    {method.label}
-                  </Text>
-                  <Text style={styles.paymentDesc}>{method.desc}</Text>
-                </View>
-              </View>
-              <View
-                style={[
-                  styles.radio,
-                  paymentMethod === method.id && styles.radioSelected,
-                ]}
-              >
-                {paymentMethod === method.id && (
-                  <View style={styles.radioDot} />
-                )}
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </ScrollView>
-
-      {/* Fixed Bottom Bar */}
-      <View
-        style={[
-          styles.bottomBar,
-          { paddingBottom: Math.max(insets.bottom, Spacing[4]) },
-        ]}
-      >
-        <View style={styles.summaryRows}>
+        {/* Card 5: Total & Metode Pembayaran */}
+        <View style={styles.card}>
+          {/* Subtotal & Fee Rows */}
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Subtotal</Text>
             <Text style={styles.summaryValue}>
@@ -282,14 +292,36 @@ export default function CheckoutScreen() {
               Rp {PLATFORM_FEE.toLocaleString("id-ID")}
             </Text>
           </View>
-          <View style={[styles.summaryRow, styles.totalRow]}>
-            <Text style={styles.totalLabel}>Total Pembayaran</Text>
-            <Text style={styles.totalValue}>
+
+          <View style={styles.cardDivider} />
+
+          {/* Total Row */}
+          <View style={styles.paymentRow}>
+            <Text style={styles.cardTitle}>Total Pembayaran</Text>
+            <Text style={styles.totalPriceText}>
               Rp {total.toLocaleString("id-ID")}
             </Text>
           </View>
-        </View>
 
+          <View style={styles.cardDivider} />
+
+          {/* Payment Method Row */}
+          <View style={styles.paymentRow}>
+            <Text style={styles.cardTitle}>Metode Pembayaran</Text>
+            <Text style={styles.paymentMethodValue}>
+              {PAYMENT_METHODS.find((m) => m.id === paymentMethod)?.label || "QRIS"}
+            </Text>
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Bottom Sticky Bar */}
+      <View
+        style={[
+          styles.bottomBar,
+          { paddingBottom: Math.max(insets.bottom, 16) },
+        ]}
+      >
         <TouchableOpacity
           style={[styles.orderBtn, isLoading && styles.orderBtnDisabled]}
           onPress={handleOrder}
@@ -299,9 +331,7 @@ export default function CheckoutScreen() {
           {isLoading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.orderBtnText}>
-              Buat Pesanan · Rp {total.toLocaleString("id-ID")}
-            </Text>
+            <Text style={styles.orderBtnText}>Pesan Sekarang</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -310,251 +340,257 @@ export default function CheckoutScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.neutral[50] },
-
+  container: {
+    flex: 1,
+    backgroundColor: WHITE,
+  },
   header: {
+    height: 52,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[3],
-    backgroundColor: Colors.neutral[0],
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral[200],
-  },
-  backBtn: { padding: Spacing[1] },
-  backText: {
-    fontSize: FontSize.md,
-    color: Colors.primary[600],
-    fontWeight: FontWeight.medium,
-  },
-  headerTitle: {
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.bold,
-    color: Colors.neutral[900],
-  },
-
-  scrollArea: { flex: 1 },
-  scroll: {
-    paddingHorizontal: Spacing[4],
-    paddingTop: Spacing[4],
-    paddingBottom: Spacing[6],
-  },
-
-  section: {
-    backgroundColor: Colors.neutral[0],
-    borderRadius: BorderRadius.xl,
-    padding: Spacing[4],
-    marginBottom: Spacing[4],
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  sectionTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing[3],
-    gap: Spacing[2],
-  },
-  sectionIcon: { fontSize: 18 },
-  sectionTitle: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
-    color: Colors.neutral[900],
-  },
-  optionalTag: {
-    fontSize: FontSize.xs,
-    color: Colors.neutral[400],
-    marginLeft: Spacing[1],
-  },
-
-  locationCard: {
-    backgroundColor: Colors.primary[50],
-    borderRadius: BorderRadius.lg,
-    padding: Spacing[3],
-    borderLeftWidth: 3,
-    borderLeftColor: Colors.primary[400],
-  },
-  mitraName: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
-    color: Colors.primary[900],
-  },
-  pickupNote: {
-    fontSize: FontSize.sm,
-    color: Colors.primary[600],
+    paddingHorizontal: 20,
     marginTop: 4,
   },
-
+  backBtn: {
+    width: 28,
+    height: 28,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: TEXT_BLACK,
+    marginLeft: 12,
+    letterSpacing: -0.4,
+  },
+  headerSpacer: {
+    width: 28,
+  },
+  scrollArea: {
+    flex: 1,
+  },
+  scroll: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 100, // Space for bottom button
+  },
+  card: {
+    backgroundColor: WHITE,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: DIVIDER,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 14,
+    marginBottom: 16,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  cardRowContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: WHITE,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: DIVIDER,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 16,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: TEXT_DARK,
+    letterSpacing: -0.4,
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: DIVIDER,
+    marginVertical: 10,
+  },
+  mitraName: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: TEXT_DARK,
+    marginBottom: 3,
+    letterSpacing: -0.3,
+  },
+  mitraAddress: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: TEXT_DARK,
+    lineHeight: 18,
+    letterSpacing: -0.3,
+  },
+  pickupTimeText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: TEXT_BLACK,
+    letterSpacing: -0.3,
+  },
   itemRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    paddingVertical: Spacing[3],
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral[100],
-  },
-  itemLeft: { flex: 1, marginRight: Spacing[3] },
-  itemName: {
-    fontSize: FontSize.md,
-    color: Colors.neutral[800],
-    fontWeight: FontWeight.medium,
-  },
-  itemPrice: {
-    fontSize: FontSize.sm,
-    color: Colors.neutral[500],
-    marginTop: 2,
-  },
-  itemRight: { alignItems: "flex-end" },
-  itemQtyLabel: {
-    fontSize: FontSize.sm,
-    color: Colors.neutral[500],
-    fontWeight: FontWeight.medium,
-  },
-  itemSubtotal: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
-    color: Colors.neutral[900],
-    marginTop: 2,
-  },
-
-  addMoreBtn: {
-    marginTop: Spacing[3],
-    paddingVertical: Spacing[2],
     alignItems: "center",
+    gap: 12,
+    paddingVertical: 6,
   },
-  addMoreText: {
-    fontSize: FontSize.sm,
-    color: Colors.primary[600],
-    fontWeight: FontWeight.medium,
+  itemImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 5,
+    backgroundColor: "#F3F3F3",
   },
-
-  noteInput: {
-    borderWidth: 1,
-    borderColor: Colors.neutral[200],
-    borderRadius: BorderRadius.lg,
-    padding: Spacing[3],
-    fontSize: FontSize.md,
-    color: Colors.neutral[800],
-    backgroundColor: Colors.neutral[50],
-    textAlignVertical: "top",
-    minHeight: 80,
-  },
-  charCount: {
-    fontSize: FontSize.xs,
-    color: Colors.neutral[400],
-    textAlign: "right",
-    marginTop: Spacing[1],
-  },
-
-  paymentOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: Spacing[4],
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1.5,
-    borderColor: Colors.neutral[200],
-    marginBottom: Spacing[3],
-    backgroundColor: Colors.neutral[0],
-  },
-  paymentOptionSelected: {
-    borderColor: Colors.primary[500],
-    backgroundColor: Colors.primary[50],
-  },
-  paymentLeft: { flexDirection: "row", alignItems: "center", gap: Spacing[3] },
-  paymentIcon: { fontSize: 24 },
-  paymentLabel: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
-    color: Colors.neutral[800],
-  },
-  paymentLabelSelected: { color: Colors.primary[700] },
-  paymentDesc: {
-    fontSize: FontSize.xs,
-    color: Colors.neutral[500],
-    marginTop: 2,
-  },
-  radio: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: Colors.neutral[300],
+  imagePlaceholder: {
     alignItems: "center",
     justifyContent: "center",
   },
-  radioSelected: { borderColor: Colors.primary[500] },
-  radioDot: {
-    width: 10,
-    height: 10,
+  placeholderIcon: {
+    fontSize: 22,
+  },
+  itemInfo: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  itemName: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: TEXT_BLACK,
+    marginBottom: 4,
+    letterSpacing: -0.3,
+  },
+  itemPrice: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: PRIMARY,
+    letterSpacing: -0.4,
+  },
+  stepperContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  stepperBtn: {
+    width: 20,
+    height: 20,
+    backgroundColor: PRIMARY,
+    borderRadius: 3,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  stepperBtnText: {
+    color: WHITE,
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 16,
+    textAlign: "center",
+  },
+  stepperQty: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: TEXT_BLACK,
+    minWidth: 16,
+    textAlign: "center",
+  },
+  addMoreBtn: {
+    marginTop: 8,
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  addMoreText: {
+    fontSize: 13,
+    color: PRIMARY,
+    fontWeight: "500",
+  },
+  noteInput: {
+    backgroundColor: INPUT_BG,
     borderRadius: 5,
-    backgroundColor: Colors.primary[500],
+    minHeight: 44,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 12,
+    color: TEXT_DARK,
+    textAlignVertical: "center",
   },
-
-  bottomBar: {
-    backgroundColor: Colors.neutral[0],
-    paddingHorizontal: Spacing[4],
-    paddingTop: Spacing[4],
-    borderTopWidth: 1,
-    borderTopColor: Colors.neutral[200],
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 12,
-  },
-  summaryRows: { marginBottom: Spacing[4] },
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: Spacing[2],
-  },
-  summaryLabel: { fontSize: FontSize.sm, color: Colors.neutral[500] },
-  summaryValue: { fontSize: FontSize.sm, color: Colors.neutral[700] },
-  totalRow: {
-    paddingTop: Spacing[2],
-    borderTopWidth: 1,
-    borderTopColor: Colors.neutral[200],
-    marginTop: Spacing[2],
-  },
-  totalLabel: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
-    color: Colors.neutral[900],
-  },
-  totalValue: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
-    color: Colors.primary[700],
-  },
-
-  orderBtn: {
-    backgroundColor: Colors.primary[600],
-    borderRadius: BorderRadius.xl,
-    paddingVertical: Spacing[4],
     alignItems: "center",
-    shadowColor: Colors.primary[600],
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    marginBottom: 6,
   },
-  orderBtnDisabled: { opacity: 0.7 },
+  summaryLabel: {
+    fontSize: 12,
+    color: TEXT_DARK,
+  },
+  summaryValue: {
+    fontSize: 12,
+    color: TEXT_DARK,
+    fontWeight: "500",
+  },
+  paymentRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  totalPriceText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: PRIMARY,
+    letterSpacing: -0.3,
+  },
+  paymentMethodValue: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: TEXT_BLACK,
+    letterSpacing: -0.3,
+  },
+  bottomBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: WHITE,
+    paddingTop: 12,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: DIVIDER,
+  },
+  orderBtn: {
+    backgroundColor: PRIMARY,
+    height: 52,
+    borderRadius: 6,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  orderBtnDisabled: {
+    opacity: 0.7,
+  },
   orderBtnText: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
-    color: Colors.neutral[0],
+    color: WHITE,
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: -0.4,
   },
-
   emptyWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: Spacing[4],
+    gap: 16,
   },
-  emptyIcon: { fontSize: 64 },
-  emptyText: { fontSize: FontSize.lg, color: Colors.neutral[500] },
+  emptyIcon: {
+    fontSize: 64,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: GRAY_400,
+  },
 });

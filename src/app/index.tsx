@@ -6,50 +6,65 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
 export default function MarketplaceLandingScreen() {
   const router = useRouter();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const user = useAuthStore((state) => state.user);
+  const mitra = useAuthStore((state) => state.mitra);
+  const isMitra = user?.role === "mitra";
   const activeLocation = useLocationStore((state) => state.activeLocation);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const fetchLiveProducts = useCallback(async () => {
+  const fetchProducts = useCallback(async () => {
+    setLoadError(null);
     try {
-      const data = await productService.getLiveProducts({
-        lat: activeLocation?.lat,
-        lng: activeLocation?.lng,
-        limit: 15,
-      });
+      const data = isMitra
+        ? await productService.getMitraProducts()
+        : await productService.getLiveProducts({
+            lat: activeLocation?.lat,
+            lng: activeLocation?.lng,
+            limit: 15,
+          });
       setProducts(data);
     } catch (err) {
-      console.warn("[MarketplaceLanding] Gagal mengambil menu live:", err);
+      setLoadError(
+        isMitra
+          ? "Gagal memuat stok produk. Coba tarik layar untuk memuat ulang."
+          : "Gagal memuat menu live.",
+      );
+      console.warn("[MarketplaceLanding] Gagal mengambil produk:", err);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [activeLocation]);
+  }, [activeLocation, isMitra]);
 
   useEffect(() => {
-    fetchLiveProducts();
-  }, [fetchLiveProducts]);
+    fetchProducts();
+  }, [fetchProducts]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    fetchLiveProducts();
+    fetchProducts();
   };
 
   const handleContinue = () => {
@@ -169,6 +184,19 @@ export default function MarketplaceLandingScreen() {
       </View>
     );
   };
+
+  if (isMitra) {
+    return (
+      <MitraStockDashboard
+        businessName={mitra?.businessName || "Warung Anda"}
+        products={products}
+        isLoading={isLoading}
+        isRefreshing={isRefreshing}
+        loadError={loadError}
+        onRefresh={handleRefresh}
+      />
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -601,7 +629,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#ffffff",
-    borderRadius: 20,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: "#e1d9cf",
     marginBottom: 18,
@@ -651,5 +679,627 @@ const styles = StyleSheet.create({
     color: "#2d2d2d",
     fontSize: 14,
     lineHeight: 21,
+  },
+});
+
+export interface MitraStockDashboardProps {
+  businessName: string;
+  products: Product[];
+  isLoading: boolean;
+  isRefreshing: boolean;
+  loadError: string | null;
+  onRefresh: () => void;
+  showBottomNavigation?: boolean;
+}
+
+export function MitraStockDashboard({
+  businessName,
+  products,
+  isLoading,
+  isRefreshing,
+  loadError,
+  onRefresh,
+  showBottomNavigation = true,
+}: MitraStockDashboardProps) {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const [searchText, setSearchText] = useState("");
+
+  const activeProducts = products.filter(
+    (product) => product.status === "active" && product.stock > 0,
+  ).length;
+  const soldOutProducts = products.filter(
+    (product) => product.status === "sold_out" || product.stock <= 0,
+  ).length;
+  const filteredProducts = products.filter((product) =>
+    product.name.toLowerCase().includes(searchText.trim().toLowerCase()),
+  );
+
+  const formatPrice = (price: number) =>
+    `Rp ${Number(price).toLocaleString("id-ID")}`;
+
+  const handleVipPress = () => {
+    Alert.alert(
+      "Upgrade VIP",
+      "Fitur upgrade VIP belum tersedia.",
+    );
+  };
+
+  const handleWithdrawPress = () => {
+    Alert.alert("Tarik Saldo", "Fitur tarik saldo belum tersedia.");
+  };
+
+  const handleProfilePress = () => {
+    Alert.alert("Profil Mitra", businessName);
+  };
+
+  return (
+    <SafeAreaView style={sellerStyles.safeArea} edges={["top"]}>
+      <StatusBar style="dark" />
+      <ScrollView
+        contentContainerStyle={sellerStyles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor="#00615f"
+            colors={["#00615f"]}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={sellerStyles.header}>
+          <Image
+            source={require("../../assets/images/figma/seller-meal-award.png")}
+            style={sellerStyles.brandIcon}
+            resizeMode="contain"
+          />
+          <Text style={sellerStyles.businessName} numberOfLines={1}>
+            {businessName}
+          </Text>
+        </View>
+
+        <View style={sellerStyles.summaryCard}>
+          <Text style={sellerStyles.summaryTitle}>Ringkasan Stok</Text>
+          <View style={sellerStyles.limitRow}>
+            <View style={sellerStyles.limitBox}>
+              <Text style={sellerStyles.limitTitle}>Limit Stok Produk</Text>
+              <Text style={sellerStyles.limitValue}>{products.length} / 10</Text>
+            </View>
+            <TouchableOpacity
+              style={sellerStyles.vipButton}
+              onPress={handleVipPress}
+              accessibilityRole="button"
+            >
+              <Text style={sellerStyles.vipButtonText}>Upgrade VIP</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={sellerStyles.metricsRow}>
+            {[
+              { label: "Total Produk", value: products.length },
+              { label: "Stok Aktif", value: activeProducts },
+              { label: "Stok Habis", value: soldOutProducts },
+            ].map((metric, index) => (
+              <View
+                key={metric.label}
+                style={[
+                  sellerStyles.metricCell,
+                  index < 2 && sellerStyles.metricDivider,
+                ]}
+              >
+                <Text style={sellerStyles.metricTitle}>{metric.label}</Text>
+                <Text style={sellerStyles.metricValue}>
+                  {metric.value}
+                  <Text style={sellerStyles.metricUnit}> Produk</Text>
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={sellerStyles.balanceCard}>
+          <View style={sellerStyles.balanceInfo}>
+            <Text style={sellerStyles.balanceTitle}>Saldo Anda</Text>
+            <Text style={sellerStyles.balanceValue}>Belum tersedia</Text>
+          </View>
+          <TouchableOpacity
+            style={sellerStyles.withdrawButton}
+            onPress={handleWithdrawPress}
+            accessibilityRole="button"
+          >
+            <Text style={sellerStyles.withdrawButtonText}>Tarik Saldo</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={sellerStyles.actionsRow}>
+          <View style={sellerStyles.searchBox}>
+            <TextInput
+              value={searchText}
+              onChangeText={setSearchText}
+              placeholder="Cari produk..."
+              placeholderTextColor="#4a4a4a"
+              style={sellerStyles.searchInput}
+              returnKeyType="search"
+              accessibilityLabel="Cari produk"
+            />
+            <Image
+              source={require("../../assets/images/figma/seller-search.png")}
+              style={sellerStyles.searchIcon}
+              resizeMode="contain"
+            />
+          </View>
+          <TouchableOpacity
+            style={sellerStyles.addButton}
+            onPress={() => router.push("/(mitra)/products/create")}
+            accessibilityRole="button"
+          >
+            <Text style={sellerStyles.addButtonText}>+ Tambah Produk</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={sellerStyles.productList}>
+          {loadError ? (
+            <Text style={sellerStyles.errorText}>{loadError}</Text>
+          ) : isLoading ? (
+            <ActivityIndicator color="#00615f" />
+          ) : filteredProducts.length === 0 ? (
+            <Text style={sellerStyles.emptyText}>
+              {searchText.trim()
+                ? "Produk tidak ditemukan."
+                : "Belum ada produk. Tambahkan produk pertamamu."}
+            </Text>
+          ) : (
+            filteredProducts.map((product) => (
+              <View key={product.id} style={sellerStyles.productRow}>
+                <Image
+                  source={
+                    product.photoUrl
+                      ? { uri: product.photoUrl }
+                      : require("../../assets/images/figma/seller-food.png")
+                  }
+                  style={sellerStyles.productImage}
+                  resizeMode="cover"
+                />
+                <View style={sellerStyles.productDetails}>
+                  <Text style={sellerStyles.productName} numberOfLines={1}>
+                    {product.name}
+                  </Text>
+                  <View style={sellerStyles.productPriceRow}>
+                    <Text style={sellerStyles.productPrice}>
+                      {formatPrice(product.discountPrice)}
+                    </Text>
+                    {product.originalPrice > product.discountPrice && (
+                      <Text style={sellerStyles.originalPrice}>
+                        {formatPrice(product.originalPrice)}
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={sellerStyles.stockLabel}>Stok</Text>
+                  <Text style={sellerStyles.stockValue}>
+                    {product.stock} tersedia
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={sellerStyles.editButton}
+                  onPress={() =>
+                    router.push(`/(mitra)/products/${product.id}/edit`)
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit ${product.name}`}
+                >
+                  <Text style={sellerStyles.editButtonText}>Edit</Text>
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
+        </View>
+      </ScrollView>
+
+      {showBottomNavigation && (
+        <View
+          style={[
+            sellerStyles.tabBar,
+            { paddingBottom: Math.max(insets.bottom, 8) },
+          ]}
+        >
+          <View style={sellerStyles.tabBarContent}>
+            <TouchableOpacity
+              style={sellerStyles.tabButton}
+              accessibilityRole="button"
+              accessibilityState={{ selected: true }}
+            >
+              <View style={sellerStyles.activeTab}>
+                <Image
+                  source={require("../../assets/images/figma/seller-home.png")}
+                  style={[sellerStyles.tabIcon, sellerStyles.activeTabIcon]}
+                  resizeMode="contain"
+                />
+                <Text style={sellerStyles.activeTabText}>Beranda</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={sellerStyles.tabButton}
+              onPress={() => router.push("/(mitra)/orders")}
+              accessibilityRole="button"
+            >
+              <Image
+                source={require("../../assets/images/figma/seller-orders.png")}
+                style={sellerStyles.ordersIcon}
+                resizeMode="contain"
+              />
+              <Text style={sellerStyles.tabText}>Pesanan</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={sellerStyles.tabButton}
+              onPress={handleProfilePress}
+              accessibilityRole="button"
+            >
+              <Image
+                source={require("../../assets/images/figma/seller-profile.png")}
+                style={sellerStyles.profileIcon}
+                resizeMode="contain"
+              />
+              <Text style={sellerStyles.tabText}>Profil</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+    </SafeAreaView>
+  );
+}
+
+const sellerStyles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+  },
+  content: {
+    paddingHorizontal: 30,
+    paddingTop: 12,
+    paddingBottom: 24,
+  },
+  header: {
+    height: 26,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 20,
+    gap: 9,
+  },
+  brandIcon: {
+    width: 26,
+    height: 26,
+  },
+  businessName: {
+    flex: 1,
+    color: "#111111",
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  summaryCard: {
+    height: 166,
+    paddingLeft: 17,
+    paddingRight: 14,
+    paddingTop: 10,
+    paddingBottom: 21,
+    marginBottom: 18,
+    backgroundColor: "#ffffff",
+    borderRadius: 10,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  summaryTitle: {
+    marginLeft: 2,
+    color: "#111111",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  limitRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 17,
+    marginTop: 14,
+  },
+  limitBox: {
+    flex: 1,
+    height: 37,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 10,
+    backgroundColor: "#ffffff",
+    borderRadius: 5,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.16,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  limitTitle: {
+    color: "#111111",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  limitValue: {
+    color: "#00615f",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  vipButton: {
+    width: 98,
+    height: 37,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#00615f",
+    borderRadius: 5,
+  },
+  vipButtonText: {
+    color: "#ffffff",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  metricsRow: {
+    height: 48,
+    flexDirection: "row",
+    marginLeft: -2,
+    marginTop: 20,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+    borderRadius: 5,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.13,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  metricCell: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  metricDivider: {
+    borderRightWidth: 1,
+    borderRightColor: "#dddddd",
+  },
+  metricTitle: {
+    marginBottom: 2,
+    color: "#111111",
+    fontSize: 9,
+    fontWeight: "700",
+  },
+  metricValue: {
+    color: "#00615f",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  metricUnit: {
+    color: "#00615f",
+    fontSize: 10,
+    fontWeight: "400",
+  },
+  balanceCard: {
+    height: 78,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 19,
+    marginBottom: 25,
+    backgroundColor: "#ffffff",
+    borderRadius: 10,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  balanceInfo: {
+    alignSelf: "stretch",
+    paddingTop: 12,
+  },
+  balanceTitle: {
+    color: "#111111",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  balanceValue: {
+    marginTop: 12,
+    color: "#00615f",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  withdrawButton: {
+    width: 98,
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#00615f",
+    borderRadius: 5,
+  },
+  withdrawButtonText: {
+    color: "#ffffff",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  actionsRow: {
+    height: 29,
+    flexDirection: "row",
+    gap: 10,
+  },
+  searchBox: {
+    width: "43%",
+    height: 29,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 7,
+    backgroundColor: "#eeeeee",
+    borderRadius: 5,
+  },
+  searchInput: {
+    flex: 1,
+    padding: 0,
+    color: "#111111",
+    fontSize: 10,
+  },
+  searchIcon: {
+    width: 14,
+    height: 14,
+    tintColor: "#777777",
+  },
+  addButton: {
+    flex: 1,
+    height: 29,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#00615f",
+    borderRadius: 5,
+  },
+  addButtonText: {
+    color: "#ffffff",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  productList: {
+    marginTop: 22,
+  },
+  productRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingBottom: 20,
+    marginBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e5e5",
+  },
+  productImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 5,
+    backgroundColor: "#f0f0f0",
+  },
+  productDetails: {
+    flex: 1,
+    alignSelf: "stretch",
+    justifyContent: "center",
+    marginLeft: 8,
+    paddingTop: 7,
+  },
+  productName: {
+    color: "#111111",
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  productPriceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  productPrice: {
+    color: "#00615f",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  originalPrice: {
+    color: "#b9b9b9",
+    fontSize: 11,
+    textDecorationLine: "line-through",
+  },
+  stockLabel: {
+    marginTop: 3,
+    color: "#111111",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  stockValue: {
+    color: "#111111",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  editButton: {
+    width: 62,
+    height: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    marginTop: 12,
+    marginLeft: 6,
+    backgroundColor: "#d5f6f3",
+    borderRadius: 13,
+  },
+  editButtonText: {
+    color: "#356d64",
+    fontSize: 11,
+  },
+  errorText: {
+    paddingVertical: 18,
+    color: "#b42318",
+    fontSize: 12,
+    textAlign: "center",
+  },
+  emptyText: {
+    paddingVertical: 24,
+    color: "#777777",
+    fontSize: 12,
+    textAlign: "center",
+  },
+  tabBar: {
+    paddingTop: 9,
+    borderTopWidth: 1,
+    borderTopColor: "#e8e8e8",
+    backgroundColor: "#ffffff",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 8,
+  },
+  tabBarContent: {
+    width: "85%",
+    maxWidth: 342,
+    flexDirection: "row",
+    alignSelf: "center",
+  },
+  tabButton: {
+    flex: 1,
+    height: 47,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activeTab: {
+    width: 68,
+    height: 47,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#d5f6f3",
+    borderRadius: 10,
+  },
+  ordersIcon: {
+    width: 23,
+    height: 26,
+    tintColor: "#111111",
+  },
+  tabIcon: {
+    width: 23,
+    height: 23,
+    tintColor: "#111111",
+  },
+  activeTabIcon: {
+    tintColor: "#00615f",
+  },
+  profileIcon: {
+    width: 23,
+    height: 23,
+    tintColor: "#111111",
+  },
+  activeTabText: {
+    color: "#00615f",
+    fontSize: 11,
+  },
+  tabText: {
+    color: "#111111",
+    fontSize: 11,
   },
 });
