@@ -19,10 +19,16 @@ import { PlatformSetting } from './database/entities/platform-setting.entity';
 import { Product } from './database/entities/product.entity';
 import { Review } from './database/entities/review.entity';
 import { User } from './database/entities/user.entity';
+import { Conversation } from './database/entities/conversation.entity';
+import { Message } from './database/entities/message.entity';
+import { MessageAttachment } from './database/entities/message-attachment.entity';
+import { NotificationOutbox } from './database/entities/notification-outbox.entity';
+import { UserDevice } from './database/entities/user-device.entity';
 import { MitraModule } from './mitra/mitra.module';
 import { OrderModule } from './order/order.module';
 import { ProductModule } from './product/product.module';
 import { AddressModule } from './address/address.module';
+import { ChatModule } from './chat/chat.module';
 import { SavedAddress } from './database/entities/saved-address.entity';
 
 @Module({
@@ -65,6 +71,11 @@ import { SavedAddress } from './database/entities/saved-address.entity';
           Review,
           PlatformSetting,
           SavedAddress,
+          Conversation,
+          Message,
+          MessageAttachment,
+          NotificationOutbox,
+          UserDevice,
         ],
         synchronize: false,
         logging: config.get('NODE_ENV') === 'development',
@@ -76,6 +87,7 @@ import { SavedAddress } from './database/entities/saved-address.entity';
     OrderModule,
     AdminModule,
     AddressModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [
