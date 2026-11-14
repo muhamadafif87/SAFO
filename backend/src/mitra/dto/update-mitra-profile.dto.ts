@@ -20,4 +20,12 @@ export class UpdateMitraProfileDto {
   @IsNumber()
   @IsOptional()
   longitude?: number;
+
+  @IsString()
+  @IsOptional()
+  photoUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  phone?: string;
 }

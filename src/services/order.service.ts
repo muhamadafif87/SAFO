@@ -58,19 +58,28 @@ export const orderService = {
   },
 
   /**
-   * Daftar pesanan masuk ke mitra.
+   * Daftar pesanan masuk ke mitra (termasuk data customer untuk
+   * tombol "Hubungi Pelanggan").
    */
   getMitraOrders: async (): Promise<Order[]> => {
     const res = await api.get('/orders/mitra');
-    return res.data;
+    return (res.data as any[]).map(normalizeOrder);
   },
 
   /**
-   * Update status pesanan (mitra: paid→ready→completed / admin: cancel, refund).
+   * Detail pesanan versi mitra (GET /orders/:id hanya untuk customer).
+   */
+  getMitraById: async (id: string): Promise<Order> => {
+    const res = await api.get(`/orders/mitra/${id}`);
+    return normalizeOrder(res.data);
+  },
+
+  /**
+   * Update status pesanan (mitra: paid→accepted→completed / cancel).
    */
   updateStatus: async (id: string, status: OrderStatus): Promise<Order> => {
     const res = await api.patch(`/orders/${id}/status`, { status });
-    return res.data;
+    return normalizeOrder(res.data);
   },
 
   /**

@@ -9,13 +9,15 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  Image,
+  Linking,
+  RefreshControl,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Asset } from 'expo-asset';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
-import { SvgUri } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import { orderService } from '@/services/order.service';
+import { paymentService } from '@/services/payment.service';
 import type { Order, OrderStatus } from '@/types';
 import { Colors, FontWeight } from '@/constants/typography';
 
@@ -23,20 +25,22 @@ const PRIMARY = '#00615F';
 const DIVIDER = '#EAEAEA';
 const STATUS_GOLD = '#E2B640';
 
-const STATUS_STEPS = [
-  {
-    label: 'Pesanan Disiapkan',
-    icon: require('@/assets/images/figma/order-step-prepare.svg'),
-  },
-  {
-    label: 'Pesanan Siap Diambil',
-    icon: require('@/assets/images/figma/order-step-ready.svg'),
-  },
-  {
-    label: 'Selesai',
-    icon: require('@/assets/images/figma/order-step-complete.svg'),
-  },
+const STATUS_STEPS: { key: OrderStatus; label: string }[] = [
+  { key: 'paid', label: 'Pesanan Disiapkan' },
+  { key: 'accepted', label: 'Pesanan Diterima' },
+  { key: 'completed', label: 'Selesai' },
 ];
+
+const STATUS_ORDER_INDEX: Partial<Record<OrderStatus, number>> = {
+  pending_payment: -1,
+  paid: 0,
+  accepted: 1,
+  ready: 1,
+  ready_for_pickup: 1,
+  completed: 2,
+  cancelled: -1,
+  expired: -1,
+};
 
 function getStatusIndex(status: OrderStatus): number {
   switch (status) {
@@ -111,14 +115,51 @@ function FigmaStepIcon({ source }: { source: number }) {
   );
 }
 
-function MetaRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.metaRow}>
-      <Text style={styles.metaLabel}>{label}</Text>
-      <Text numberOfLines={1} style={styles.metaValue}>{value}</Text>
-    </View>
-  );
+const DYNAMIC_STATUS_LABEL: Record<OrderStatus, string> = {
+  pending_payment: 'Menunggu Pembayaran',
+  paid: 'Pesanan Sedang Disiapkan',
+  accepted: 'Pesanan Diterima ✅',
+  ready: 'Pesanan Siap Diambil 🍿',
+  ready_for_pickup: 'Pesanan Siap Diambil 🍿',
+  completed: 'Pesanan Selesai ✅',
+  cancelled: 'Pesanan Dibatalkan',
+  expired: 'Pesanan Kedaluwarsa',
+};
+
+// Status-based text color
+function getStatusColor(status: OrderStatus): string {
+  if (
+    status === 'paid' ||
+    status === 'accepted' ||
+    status === 'ready' ||
+    status === 'ready_for_pickup'
+  )
+    return '#059669';
+  if (status === 'completed') return '#00615F';
+  if (status === 'cancelled' || status === 'expired') return '#DC2626';
+  return '#E2B640'; // pending_payment
 }
+
+function formatOrderDate(dateStr?: string | Date): string {
+  if (!dateStr) return '-';
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return '-';
+
+  const months = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+  ];
+
+  const day = date.getDate();
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+
+  return `${day} ${month} ${year} ${hours} : ${minutes}`;
+}
+
+// ─── Component ─────────────────────────────────────────────────────────────
 
 export default function CustomerOrderDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -126,11 +167,15 @@ export default function CustomerOrderDetail() {
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
+
   const orderRef = useRef<Order | null>(null);
 
-  const fetchOrder = useCallback(async () => {
+  const fetchOrder = useCallback(async (isRefresh = false) => {
     try {
       if (!id) return;
+      if (isRefresh) setRefreshing(true);
       const data = await orderService.getById(id);
       setOrder(data);
       orderRef.current = data;
@@ -139,14 +184,48 @@ export default function CustomerOrderDetail() {
       router.back();
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [id, router]);
 
-  useEffect(() => {
-    const initialFetch = setTimeout(() => {
-      void fetchOrder();
-    }, 0);
+  const handlePayNow = async () => {
+    if (!order) return;
+    setIsPaying(true);
+    try {
+      const idempotencyKey = `qris-${order.id}-${Date.now()}`;
+      const payment = await paymentService.createQrisPayment(order.id, idempotencyKey);
+      router.push({
+        pathname: '/(customer)/payment/qris',
+        params: {
+          paymentId: payment.paymentId,
+          orderId: order.id,
+          amount: String(payment.amount),
+          qrString: payment.qrString || '',
+          expiresAt: payment.expiresAt || '',
+        },
+      });
+    } catch (err: any) {
+      Alert.alert(
+        'Gagal Memuat Pembayaran',
+        err.response?.data?.message || 'Terjadi kesalahan saat memuat QRIS. Silakan coba lagi.',
+      );
+    } finally {
+      setIsPaying(false);
+    }
+  };
 
+  // Re-fetch whenever screen comes into focus (e.g. returning from QRIS screen)
+  useFocusEffect(
+    useCallback(() => {
+      fetchOrder();
+    }, [fetchOrder]),
+  );
+
+  useEffect(() => {
+    // Auto-refresh interval while order is active:
+    // Poll every 4 seconds if pending_payment (reconciles with Midtrans when paid),
+    // or every 8 seconds if order is active (preparing / ready for pickup).
+    const pollInterval = orderRef.current?.status === 'pending_payment' ? 4000 : 8000;
     const interval = setInterval(() => {
       const current = orderRef.current;
       if (
@@ -157,18 +236,33 @@ export default function CustomerOrderDetail() {
       ) {
         fetchOrder();
       }
-    }, 10000);
+    }, pollInterval);
 
-    return () => {
-      clearTimeout(initialFetch);
-      clearInterval(interval);
-    };
-  }, [id, fetchOrder]);
+    return () => clearInterval(interval);
+  }, [id, fetchOrder, order?.status]);
+
+  const handleViewLocation = () => {
+    const { latitude, longitude, address, businessName } = order?.mitra || {};
+    if (latitude && longitude) {
+      const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+      Linking.openURL(url).catch(() => {
+        Alert.alert(
+          businessName || 'Lokasi Warung',
+          address || 'Alamat lokasi tidak dapat dibuka di peta'
+        );
+      });
+    } else {
+      Alert.alert(
+        businessName || 'Lokasi Warung',
+        address || 'Alamat lokasi warung belum tersedia'
+      );
+    }
+  };
 
   if (loading && !order) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={PRIMARY} />
+        <ActivityIndicator size="large" color="#00615F" />
       </View>
     );
   }
@@ -177,455 +271,650 @@ export default function CustomerOrderDetail() {
 
   const items = order.items ?? order.orderItems ?? [];
   const currentStep = getStatusIndex(order.status);
-  const showPickup =
-    order.status === 'paid' ||
-    order.status === 'processing' ||
-    order.status === 'ready' ||
-    order.status === 'ready_for_pickup';
-  const isCompleted = order.status === 'completed';
-  const isCancelled = order.status === 'cancelled' || order.status === 'expired';
-  const extendedOrder = order as Order & {
-    paidAt?: string;
-    payment?: { paidAt?: string };
-    payments?: { paidAt?: string }[];
-  };
-  const paymentTime =
-    extendedOrder.payment?.paidAt ??
-    extendedOrder.payments?.[0]?.paidAt ??
-    extendedOrder.paidAt;
-
-  const openLocation = () => {
-    const locationQuery = [order.mitra?.businessName, order.mitra?.address]
-      .filter(Boolean)
-      .join(' ');
-    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationQuery || 'warung')}`;
-    Linking.openURL(url).catch(() => {
-      Alert.alert('Lokasi tidak tersedia', 'Lokasi warung belum dapat dibuka.');
-    });
-  };
+  const items = order.items ?? order.orderItems ?? [];
+  const pickupChars = order.pickupCode ? order.pickupCode.split('') : ['X', 'X', 'X', 'X'];
+  const paymentTime = order.payments?.[0]?.paidAt || order.updatedAt || order.createdAt;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.safeArea}>
+      {/* ── Header ── */}
       <View style={styles.header}>
         <TouchableOpacity
           accessibilityRole="button"
-          accessibilityLabel="Kembali ke daftar pesanan"
-          onPress={() => router.push('/(customer)/orders')}
-          style={styles.headerButton}
+          accessibilityLabel="Kembali"
+          onPress={() => router.back()}
+          style={styles.backButton}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <Text style={styles.backIcon}>‹</Text>
+          <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+            <Path
+              d="M15 19l-7-7 7-7"
+              stroke="#005B4F"
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </Svg>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Detail Pesanan</Text>
-        {!isCompleted && !isCancelled ? (
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Perbarui status pesanan"
-            onPress={fetchOrder}
-            style={styles.headerButton}
-          >
-            <Text style={styles.refreshIcon}>↻</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.headerButton} />
-        )}
       </View>
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => fetchOrder(true)}
+            colors={['#00615F']}
+          />
+        }
       >
+        {/* ── Main Card (Wireframe Style) ── */}
         <View style={styles.card}>
-          <View style={styles.merchantHeader}>
-            <Text numberOfLines={1} style={styles.merchantName}>
-              {order.mitra?.businessName || 'Warung'}
-            </Text>
-            <View style={styles.statusRow}>
-              <Text style={styles.statusText}>{getStatusLabel(order.status)}</Text>
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel="Hubungi Warung"
-                onPress={() => router.push(`/(customer)/chat/${order.id}`)}
-                style={styles.chatButton}
-              >
-                <Text style={styles.chatButtonText}>Chat</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          {/* Restaurant / Warung Name */}
+          <Text numberOfLines={1} style={styles.restaurantName}>
+            {order.mitra?.businessName || 'Nama Warung'}
+          </Text>
 
-          {!isCancelled ? (
-            <View style={styles.stepper}>
-              {STATUS_STEPS.map((step, index) => {
-                const isDone = currentStep >= index;
-                const isActive = currentStep === index;
-                return (
-                  <View key={step.label} style={styles.stepItem}>
-                    {index > 0 && (
-                      <View
-                        style={[
-                          styles.stepLine,
-                          currentStep >= index && styles.stepLineDone,
-                        ]}
-                      />
-                    )}
-                    <View
-                      style={[
-                        styles.stepCircle,
-                        isDone && styles.stepCircleDone,
-                        isActive && styles.stepCircleActive,
-                      ]}
-                    >
-                      <FigmaStepIcon source={step.icon} />
-                    </View>
-                    <Text style={styles.stepLabel} numberOfLines={2}>
-                      {step.label}
-                    </Text>
+          {/* Dynamic Status Text */}
+          <Text style={[styles.dynamicStatus, { color: getStatusColor(order.status) }]}>
+            {DYNAMIC_STATUS_LABEL[order.status] || 'Pesanan Sedang Disiapkan'}
+          </Text>
+
+          {/* ── Status Stepper (only show for active or completed orders) ── */}
+          {order.status !== 'cancelled' && order.status !== 'expired' ? (
+            <View style={styles.stepperContainer}>
+              <View style={styles.stepperRow}>
+                {STATUS_STEPS.map((step, idx) => {
+                  const isPassed = currentStep >= idx;
+                  const isActive = currentStep === idx;
+                  return (
+                    <React.Fragment key={step.key}>
+                      <View style={styles.stepCircleWrapper}>
+                        <View
+                          style={[
+                            styles.stepCircle,
+                            (isActive || isPassed) && styles.stepCircleActive,
+                          ]}
+                        />
+                      </View>
+                      {idx < STATUS_STEPS.length - 1 && (
+                        <View
+                          style={[
+                            styles.stepLine,
+                            currentStep > idx && styles.stepLineActive,
+                          ]}
+                        />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </View>
+
+              {/* Step Labels */}
+              <View style={styles.stepLabelsRow}>
+                {STATUS_STEPS.map((step) => (
+                  <View key={step.key} style={styles.stepLabelItem}>
+                    <Text style={styles.stepLabelText}>{step.label}</Text>
                   </View>
-                );
-              })}
+                ))}
+              </View>
             </View>
           ) : (
-            <View style={styles.cancelledBanner}>
-              <Text style={styles.cancelledTitle}>
-                {order.status === 'expired' ? 'Pesanan Kedaluwarsa' : 'Pesanan Dibatalkan'}
-              </Text>
-              <Text style={styles.cancelledSub}>
-                {order.status === 'expired'
-                  ? 'Pesanan tidak dibayar dalam batas waktu.'
-                  : 'Pesanan ini telah dibatalkan.'}
-              </Text>
-            </View>
-          )}
-
-          {showPickup && (
-            <>
-              <View style={[styles.divider, styles.topDivider]} />
-              <View style={styles.pickupSection}>
-                <Text style={styles.pickupTitle}>Kode Pengambilan</Text>
-                <Text style={styles.pickupHelper}>
-                  Tunjukkan QR atau kode 4 digit ini ke petugas toko
+            <View style={styles.failedBadgeWrapper}>
+              <View style={styles.failedBadge}>
+                <Text style={styles.failedBadgeText}>
+                  {order.status === 'cancelled' ? '❌ Transaksi Dibatalkan' : '⏰ Batas Waktu Pembayaran Habis'}
                 </Text>
-
-                <View style={styles.qrFrame}>
-                  <QRCode
-                    value={`SAFO-PICKUP-${order.pickupCode}`}
-                    size={228}
-                    color="#000000"
-                    backgroundColor="#FFFFFF"
-                  />
-                </View>
-
-                <View style={styles.pickupCodeRow}>
-                  {[0, 1, 2, 3].map((index) => (
-                    <View key={index} style={styles.pickupCodeChar}>
-                      <Text style={styles.pickupCodeCharText}>
-                        {order.pickupCode[index] ?? ''}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
               </View>
-            </>
-          )}
-
-          {isCompleted && (
-            <View style={styles.completedNotice}>
-              <Text style={styles.completedTitle}>Pesanan Selesai!</Text>
-              <Text style={styles.completedSub}>
-                Terima kasih sudah menyelamatkan makanan hari ini.
-              </Text>
             </View>
           )}
 
-          <View style={[styles.divider, styles.summaryDivider]} />
+          {/* Divider */}
+          <View style={styles.divider} />
 
-          <View style={styles.summary}>
+          {/* ── Kode Pengambilan / Pending Payment / Inactive ── */}
+          {order.status === 'pending_payment' ? (
+            <View style={styles.pendingPaymentSection}>
+              <View style={styles.pendingBadge}>
+                <Text style={styles.pendingBadgeText}>⏳ Menunggu Pembayaran</Text>
+              </View>
+              <Text style={styles.pendingPaymentTitle}>Selesaikan Pembayaran</Text>
+              <Text style={styles.pendingPaymentSubtitle}>
+                Pesanan belum dibayar. Buka QRIS untuk membayar agar pesanan langsung disiapkan oleh mitra.
+              </Text>
+              <TouchableOpacity
+                style={styles.payButton}
+                activeOpacity={0.85}
+                disabled={isPaying}
+                onPress={handlePayNow}
+              >
+                {isPaying ? (
+                  <ActivityIndicator color="#ffffff" size="small" />
+                ) : (
+                  <Text style={styles.payButtonText}>Bayar Sekarang (QRIS)</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          ) : order.status === 'cancelled' || order.status === 'expired' ? (
+            <View style={styles.inactiveSection}>
+              <Text style={styles.inactiveTitle}>
+                {order.status === 'cancelled' ? 'Pesanan Dibatalkan ❌' : 'Pesanan Kedaluwarsa ⏰'}
+              </Text>
+              <Text style={styles.inactiveSubtitle}>
+                {order.status === 'cancelled'
+                  ? 'Pembayaran tidak berhasil. Stok tetap tersedia — kamu bisa membuat pesanan baru.'
+                  : 'Waktu pembayaran telah habis. Stok tetap tersedia — kamu bisa membuat pesanan baru.'}
+              </Text>
+              <TouchableOpacity
+                style={styles.newOrderBtn}
+                activeOpacity={0.85}
+                onPress={() => router.replace('/(customer)')}
+              >
+                <Text style={styles.newOrderBtnText}>🛒 Buat Pesanan Baru</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.pickupSection}>
+              <Text style={styles.pickupTitle}>Kode Pengambilan</Text>
+              <Text style={styles.pickupSubtitle}>
+                Tunjukkan QR atau kode 4 digit ini ke petugas toko
+              </Text>
+
+              {/* QR Code with Teal Border */}
+              <View style={styles.qrWrapper}>
+                <QRCode
+                  value={`SAFO-PICKUP-${order.pickupCode || order.id.slice(0, 4)}`}
+                  size={180}
+                  color="#000000"
+                  backgroundColor="#ffffff"
+                />
+              </View>
+
+              {/* 4 Digit Code Boxes */}
+              <View style={styles.pickupCodeRow}>
+                {pickupChars.map((char, index) => (
+                  <View key={index} style={styles.pickupBox}>
+                    <Text style={styles.pickupBoxText}>{char}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Divider */}
+          <View style={styles.divider} />
+
+          {/* ── Order Item Summary ── */}
+          <View style={styles.itemsSection}>
             {items.map((item) => {
-              const quantity = Number(item.qty ?? 1);
-              const price = Number(item.priceAtPurchase ?? 0);
+              const itemQty = item.qty;
+              const price = Number(item.priceAtPurchase || 0);
+              const photo = item.product?.photoUrl;
               return (
-                <View key={item.id} style={styles.itemRow}>
-                  <Image
-                    source={
-                      item.product?.photoUrl
-                        ? { uri: item.product.photoUrl }
-                        : require('@/assets/images/figma/order-food-thumbnail.png')
-                    }
-                    style={styles.itemImage}
-                    resizeMode="cover"
-                  />
-                  <View style={styles.itemInfo}>
-                    <Text numberOfLines={1} style={styles.itemName}>
-                      {item.product?.name || 'Produk Surplus'}
+                <View key={item.id} style={styles.productRow}>
+                  {photo ? (
+                    <Image source={{ uri: photo }} style={styles.productImage} resizeMode="cover" />
+                  ) : (
+                    <View style={[styles.productImage, styles.imagePlaceholder]}>
+                      <Text style={styles.placeholderIcon}>🍱</Text>
+                    </View>
+                  )}
+                  <View style={styles.productInfo}>
+                    <Text numberOfLines={1} style={styles.productName}>
+                      {item.product?.name || 'Produk Pesanan'}
                     </Text>
-                    <Text numberOfLines={1} style={styles.itemQuantity}>
-                      {quantity} X {formatCurrency(price)}
+                    <Text style={styles.productQtyPrice}>
+                      {itemQty} X Rp {price.toLocaleString('id-ID')}
                     </Text>
                   </View>
-                  <Text style={styles.itemTotal}>
-                    {formatCurrency(quantity * price)}
+                  <Text style={styles.productPriceTotal}>
+                    Rp {(itemQty * price).toLocaleString('id-ID')}
                   </Text>
                 </View>
               );
             })}
-
-            {order.note ? (
-              <View style={styles.noteRow}>
-                <Text style={styles.metaLabel}>Catatan: </Text>
-                <Text style={styles.noteValue}>{order.note}</Text>
-              </View>
-            ) : null}
-
-            <View style={styles.orderMeta}>
-              <MetaRow label="Waktu Pemesanan" value={formatOrderDate(order.createdAt)} />
-              <MetaRow label="Waktu Pembayaran" value={formatOrderDate(paymentTime)} />
-              <MetaRow label="Biaya Layanan" value={formatCurrency(order.platformFee)} />
-              <MetaRow label="Total Pembayaran" value={formatCurrency(order.totalAmount)} />
-              <MetaRow label="No. Pesanan" value={`#${order.id}`} />
-            </View>
-
-            <TouchableOpacity
-              accessibilityRole="button"
-              onPress={openLocation}
-              style={styles.locationButton}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.locationButtonText}>Lihat Lokasi Warung</Text>
-            </TouchableOpacity>
           </View>
+
+          {/* ── Metadata Info Table ── */}
+          <View style={styles.metadataSection}>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Waktu Pemesanan</Text>
+              <Text style={styles.metaValue}>{formatOrderDate(order.createdAt)}</Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Waktu Pembayaran</Text>
+              <Text style={styles.metaValue}>{formatOrderDate(paymentTime)}</Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>No. Pesanan</Text>
+              <Text style={styles.metaValue}>
+                #{order.id.slice(0, 8).toUpperCase()}
+              </Text>
+            </View>
+          </View>
+
+          {/* ── Button Action ── */}
+          <TouchableOpacity
+            style={styles.locationButton}
+            activeOpacity={0.85}
+            onPress={handleViewLocation}
+          >
+            <Text style={styles.locationButtonText}>Lihat Lokasi Warung</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+// ─── Stylesheet ────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+  },
+
+  // Header
   header: {
     height: 40,
     marginTop: 6,
     paddingHorizontal: 23,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    backgroundColor: '#ffffff',
+    gap: 12,
   },
-  headerButton: {
-    width: 30,
-    height: 36,
+  backButton: {
+    padding: 4,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  backIcon: { color: '#1F6223', fontSize: 32, lineHeight: 34, marginTop: -4 },
-  refreshIcon: { color: PRIMARY, fontSize: 25, lineHeight: 30 },
   headerTitle: {
-    flex: 1,
-    marginLeft: 18,
-    color: '#000000',
     fontSize: 20,
-    fontWeight: FontWeight.bold,
+    fontWeight: '700',
+    fontFamily: 'Poppins',
+    color: '#000000',
+    textAlign: 'left',
   },
+
+  // Scroll Content
   scrollContent: {
+    paddingVertical: 16,
+    paddingHorizontal: 16,
     alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingTop: 26,
-    paddingBottom: 16,
   },
+
+  // Main Card
   card: {
-    width: '100%',
-    maxWidth: 342,
-    minHeight: 739,
-    paddingHorizontal: 12,
-    paddingTop: 13,
-    paddingBottom: 12,
+    width: 342,
+    maxWidth: '100%',
+    backgroundColor: '#ffffff',
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E8E8E8',
-    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 20,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 4,
   },
-  merchantHeader: { alignItems: 'flex-start' },
-  merchantName: {
-    color: '#000000',
+
+  // Restaurant & Status
+  restaurantName: {
     fontSize: 16,
-    fontWeight: FontWeight.bold,
+    fontWeight: '600',
+    fontFamily: 'Poppins',
+    color: '#000000',
+    textAlign: 'left',
+    marginBottom: 4,
   },
-  statusRow: {
+  dynamicStatus: {
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: 'Poppins',
+    color: '#E2B640',
+    textAlign: 'left',
+    marginBottom: 16,
+  },
+
+  // Stepper
+  stepperContainer: {
     width: '100%',
+    paddingHorizontal: 4,
+    marginBottom: 6,
+  },
+  stepperRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 2,
-  },
-  statusText: {
-    flex: 1,
-    color: STATUS_GOLD,
-    fontSize: 14,
-    fontWeight: FontWeight.semiBold,
-  },
-  chatButton: { paddingLeft: 8, paddingVertical: 2 },
-  chatButtonText: { color: PRIMARY, fontSize: 10, fontWeight: FontWeight.semiBold },
-  stepper: {
-    width: 250,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    marginTop: 10,
-  },
-  stepItem: { flex: 1, alignItems: 'center' },
-  stepLine: {
-    position: 'absolute',
-    zIndex: 0,
-    left: '-50%',
-    top: 19,
     width: '100%',
-    height: 3,
-    backgroundColor: '#D9D4D2',
   },
-  stepLineDone: { backgroundColor: PRIMARY },
-  stepCircle: {
-    zIndex: 1,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  stepCircleWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
+    width: 44,
+  },
+  stepCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#D9D9D9',
   },
-  stepCircleDone: { backgroundColor: '#D9D9D9' },
   stepCircleActive: {
-    borderWidth: 2,
-    borderColor: PRIMARY,
+    borderWidth: 2.5,
+    borderColor: '#00D078',
+    shadowColor: '#00D078',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.45,
+    shadowRadius: 5,
+    elevation: 5,
   },
-  stepLabel: {
-    width: 100,
-    marginTop: 6,
-    color: '#000000',
-    fontSize: 9,
-    lineHeight: 12,
-    textAlign: 'center',
+  stepLine: {
+    flex: 1,
+    height: 2,
+    backgroundColor: '#D9D9D9',
+    marginHorizontal: 4,
   },
-  cancelledBanner: {
+  stepLineActive: {
+    backgroundColor: '#00D078',
+  },
+  stepLabelsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    width: '100%',
+  },
+  stepLabelItem: {
+    width: 80,
     alignItems: 'center',
-    paddingVertical: 16,
   },
-  cancelledTitle: {
-    color: Colors.error,
-    fontSize: 16,
-    fontWeight: FontWeight.bold,
+  stepLabelText: {
+    fontSize: 10,
+    fontFamily: 'Poppins',
+    fontWeight: '400',
+    color: '#000000',
+    textAlign: 'center',
+    lineHeight: 13,
+  },
+
+  // Divider
+  divider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 18,
+    width: '100%',
+  },
+
+  // Pickup Section
+  pickupSection: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  pickupTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    fontFamily: 'Poppins',
+    color: '#000000',
+    textAlign: 'center',
     marginBottom: 4,
   },
-  cancelledSub: { color: Colors.neutral[600], fontSize: 12, textAlign: 'center' },
-  divider: { height: 1, backgroundColor: DIVIDER },
-  topDivider: { marginTop: 16 },
-  pickupSection: { alignItems: 'center', paddingTop: 8 },
-  pickupTitle: {
+  pickupSubtitle: {
+    fontSize: 13,
+    fontWeight: '400',
+    fontFamily: 'Poppins',
     color: '#000000',
-    fontSize: 20,
-    lineHeight: 25,
-    fontWeight: FontWeight.bold,
     textAlign: 'center',
+    maxWidth: 240,
+    lineHeight: 18,
+    marginBottom: 16,
   },
-  pickupHelper: {
-    width: 230,
-    marginTop: 4,
-    color: '#000000',
-    fontSize: 15,
-    lineHeight: 22,
-    textAlign: 'center',
-  },
-  qrFrame: {
-    width: 246,
-    height: 246,
-    marginTop: 10,
+  qrWrapper: {
+    borderWidth: 4,
+    borderColor: '#00615F',
+    borderRadius: 4,
+    padding: 10,
+    backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 9,
-    borderColor: PRIMARY,
-    backgroundColor: '#FFFFFF',
+    marginBottom: 16,
   },
   pickupCodeRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 10,
+    justifyContent: 'center',
+    gap: 8,
   },
-  pickupCodeChar: {
-    width: 36,
-    height: 38,
-    borderWidth: 2,
-    borderColor: PRIMARY,
-    borderRadius: 4,
+  pickupBox: {
+    width: 44,
+    height: 44,
     backgroundColor: '#D9D9D9',
+    borderWidth: 2,
+    borderColor: '#00615F',
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pickupCodeCharText: {
+  pickupBoxText: {
+    fontSize: 20,
+    fontWeight: '700',
+    fontFamily: 'Poppins',
     color: '#000000',
-    fontSize: 32,
-    lineHeight: 36,
-    fontWeight: FontWeight.bold,
   },
-  completedNotice: { alignItems: 'center', paddingVertical: 14 },
-  completedTitle: {
-    color: Colors.primary[700],
-    fontSize: 18,
-    fontWeight: FontWeight.bold,
+
+  // Items Summary
+  itemsSection: {
+    width: '100%',
   },
-  completedSub: {
-    marginTop: 4,
-    color: Colors.neutral[600],
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  summaryDivider: { marginTop: 20 },
-  summary: { paddingTop: 18 },
-  itemRow: {
-    minHeight: 47,
+  productRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 2,
+    marginVertical: 4,
+  },
+  productImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    marginRight: 10,
+  },
+  imagePlaceholder: {
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholderIcon: {
+    fontSize: 20,
+  },
+  productInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  productName: {
+    fontSize: 13,
+    fontWeight: '700',
+    fontFamily: 'Poppins',
+    color: '#000000',
     marginBottom: 2,
   },
-  itemImage: { width: 46, height: 47, borderRadius: 4, backgroundColor: '#F1F1F1' },
-  itemInfo: { flex: 1, minWidth: 0, marginLeft: 8 },
-  itemName: { color: '#000000', fontSize: 13, fontWeight: FontWeight.semiBold },
-  itemQuantity: { color: '#000000', fontSize: 10, lineHeight: 13 },
-  itemTotal: {
-    marginLeft: 6,
-    color: '#000000',
-    fontSize: 12,
-    fontWeight: FontWeight.semiBold,
+  productQtyPrice: {
+    fontSize: 11,
+    fontFamily: 'Poppins',
+    color: '#555555',
   },
-  noteRow: { flexDirection: 'row', marginTop: 3 },
-  noteValue: { flex: 1, color: Colors.neutral[700], fontSize: 9 },
-  orderMeta: { marginTop: 3 },
+  productPriceTotal: {
+    fontSize: 13,
+    fontWeight: '700',
+    fontFamily: 'Poppins',
+    color: '#000000',
+    marginLeft: 8,
+  },
+
+  // Metadata Table
+  metadataSection: {
+    width: '100%',
+    marginTop: 10,
+    gap: 4,
+  },
   metaRow: {
-    minHeight: 13,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  metaLabel: { color: '#000000', fontSize: 9, lineHeight: 12 },
+  metaLabel: {
+    fontSize: 11,
+    fontFamily: 'Poppins',
+    color: '#333333',
+  },
   metaValue: {
-    maxWidth: '60%',
-    color: '#000000',
-    fontSize: 9,
-    lineHeight: 12,
+    fontSize: 11,
+    fontFamily: 'Poppins',
+    color: '#333333',
     textAlign: 'right',
   },
+
+  // Action Button
   locationButton: {
-    width: 288,
-    maxWidth: '100%',
-    height: 32,
-    alignSelf: 'center',
+    backgroundColor: '#00615F',
+    borderRadius: 8,
+    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10,
-    borderRadius: 5,
-    backgroundColor: PRIMARY,
+    marginTop: 16,
+    width: '100%',
   },
-  locationButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: FontWeight.semiBold },
+  locationButtonText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
+    fontFamily: 'Poppins',
+  },
+
+  // Pending Payment & Inactive Sections
+  pendingPaymentSection: {
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    backgroundColor: '#FFFBEA',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#F6E05E',
+    marginVertical: 4,
+  },
+  pendingBadge: {
+    backgroundColor: '#FEFCBF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    marginBottom: 8,
+  },
+  pendingBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#B7791F',
+    fontFamily: 'Poppins',
+  },
+  pendingPaymentTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#2D3748',
+    fontFamily: 'Poppins',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  pendingPaymentSubtitle: {
+    fontSize: 12,
+    color: '#718096',
+    fontFamily: 'Poppins',
+    textAlign: 'center',
+    marginBottom: 14,
+    paddingHorizontal: 12,
+    lineHeight: 18,
+  },
+  payButton: {
+    backgroundColor: '#00615F',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    shadowColor: '#00615F',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  payButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+    fontFamily: 'Poppins',
+  },
+  inactiveSection: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    backgroundColor: '#F7FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginVertical: 4,
+  },
+  inactiveTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#A0AEC0',
+    fontFamily: 'Poppins',
+    marginBottom: 4,
+  },
+  inactiveSubtitle: {
+    fontSize: 12,
+    color: '#A0AEC0',
+    fontFamily: 'Poppins',
+    textAlign: 'center',
+  },
+  newOrderBtn: {
+    backgroundColor: '#00615F',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    marginTop: 14,
+  },
+  newOrderBtnText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+    fontFamily: 'Poppins',
+  },
+  failedBadgeWrapper: {
+    marginVertical: 10,
+    alignItems: 'center',
+  },
+  failedBadge: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  failedBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#DC2626',
+    fontFamily: 'Poppins',
+  },
 });

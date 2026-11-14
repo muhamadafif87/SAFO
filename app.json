@@ -43,6 +43,13 @@
       "expo-secure-store",
       "expo-sqlite",
       "expo-image",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "SAFO memerlukan akses foto untuk mengunggah gambar menu warung.",
+          "cameraPermission": "SAFO memerlukan akses kamera untuk memotret gambar menu warung."
+        }
+      ],
       "expo-status-bar",
       [
         "@rnmapbox/maps",

@@ -1,95 +1,83 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Colors } from '@/constants/typography';
+import { orderService } from '@/services/order.service';
+import { Order, OrderStatus } from '@/types';
+import { showAlert, showConfirm } from '@/utils/alert';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
+  Linking,
+  Modal,
+  Platform,
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
-} from "react-native";
-import { useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  BorderRadius,
-  Colors,
-  FontSize,
-  FontWeight,
-  Spacing,
-} from "@/constants/typography";
-import { orderService } from "@/services/order.service";
-import type { Order, OrderStatus } from "@/types";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 
-const ORDER_FILTERS = [
-  { key: "all", label: "Semua", width: 67 },
-  { key: "waiting", label: "Menunggu", width: 104 },
-  { key: "accepted", label: "Terima", width: 77 },
-  { key: "cancelled", label: "Batalkan", width: 59 },
-] as const;
+const PRIMARY = '#0E7465'; // Teal brand
+const MINT = '#D8EDE7';
+const WHITE = '#ffffff';
+const TEXT_DARK = '#111827';
+const TEXT_MUTED = '#6B7280';
+const BORDER = '#EAEEF0';
+const PAGE_BG = '#F4F6F7';
+const DANGER = '#C0392B';
+const WARNING = '#B45309';
 
-type OrderFilter = (typeof ORDER_FILTERS)[number]["key"];
+type FilterKey = 'all' | 'waiting' | 'accepted' | 'cancelled';
 
-function getStatusLabel(status: OrderStatus) {
-  switch (status) {
-    case "pending_payment":
-      return "Menunggu Pembayaran";
-    case "paid":
-      return "Menunggu Diproses";
-    case "processing":
-      return "Sedang Diproses";
-    case "ready":
-    case "ready_for_pickup":
-      return "Siap Diambil";
-    case "completed":
-      return "Selesai";
-    case "cancelled":
-      return "Dibatalkan";
-    case "expired":
-      return "Kedaluwarsa";
-    default:
-      return "Status tidak dikenal";
-  }
-}
+const FILTERS: { key: FilterKey; label: string }[] = [
+  { key: 'all', label: 'Semua' },
+  { key: 'waiting', label: 'Menunggu' },
+  { key: 'accepted', label: 'Terima' },
+  { key: 'cancelled', label: 'Batalkan' },
+];
 
-function getStatusTextColor(status: OrderStatus) {
-  switch (status) {
-    case "pending_payment":
-    case "paid":
-      return "#e2b640";
-    case "ready":
-    case "ready_for_pickup":
-      return "#00615f";
-    case "processing":
-      return "#00615f";
-    case "completed":
-      return Colors.neutral[500];
-    case "cancelled":
-    case "expired":
-      return "#bd4743";
-    default:
-      return Colors.neutral[500];
-  }
-}
+const FILTER_GROUPS: Record<FilterKey, OrderStatus[] | null> = {
+  all: null,
+  waiting: ['pending_payment', 'paid'],
+  accepted: ['accepted', 'ready', 'ready_for_pickup', 'completed'],
+  cancelled: ['cancelled', 'expired'],
+};
 
-function getOrderDateParts(createdAt: string) {
-  const date = new Date(createdAt);
-  if (Number.isNaN(date.getTime())) {
-    return { time: "-", date: "-" };
-  }
+const BackIcon = ({ color = TEXT_DARK }: { color?: string }) => (
+  <Svg width={20} height={20} viewBox="0 0 16 16" fill={color}>
+    <Path d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z" />
+  </Svg>
+);
 
+const UserIcon = ({ color = TEXT_MUTED, size = 13 }: { color?: string; size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 16 16" fill={color}>
+    <Path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z" />
+  </Svg>
+);
+
+const PhoneIcon = ({ color = TEXT_MUTED, size = 13 }: { color?: string; size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 16 16" fill={color}>
+    <Path d="M3.654 1.328a.678.678 0 0 0-1.015-.063L1.605 2.3c-.483.484-.661 1.169-.45 1.77a17.568 17.568 0 0 0 4.168 6.608 17.569 17.569 0 0 0 6.608 4.168c.601.211 1.286.033 1.77-.45l1.034-1.034a.678.678 0 0 0-.063-1.015l-2.307-1.794a.678.678 0 0 0-.58-.122l-2.19.547a1.745 1.745 0 0 1-1.657-.459L5.482 8.062a1.745 1.745 0 0 1-.46-1.657l.548-2.19a.678.678 0 0 0-.122-.58L3.654 1.328z" />
+  </Svg>
+);
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { time: '-', date: '-' };
   return {
-    time: `${new Intl.DateTimeFormat("id-ID", {
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone: "Asia/Jakarta",
-    }).format(date)} WIB`,
-    date: new Intl.DateTimeFormat("id-ID", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-      timeZone: "Asia/Jakarta",
+    time: new Intl.DateTimeFormat('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date),
+    date: new Intl.DateTimeFormat('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
     }).format(date),
   };
 }
@@ -101,16 +89,21 @@ export default function MitraOrdersScreen() {
   const [activeFilter, setActiveFilter] = useState<OrderFilter>("all");
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [filter, setFilter] = useState<FilterKey>('all');
+  const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
+
+  // Modal untuk verifikasi pickup
+  const [pickupModalVisible, setPickupModalVisible] = useState(false);
+  const [selectedOrderForPickup, setSelectedOrderForPickup] = useState<Order | null>(null);
+  const [pickupCodeInput, setPickupCodeInput] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const fetchOrders = useCallback(async () => {
-    setErrorMessage(null);
     try {
-      setOrders(await orderService.getMitraOrders());
+      const data = await orderService.getMitraOrders();
+      setOrders(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error("Gagal memuat pesanan mitra:", error);
-      setErrorMessage("Gagal memuat pesanan. Coba lagi.");
+      console.error('[mitra/orders] Gagal memuat pesanan', error);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -118,42 +111,87 @@ export default function MitraOrdersScreen() {
   }, []);
 
   useEffect(() => {
-    void fetchOrders();
+    fetchOrders();
   }, [fetchOrders]);
 
-  const filteredOrders = useMemo(() => {
-    switch (activeFilter) {
-      case "waiting":
-        return orders.filter((order) => order.status === "paid");
-      case "accepted":
-        return orders.filter(
-          (order) =>
-            order.status === "processing" ||
-            order.status === "ready" ||
-            order.status === "ready_for_pickup" ||
-            order.status === "completed",
-        );
-      case "cancelled":
-        return orders.filter((order) => order.status === "cancelled");
-      default:
-        return orders;
-    }
-  }, [activeFilter, orders]);
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await fetchOrders();
+  }, [fetchOrders]);
 
-  const updateOrderStatus = async (order: Order, status: OrderStatus) => {
-    setUpdatingOrderId(order.id);
+  const visibleOrders = useMemo(() => {
+    const allowed = FILTER_GROUPS[filter];
+    if (!allowed) return orders;
+    return orders.filter((order) => allowed.includes(order.status));
+  }, [orders, filter]);
+
+  const changeStatus = async (order: Order, status: OrderStatus) => {
+    setBusyOrderId(order.id);
     try {
-      const updatedOrder = await orderService.updateStatus(order.id, status);
-      setOrders((currentOrders) =>
-        currentOrders.map((currentOrder) =>
-          currentOrder.id === order.id ? updatedOrder : currentOrder,
-        ),
-      );
-    } catch (error) {
-      console.error("Gagal memperbarui status pesanan:", error);
-      Alert.alert("Gagal", "Status pesanan tidak dapat diperbarui.");
+      await orderService.updateStatus(order.id, status);
+      await fetchOrders();
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message || 'Gagal mengubah status pesanan';
+      Alert.alert('Gagal', Array.isArray(message) ? message.join('\n') : message);
     } finally {
-      setUpdatingOrderId(null);
+      setBusyOrderId(null);
+    }
+  };
+
+  const handleAccept = (order: Order) => {
+    showConfirm(
+      'Terima Pesanan',
+      `Terima pesanan dari ${order.customer?.name || 'pelanggan'}? Stok produk akan diperbarui.`,
+      () => changeStatus(order, 'accepted'),
+      { confirmText: 'Terima Pesanan', cancelText: 'Batal' },
+    );
+  };
+
+  const handleCancel = (order: Order) => {
+    showConfirm(
+      'Batalkan Pesanan',
+      'Stok produk akan dikembalikan setelah pesanan dibatalkan. Lanjutkan batalkan pesanan?',
+      () => changeStatus(order, 'cancelled'),
+      { confirmText: 'Batalkan', cancelText: 'Kembali', destructive: true },
+    );
+  };
+
+  const handleContact = (order: Order) => {
+    const phone = order.customer?.phone;
+    if (!phone) {
+      Alert.alert('Kontak Tidak Tersedia', 'Pelanggan belum mencantumkan nomor telepon.');
+      return;
+    }
+    Linking.openURL(`tel:${phone}`).catch(() =>
+      Alert.alert('Gagal', 'Tidak dapat membuka aplikasi telepon.'),
+    );
+  };
+
+  const openPickupModal = (order: Order) => {
+    setSelectedOrderForPickup(order);
+    setPickupCodeInput('');
+    setPickupModalVisible(true);
+  };
+
+  const handleConfirmPickup = async () => {
+    if (!selectedOrderForPickup) return;
+    if (!pickupCodeInput.trim()) {
+      Alert.alert('Perhatian', 'Masukkan kode pickup dari pelanggan.');
+      return;
+    }
+
+    setIsVerifying(true);
+    try {
+      await orderService.verifyPickup(selectedOrderForPickup.id, pickupCodeInput.trim());
+      setPickupModalVisible(false);
+      Alert.alert('Berhasil', 'Pesanan telah berhasil diselesaikan dan diambil!');
+      await fetchOrders();
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || 'Kode pickup salah atau tidak sesuai.';
+      Alert.alert('Verifikasi Gagal', msg);
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -180,471 +218,590 @@ export default function MitraOrdersScreen() {
   };
 
   const renderItem = ({ item }: { item: Order }) => {
-    const lineItems = item.orderItems ?? item.items ?? [];
-    const firstItem = lineItems[0];
-    const dateParts = getOrderDateParts(item.createdAt);
-    const isUpdating = updatingOrderId === item.id;
-    const productImage = firstItem?.product?.photoUrl
-      ? { uri: firstItem.product.photoUrl }
-      : require("../../../../assets/images/figma/mitra-order-food.png");
+    const firstItem = item.orderItems?.[0];
+    const { time, date } = formatDate(item.createdAt);
+    const isBusy = busyOrderId === item.id;
+
+    // Status category
+    const isWaiting = item.status === 'pending_payment' || item.status === 'paid';
+    const isAccepted =
+      item.status === 'accepted' ||
+      item.status === 'ready' ||
+      item.status === 'ready_for_pickup';
+    const isCompleted = item.status === 'completed';
+    const isCancelled = item.status === 'cancelled' || item.status === 'expired';
+
+    // Status label and color matching wireframe
+    let statusText = 'Menunggu Diproses';
+    let statusColor = WARNING;
+
+    if (isAccepted) {
+      statusText = 'Terima';
+      statusColor = PRIMARY;
+    } else if (isCompleted) {
+      statusText = 'Selesai';
+      statusColor = PRIMARY;
+    } else if (isCancelled) {
+      statusText = 'Dibatalkan';
+      statusColor = DANGER;
+    }
+
+    const orderCode = `#${(item.pickupCode || item.id.slice(0, 8)).toUpperCase()}`;
 
     return (
       <View style={styles.card}>
+        {/* ── Konten Kartu yang bisa diklik untuk cek detail pesanan dulu ── */}
         <TouchableOpacity
-          activeOpacity={0.8}
+          activeOpacity={0.75}
           onPress={() => router.push(`/(mitra)/orders/${item.id}`)}
-          accessibilityRole="button"
-          accessibilityLabel={`Detail pesanan ${item.id}`}
         >
+          {/* ── Card Header ── */}
           <View style={styles.cardHeader}>
-            <Text style={styles.orderId}>
-              #{item.id.substring(0, 8).toUpperCase()}
-            </Text>
-            <Text
-              style={[
-                styles.statusText,
-                { color: getStatusTextColor(item.status) },
-              ]}
-            >
-              {getStatusLabel(item.status)}
+            <Text style={styles.orderId}>{orderCode}</Text>
+            <Text style={[styles.statusText, { color: statusColor }]}>
+              {statusText}
             </Text>
           </View>
 
-          <View style={styles.divider} />
-
+          {/* ── Product Row ── */}
           <View style={styles.productRow}>
-            <Image
-              source={productImage}
-              style={styles.productImage}
-              resizeMode="cover"
-            />
-            <View style={styles.productDetails}>
-              <Text numberOfLines={1} style={styles.productName}>
-                {firstItem?.product?.name ?? "Produk"}
-                {lineItems.length > 1
-                  ? ` + ${lineItems.length - 1} item lain`
-                  : ""}
+            {firstItem?.product?.photoUrl ? (
+              <Image
+                source={{ uri: firstItem.product.photoUrl }}
+                style={styles.productImage}
+              />
+            ) : (
+              <View style={[styles.productImage, styles.productImagePh]}>
+                <Text style={styles.productImagePhText}>🍽️</Text>
+              </View>
+            )}
+
+            <View style={styles.productInfo}>
+              <Text style={styles.productName} numberOfLines={1}>
+                {firstItem?.product?.name || 'Pesanan Makanan'}
               </Text>
-              <Text numberOfLines={1} style={styles.productQuantity}>
-                {firstItem?.qty ?? 1} x Rp{" "}
-                {Number(firstItem?.priceAtPurchase ?? 0).toLocaleString(
-                  "id-ID",
-                )}
+              <Text style={styles.productQty}>
+                {firstItem?.qty || 1} X Rp{' '}
+                {(firstItem?.priceAtPurchase || item.totalAmount).toLocaleString('id-ID')}
+                {item.orderItems && item.orderItems.length > 1
+                  ? ` + ${item.orderItems.length - 1} lainnya`
+                  : ''}
               </Text>
             </View>
+
             <Text style={styles.totalAmount}>
-              Rp {Number(item.totalAmount).toLocaleString("id-ID")}
+              Rp {item.totalAmount.toLocaleString('id-ID')}
             </Text>
           </View>
 
-          <View style={styles.detailsRow}>
-            <View style={styles.customerDetails}>
-              <View style={styles.contactLine}>
-                <Image
-                  source={require("../../../../assets/images/figma/mitra-order-customer.png")}
-                  style={styles.customerIcon}
-                  resizeMode="contain"
-                />
-                <Text numberOfLines={1} style={styles.contactText}>
-                  {item.customer?.name ?? "Pelanggan"}
+          {/* ── Customer & Time Meta ── */}
+          <View style={styles.metaRow}>
+            <View style={styles.metaLeft}>
+              <View style={styles.metaLineContainer}>
+                <UserIcon size={13} color={TEXT_MUTED} />
+                <Text style={styles.metaLineText} numberOfLines={1}>
+                  {item.customer?.name || 'Pelanggan'}
                 </Text>
               </View>
-              <View style={styles.contactLine}>
-                <Image
-                  source={require("../../../../assets/images/figma/mitra-order-phone.png")}
-                  style={styles.phoneIcon}
-                  resizeMode="contain"
-                />
-                <Text numberOfLines={1} style={styles.contactText}>
-                  {item.customer?.phone || "Nomor belum tersedia"}
+              <View style={styles.metaLineContainer}>
+                <PhoneIcon size={13} color={TEXT_MUTED} />
+                <Text style={styles.metaLineText} numberOfLines={1}>
+                  {item.customer?.phone || '-'}
                 </Text>
               </View>
-
-              <TouchableOpacity
-                style={styles.chatPelangganBtn}
-                onPress={() => router.push(`/(mitra)/chat/${item.id}`)}
-                accessibilityRole="button"
-                accessibilityLabel="Chat pelanggan"
-              >
-                <Text style={styles.chatPelangganText}>💬 Chat Pelanggan</Text>
-              </TouchableOpacity>
             </View>
-            <View style={styles.dateDetails}>
-              <Text style={styles.dateText}>{dateParts.time}</Text>
-              <Text style={styles.dateText}>{dateParts.date}</Text>
+
+            <View style={styles.metaRight}>
+              <Text style={styles.timeText}>{time} WIB</Text>
+              <Text style={styles.dateText}>{date}</Text>
             </View>
           </View>
         </TouchableOpacity>
 
-        {item.status === "paid" && (
-          <View style={styles.actionsRow}>
+        {/* ── Action Buttons ── */}
+        <View style={styles.actions}>
+          {isWaiting ? (
+            <>
+              <TouchableOpacity
+                style={[styles.button, styles.dangerButton]}
+                activeOpacity={0.8}
+                disabled={isBusy}
+                onPress={() => handleCancel(item)}
+              >
+                <Text style={styles.dangerButtonText}>Batalkan</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.button, styles.primaryButton]}
+                activeOpacity={0.8}
+                disabled={isBusy}
+                onPress={() => handleAccept(item)}
+              >
+                <Text style={styles.primaryButtonText}>Terima Pesanan</Text>
+              </TouchableOpacity>
+            </>
+          ) : isAccepted ? (
+            <View style={styles.actionCol}>
+              <TouchableOpacity
+                style={[styles.button, styles.primaryButton, styles.fullWidth]}
+                activeOpacity={0.8}
+                onPress={() => handleContact(item)}
+              >
+                <Text style={styles.primaryButtonText}>Hubungi Pelanggan</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.button, styles.secondaryButton, styles.fullWidth]}
+                activeOpacity={0.8}
+                onPress={() => openPickupModal(item)}
+              >
+                <Text style={styles.secondaryButtonText}>Selesaikan Pesanan</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
             <TouchableOpacity
-              style={[
-                styles.actionButton,
-                styles.cancelButton,
-                isUpdating && styles.disabledButton,
-              ]}
-              onPress={() => confirmOrderAction(item, "cancel")}
-              disabled={updatingOrderId !== null}
-              accessibilityRole="button"
+              style={[styles.button, styles.primaryButton, styles.fullWidth]}
+              activeOpacity={0.8}
+              onPress={() => handleContact(item)}
             >
-              {isUpdating ? (
-                <ActivityIndicator size="small" color={Colors.neutral[0]} />
-              ) : (
-                <Text style={styles.actionText}>Batalkan</Text>
-              )}
+              <Text style={styles.primaryButtonText}>Hubungi Pelanggan</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                styles.acceptButton,
-                isUpdating && styles.disabledButton,
-              ]}
-              onPress={() => confirmOrderAction(item, "accept")}
-              disabled={updatingOrderId !== null}
-              accessibilityRole="button"
-            >
-              {isUpdating ? (
-                <ActivityIndicator size="small" color={Colors.neutral[0]} />
-              ) : (
-                <Text style={styles.actionText}>Terima Pesanan</Text>
-              )}
-            </TouchableOpacity>
-          </View>
+          )}
+        </View>
+
+        {isBusy && (
+          <ActivityIndicator
+            size="small"
+            color={PRIMARY}
+            style={styles.busyIndicator}
+          />
         )}
       </View>
     );
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      {/* ── Top Header ── */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.navigate("/(mitra)")}
-          accessibilityRole="button"
-          accessibilityLabel="Kembali ke beranda mitra"
+          onPress={() => router.back()}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <Text style={styles.backArrow}>‹</Text>
+          <BackIcon color={TEXT_DARK} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Pesanan Masuk</Text>
       </View>
 
-      <View style={styles.filters}>
-        {ORDER_FILTERS.map((filter) => {
-          const isActive = activeFilter === filter.key;
+      {/* ── Filter Pills: Horizontal row, strictly fixed height ── */}
+      <View style={styles.filterRow}>
+        {FILTERS.map((item) => {
+          const isActive = filter === item.key;
           return (
             <TouchableOpacity
-              key={filter.key}
-              style={[
-                styles.filterButton,
-                { width: filter.width },
-                isActive && styles.activeFilterButton,
-              ]}
-              onPress={() => setActiveFilter(filter.key)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: isActive }}
+              key={item.key}
+              style={[styles.filterPill, isActive && styles.filterPillActive]}
+              activeOpacity={0.75}
+              onPress={() => setFilter(item.key)}
             >
               <Text
                 style={[
                   styles.filterText,
-                  isActive && styles.activeFilterText,
+                  isActive && styles.filterTextActive,
                 ]}
               >
-                {filter.label}
+                {item.label}
               </Text>
             </TouchableOpacity>
           );
         })}
       </View>
 
+      {/* ── Orders List ── */}
       <FlatList
-        data={filteredOrders}
+        data={visibleOrders}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
-        contentContainerStyle={[
-          styles.listContainer,
-          filteredOrders.length === 0 && styles.emptyListContainer,
-        ]}
-        ItemSeparatorComponent={() => <View style={styles.cardSeparator} />}
+        contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
-            onRefresh={() => {
-              setIsRefreshing(true);
-              void fetchOrders();
-            }}
-            tintColor="#00615f"
-            colors={["#00615f"]}
+            onRefresh={handleRefresh}
+            tintColor={PRIMARY}
           />
-        }
-        ListHeaderComponent={
-          errorMessage && filteredOrders.length > 0 ? (
-            <Text style={styles.errorText}>{errorMessage}</Text>
-          ) : null
         }
         ListEmptyComponent={
           isLoading ? (
-            <ActivityIndicator
-              size="small"
-              color="#00615f"
-              style={styles.loadingIndicator}
-            />
+            <View style={styles.emptyBox}>
+              <ActivityIndicator color={PRIMARY} />
+            </View>
           ) : (
-            <View style={styles.emptyContainer}>
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyTitle}>Belum ada pesanan</Text>
               <Text style={styles.emptyText}>
-                {errorMessage ?? "Belum ada pesanan."}
+                Pesanan dengan status ini akan muncul di sini.
               </Text>
-              {errorMessage && (
-                <TouchableOpacity
-                  onPress={() => {
-                    setIsLoading(true);
-                    void fetchOrders();
-                  }}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.retryText}>Coba lagi</Text>
-                </TouchableOpacity>
-              )}
             </View>
           )
         }
       />
-    </View>
+
+      {/* ── Modal Verifikasi Pickup ── */}
+      <Modal
+        visible={pickupModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPickupModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Verifikasi Pengambilan</Text>
+            <Text style={styles.modalSubtitle}>
+              Minta kode pickup dari pelanggan untuk menyelesaikan pesanan{' '}
+              {selectedOrderForPickup ? `#${selectedOrderForPickup.id.slice(0, 8)}` : ''}
+            </Text>
+
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Contoh: A1B2 atau kode 4 digit"
+              placeholderTextColor={TEXT_MUTED}
+              value={pickupCodeInput}
+              onChangeText={setPickupCodeInput}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalCancelBtn]}
+                onPress={() => setPickupModalVisible(false)}
+                disabled={isVerifying}
+              >
+                <Text style={styles.modalCancelText}>Batal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalConfirmBtn]}
+                onPress={handleConfirmPickup}
+                disabled={isVerifying}
+              >
+                {isVerifying ? (
+                  <ActivityIndicator size="small" color={WHITE} />
+                ) : (
+                  <Text style={styles.modalConfirmText}>Verifikasi</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: Colors.neutral[0],
   },
+
   header: {
-    minHeight: 40,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 24,
-    marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: WHITE,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
   },
   backButton: {
     width: 32,
-    height: 36,
-    alignItems: "flex-start",
-    justifyContent: "center",
-  },
-  backArrow: {
-    color: "#00615f",
-    fontSize: 30,
-    lineHeight: 34,
-    marginTop: -4,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
   },
   headerTitle: {
-    color: "#111111",
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.semiBold,
+    fontSize: 18,
+    fontWeight: '700',
+    color: TEXT_DARK,
   },
-  filters: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 30,
-    marginTop: 8,
-    marginBottom: 10,
+
+  /* Filter Tab Row */
+  filterRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 8,
+    backgroundColor: PAGE_BG,
+    alignItems: 'center',
   },
-  filterButton: {
-    height: 34,
-    borderRadius: 13,
-    backgroundColor: "#f2f2f2",
-    alignItems: "center",
-    justifyContent: "center",
+  filterPill: {
+    flex: 1,
+    backgroundColor: '#F0F3F4',
+    borderRadius: 20,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  activeFilterButton: {
-    backgroundColor: "#cee7e5",
+  filterPillActive: {
+    backgroundColor: MINT,
   },
   filterText: {
-    color: "#111111",
-    fontSize: 13,
-    fontWeight: FontWeight.medium,
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#4A5568',
   },
-  activeFilterText: {
-    color: "#00615f",
+  filterTextActive: {
+    color: PRIMARY,
+    fontWeight: '700',
   },
-  listContainer: {
-    flexGrow: 1,
-    paddingHorizontal: 30,
-    paddingTop: 2,
-    paddingBottom: Spacing[4],
-  },
-  emptyListContainer: {
-    justifyContent: "center",
-  },
-  cardSeparator: {
-    height: 12,
+
+  /* Order Cards */
+  listContent: {
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 32,
+    gap: 12,
   },
   card: {
-    padding: 11,
-    backgroundColor: Colors.neutral[0],
-    borderRadius: 10,
+    backgroundColor: WHITE,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#e5e5e5",
-    shadowColor: "#000000",
+    borderColor: BORDER,
+    padding: 14,
+    marginBottom: 8,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.04,
     shadowRadius: 3,
-    elevation: 2,
+    elevation: 1,
   },
   cardHeader: {
-    minHeight: 13,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    marginBottom: 10,
   },
   orderId: {
-    color: "#111111",
-    fontSize: 9,
-    fontWeight: FontWeight.medium,
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: TEXT_DARK,
   },
   statusText: {
-    fontSize: 9,
-    fontWeight: FontWeight.semiBold,
+    fontSize: 12,
+    fontWeight: '700',
   },
-  divider: {
-    height: 1,
-    marginTop: 5,
-    marginBottom: 5,
-    backgroundColor: "#e5e5e5",
-  },
+
   productRow: {
-    minHeight: 47,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   productImage: {
-    width: 46,
-    height: 47,
-    borderRadius: 4,
-    backgroundColor: Colors.neutral[100],
+    width: 52,
+    height: 52,
+    borderRadius: 8,
+    backgroundColor: '#EEF1F2',
   },
-  productDetails: {
+  productImagePh: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  productImagePhText: {
+    fontSize: 22,
+  },
+  productInfo: {
     flex: 1,
-    minWidth: 0,
-    marginLeft: 8,
-    marginRight: 4,
+    marginLeft: 12,
   },
   productName: {
-    color: "#111111",
-    fontSize: 13,
-    fontWeight: FontWeight.semiBold,
+    fontSize: 14,
+    fontWeight: '700',
+    color: TEXT_DARK,
+    marginBottom: 4,
   },
-  productQuantity: {
-    marginTop: 2,
-    color: "#111111",
-    fontSize: 10,
+  productQty: {
+    fontSize: 12,
+    color: TEXT_MUTED,
   },
   totalAmount: {
-    color: "#111111",
-    fontSize: 12,
-    fontWeight: FontWeight.semiBold,
-  },
-  detailsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 3,
-  },
-  customerDetails: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2,
-  },
-  contactLine: {
-    height: 12,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  customerIcon: {
-    width: 11,
-    height: 13,
-    marginRight: 6,
-  },
-  phoneIcon: {
-    width: 14,
-    height: 13,
-    marginRight: 6,
-  },
-  contactText: {
-    flexShrink: 1,
-    color: "#111111",
-    fontSize: 9,
-  },
-  dateDetails: {
-    alignItems: "flex-end",
+    fontSize: 14,
+    fontWeight: '800',
+    color: TEXT_DARK,
     marginLeft: 8,
   },
-  dateText: {
-    color: "#111111",
-    fontSize: 9,
-    lineHeight: 13,
+
+  metaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
   },
-  actionsRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 8,
-  },
-  actionButton: {
-    height: 29,
+  metaLeft: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 5,
+    gap: 4,
   },
-  cancelButton: {
-    backgroundColor: "#bd4743",
+  metaLineContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  acceptButton: {
-    backgroundColor: "#00615f",
+  metaLineText: {
+    fontSize: 12,
+    color: '#4B5563',
   },
-  disabledButton: {
-    opacity: 0.7,
+  metaRight: {
+    alignItems: 'flex-end',
+    gap: 2,
+    marginLeft: 12,
   },
-  actionText: {
-    color: Colors.neutral[0],
-    fontSize: 11,
-    fontWeight: FontWeight.semiBold,
+  timeText: {
+    fontSize: 11.5,
+    color: TEXT_MUTED,
   },
-  loadingIndicator: {
-    padding: Spacing[8],
+  dateText: {
+    fontSize: 11.5,
+    color: TEXT_MUTED,
   },
-  emptyContainer: {
-    alignItems: "center",
-    padding: Spacing[8],
+
+  actions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  actionCol: {
+    flex: 1,
+    gap: 8,
+  },
+  button: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fullWidth: {
+    width: '100%',
+  },
+  primaryButton: {
+    backgroundColor: PRIMARY,
+  },
+  primaryButtonText: {
+    color: WHITE,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  dangerButton: {
+    backgroundColor: DANGER,
+  },
+  dangerButtonText: {
+    color: WHITE,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  secondaryButton: {
+    backgroundColor: '#E6F4F1',
+    borderWidth: 1,
+    borderColor: '#BDE3DC',
+  },
+  secondaryButtonText: {
+    color: PRIMARY,
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+
+  busyIndicator: {
+    marginTop: 10,
+  },
+
+  emptyBox: {
+    paddingVertical: 48,
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: TEXT_DARK,
+    marginBottom: 4,
   },
   emptyText: {
-    color: Colors.neutral[500],
-    fontSize: FontSize.md,
-    textAlign: "center",
+    fontSize: 12,
+    color: TEXT_MUTED,
+    textAlign: 'center',
+    paddingHorizontal: 32,
   },
-  errorText: {
-    marginBottom: 10,
-    color: "#bd4743",
-    fontSize: FontSize.sm,
+
+  /* Modal */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
-  retryText: {
-    marginTop: Spacing[2],
-    color: "#00615f",
-    fontWeight: FontWeight.semiBold,
+  modalCard: {
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: WHITE,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 5,
   },
-  chatPelangganBtn: {
-    marginTop: 6,
-    alignSelf: "flex-start",
-    backgroundColor: "#CEE7E5",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: TEXT_DARK,
+    marginBottom: 6,
   },
-  chatPelangganText: {
-    color: "#00615F",
-    fontSize: 10,
-    fontWeight: FontWeight.bold,
+  modalSubtitle: {
+    fontSize: 12.5,
+    color: TEXT_MUTED,
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  modalInput: {
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: '#F3F5F6',
+    borderWidth: 1,
+    borderColor: BORDER,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    fontWeight: '600',
+    color: TEXT_DARK,
+    marginBottom: 16,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCancelBtn: {
+    backgroundColor: '#F0F3F4',
+  },
+  modalCancelText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: TEXT_MUTED,
+  },
+  modalConfirmBtn: {
+    backgroundColor: PRIMARY,
+  },
+  modalConfirmText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: WHITE,
   },
 });

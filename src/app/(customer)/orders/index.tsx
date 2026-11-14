@@ -32,6 +32,7 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
   pending_payment: "Menunggu Pembayaran",
   paid: "Menunggu Diproses",
   processing: "Sedang Diproses",
+  accepted: "Diterima",
   ready: "Siap Diambil",
   ready_for_pickup: "Siap Diambil",
   completed: "Selesai",
@@ -318,14 +319,14 @@ export default function CustomerOrders() {
 }
 
 const statusStyles = StyleSheet.create({
-  pending_payment: { color: STATUS_WARNING },
-  paid: { color: STATUS_WARNING },
-  processing: { color: PRIMARY },
-  ready: { color: PRIMARY },
-  ready_for_pickup: { color: PRIMARY },
-  completed: { color: PRIMARY },
-  cancelled: { color: STATUS_DANGER },
-  expired: { color: GRAY_400 },
+  pending_payment: { color: Colors.warning },
+  paid: { color: Colors.warning },
+  accepted: { color: Colors.primary[600] },
+  ready: { color: Colors.primary[600] },
+  ready_for_pickup: { color: Colors.primary[600] },
+  completed: { color: Colors.primary[600] },
+  cancelled: { color: Colors.error },
+  expired: { color: Colors.neutral[500] },
 });
 
 const styles = StyleSheet.create({
