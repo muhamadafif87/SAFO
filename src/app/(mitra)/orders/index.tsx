@@ -84,7 +84,9 @@ function formatDate(value: string) {
 
 export default function MitraOrdersScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [activeFilter, setActiveFilter] = useState<OrderFilter>("all");
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterKey>('all');
@@ -191,6 +193,28 @@ export default function MitraOrdersScreen() {
     } finally {
       setIsVerifying(false);
     }
+  };
+
+  const confirmOrderAction = (order: Order, action: "accept" | "cancel") => {
+    const isCancelling = action === "cancel";
+    Alert.alert(
+      isCancelling ? "Batalkan pesanan?" : "Terima pesanan?",
+      isCancelling
+        ? "Pesanan ini akan dibatalkan."
+        : "Pesanan akan ditandai sedang diproses.",
+      [
+        { text: "Kembali", style: "cancel" },
+        {
+          text: isCancelling ? "Batalkan" : "Terima",
+          style: isCancelling ? "destructive" : "default",
+          onPress: () =>
+            void updateOrderStatus(
+              order,
+              isCancelling ? "cancelled" : "processing",
+            ),
+        },
+      ],
+    );
   };
 
   const renderItem = ({ item }: { item: Order }) => {
@@ -476,7 +500,7 @@ export default function MitraOrdersScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: PAGE_BG,
+    backgroundColor: Colors.neutral[0],
   },
 
   header: {

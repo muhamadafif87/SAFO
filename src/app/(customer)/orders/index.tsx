@@ -1,4 +1,3 @@
-import { Colors, FontSize, FontWeight, Spacing } from "@/constants/typography";
 import { orderService } from "@/services/order.service";
 import type { Order, OrderStatus } from "@/types";
 import { useRouter } from "expo-router";
@@ -7,20 +6,32 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
-  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
 
 type OrdersTab = "all" | "history";
 
 const HISTORY_STATUSES: OrderStatus[] = ["completed", "cancelled", "expired"];
 
+const PRIMARY = "#00615F";
+const PRIMARY_LIGHT = "#CEE7E5";
+const INACTIVE_TAB_BG = "#F1F1F1";
+const WHITE = "#FFFFFF";
+const TEXT_BLACK = "#000000";
+const DIVIDER = "#EAEAEA";
+const STATUS_WARNING = "#E2B640";
+const STATUS_DANGER = "#EF4444";
+const GRAY_400 = "#9CA3AF";
+
 const STATUS_LABEL: Record<OrderStatus, string> = {
   pending_payment: "Menunggu Pembayaran",
   paid: "Menunggu Diproses",
+  processing: "Sedang Diproses",
   accepted: "Diterima",
   ready: "Siap Diambil",
   ready_for_pickup: "Siap Diambil",
@@ -32,13 +43,26 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
 function formatDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+  const day = date.getDate();
+  const months = [
+    "Januari",
+    "Februari",
+    "Maret",
+    "April",
+    "Mei",
+    "Juni",
+    "Juli",
+    "Agustus",
+    "September",
+    "Oktober",
+    "November",
+    "Desember",
+  ];
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${day} ${month} ${year} ${hours} : ${minutes}`;
 }
 
 export default function CustomerOrders() {
@@ -79,7 +103,8 @@ export default function CustomerOrders() {
     const firstItem = items[0];
     const product = firstItem?.product;
     const quantity = items.reduce(
-      (total, orderItem) => total + (orderItem.qty ?? orderItem.quantity ?? 1),
+      (total, orderItem) =>
+        total + (orderItem.qty ?? (orderItem as any).quantity ?? 1),
       0,
     );
     const isHistory = HISTORY_STATUSES.includes(item.status);
@@ -89,12 +114,13 @@ export default function CustomerOrders() {
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel={`Buka detail pesanan ${item.mitra?.businessName || "warung"}`}
-          activeOpacity={0.82}
+          activeOpacity={0.85}
           onPress={() => openOrder(item.id)}
         >
+          {/* Card Topline: Mitra Name & Status */}
           <View style={styles.cardTopline}>
             <Text numberOfLines={1} style={styles.mitraName}>
-              {item.mitra?.businessName || "Warung SAFO"}
+              {item.mitra?.businessName || "Geprek Kumlot"}
             </Text>
             <Text
               numberOfLines={1}
@@ -104,6 +130,10 @@ export default function CustomerOrders() {
             </Text>
           </View>
 
+          {/* Divider under Topline */}
+          <View style={styles.cardDivider} />
+
+          {/* Product Row */}
           <View style={styles.productRow}>
             {product?.photoUrl ? (
               <Image
@@ -116,56 +146,79 @@ export default function CustomerOrders() {
                 <Text style={styles.placeholderIcon}>🍱</Text>
               </View>
             )}
+
             <View style={styles.productInfo}>
-              <Text numberOfLines={2} style={styles.productName}>
-                {product?.name || "Paket makanan surplus"}
+              <Text numberOfLines={1} style={styles.productName}>
+                {product?.name || "Paket Makanan"}
               </Text>
               <Text style={styles.productMeta}>
                 {items.length > 1 ? `+${items.length - 1} produk · ` : ""}
-                {quantity} x
-                {firstItem
-                  ? ` Rp ${Number(firstItem.priceAtPurchase).toLocaleString("id-ID")}`
-                  : ""}
+                {quantity} X Rp{" "}
+                {Number(
+                  firstItem?.priceAtPurchase ?? item.totalAmount / (quantity || 1),
+                ).toLocaleString("id-ID")}
               </Text>
             </View>
+
             <Text style={styles.totalAmount}>
               Rp {Number(item.totalAmount).toLocaleString("id-ID")}
             </Text>
           </View>
 
+          {/* Metadata Rows */}
           <View style={styles.metadata}>
             <View style={styles.metadataRow}>
-              <Text style={styles.metadataLabel}>Waktu Pesanan</Text>
-              <Text style={styles.metadataValue}>{formatDate(item.createdAt)}</Text>
+              <Text style={styles.metadataLabel}>Waktu Pemesanan</Text>
+              <Text style={styles.metadataValue}>
+                {formatDate(item.createdAt)}
+              </Text>
             </View>
+
+            <View style={styles.metadataRow}>
+              <Text style={styles.metadataLabel}>Waktu Pembayaran</Text>
+              <Text style={styles.metadataValue}>
+                {formatDate(item.createdAt)}
+              </Text>
+            </View>
+
             <View style={styles.metadataRow}>
               <Text style={styles.metadataLabel}>No. Pesanan</Text>
               <Text numberOfLines={1} style={styles.metadataValue}>
-                #{item.id.slice(0, 8).toUpperCase()}
+                #WBW-{item.id.slice(0, 6).toUpperCase()}
               </Text>
             </View>
           </View>
         </TouchableOpacity>
 
+        {/* Action Button */}
         <View style={styles.actions}>
           {isHistory && firstItem?.productId ? (
             <TouchableOpacity
               accessibilityRole="button"
               style={styles.secondaryButton}
-              onPress={() => router.push(`/(customer)/products/${firstItem.productId}`)}
+              onPress={() =>
+                router.push(`/(customer)/products/${firstItem.productId}`)
+              }
               activeOpacity={0.8}
             >
               <Text style={styles.secondaryButtonText}>Pesan Lagi</Text>
             </TouchableOpacity>
           ) : null}
+
           <TouchableOpacity
             accessibilityRole="button"
             style={styles.primaryButton}
-            onPress={() => openOrder(item.id)}
+            onPress={() => {
+              if (isHistory) {
+                openOrder(item.id);
+              } else {
+                router.push(`/(customer)/chat/${item.id}`);
+              }
+            }}
             activeOpacity={0.8}
           >
             <Text style={styles.primaryButtonText}>
-              {isHistory ? "Detail Pesanan" : "Lihat Pesanan"}
+              {isHistory ? "Detail Pesanan" : "Hubungi Warung"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -174,20 +227,32 @@ export default function CustomerOrders() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel="Kembali"
           onPress={() => router.back()}
           style={styles.backButton}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          activeOpacity={0.7}
         >
-          <Text style={styles.backIcon}>‹</Text>
+          <Svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <Path
+              d="M15 19L8 12L15 5"
+              stroke={PRIMARY}
+              strokeWidth="2.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </Svg>
         </TouchableOpacity>
         <Text style={styles.title}>Pesanan</Text>
         <View style={styles.headerSpacer} />
       </View>
 
+      {/* Tabs (Semua / Riwayat) */}
       <View style={styles.tabs}>
         {([
           ["all", "Semua"],
@@ -199,16 +264,27 @@ export default function CustomerOrders() {
             accessibilityState={{ selected: activeTab === tab }}
             onPress={() => setActiveTab(tab)}
             style={[styles.tab, activeTab === tab && styles.activeTab]}
+            activeOpacity={0.8}
           >
-            <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === tab && styles.activeTabText,
+              ]}
+            >
               {label}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
+      {/* Content List */}
       {loading ? (
-        <ActivityIndicator size="large" color={Colors.primary[700]} style={styles.loader} />
+        <ActivityIndicator
+          size="large"
+          color={PRIMARY}
+          style={styles.loader}
+        />
       ) : (
         <FlatList
           data={visibleOrders}
@@ -218,13 +294,18 @@ export default function CustomerOrders() {
             styles.list,
             visibleOrders.length === 0 && styles.emptyList,
           ]}
+          showsVerticalScrollIndicator={false}
           refreshing={refreshing}
           onRefresh={() => fetchOrders(true)}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>{activeTab === "all" ? "🛍️" : "📋"}</Text>
+              <Text style={styles.emptyIcon}>
+                {activeTab === "all" ? "🛍️" : "📋"}
+              </Text>
               <Text style={styles.emptyTitle}>
-                {activeTab === "all" ? "Belum ada pesanan aktif" : "Riwayat masih kosong"}
+                {activeTab === "all"
+                  ? "Belum ada pesanan aktif"
+                  : "Riwayat masih kosong"}
               </Text>
               <Text style={styles.emptyDescription}>
                 Pesananmu akan muncul di sini setelah checkout.
@@ -249,129 +330,223 @@ const statusStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.neutral[0] },
+  container: {
+    flex: 1,
+    backgroundColor: WHITE,
+  },
   header: {
-    height: 54,
+    height: 52,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing[4],
+    paddingHorizontal: 20,
+    marginTop: 4,
   },
-  backButton: { width: 32, height: 40, justifyContent: "center" },
-  backIcon: { color: Colors.primary[600], fontSize: 34, lineHeight: 38 },
+  backButton: {
+    width: 28,
+    height: 28,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   title: {
-    flex: 1,
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
-    color: Colors.neutral[900],
-    marginLeft: Spacing[2],
+    fontSize: 20,
+    fontWeight: "700",
+    color: TEXT_BLACK,
+    marginLeft: 12,
+    letterSpacing: -0.4,
   },
-  headerSpacer: { width: 32 },
+  headerSpacer: {
+    width: 28,
+  },
   tabs: {
     flexDirection: "row",
-    gap: Spacing[3],
-    paddingHorizontal: Spacing[4],
-    paddingTop: Spacing[2],
-    paddingBottom: Spacing[4],
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 16,
   },
   tab: {
     flex: 1,
-    height: 36,
+    height: 34,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 10,
-    backgroundColor: Colors.neutral[100],
+    borderRadius: 13,
+    backgroundColor: INACTIVE_TAB_BG,
   },
-  activeTab: { backgroundColor: Colors.primary[50] },
-  tabText: { color: Colors.neutral[500], fontSize: FontSize.sm, fontWeight: FontWeight.medium },
-  activeTabText: { color: Colors.primary[600], fontWeight: FontWeight.bold },
-  list: { paddingHorizontal: Spacing[4], paddingBottom: Spacing[5] },
+  activeTab: {
+    backgroundColor: PRIMARY_LIGHT,
+  },
+  tabText: {
+    color: TEXT_BLACK,
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  activeTabText: {
+    color: PRIMARY,
+    fontWeight: "500",
+  },
+  list: {
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+  },
   orderCard: {
-    backgroundColor: Colors.neutral[0],
-    borderColor: Colors.neutral[200],
+    backgroundColor: WHITE,
+    borderColor: "#EAEAEA",
     borderWidth: 1,
-    borderRadius: 9,
-    marginBottom: Spacing[3],
-    padding: Spacing[2],
+    borderRadius: 10,
+    marginBottom: 16,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 12,
     shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   cardTopline: {
-    minHeight: 24,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral[100],
-    marginBottom: Spacing[2],
-    paddingBottom: Spacing[1],
+    paddingBottom: 8,
   },
   mitraName: {
     flex: 1,
-    color: Colors.neutral[900],
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.medium,
-    marginRight: Spacing[2],
+    color: TEXT_BLACK,
+    fontSize: 11,
+    fontWeight: "500",
+    marginRight: 8,
   },
-  statusText: { fontSize: 10, fontWeight: FontWeight.medium, maxWidth: "48%" },
-  productRow: { flexDirection: "row", alignItems: "center", minHeight: 58, gap: Spacing[2] },
-  productImage: { width: 48, height: 48, borderRadius: 6, backgroundColor: Colors.neutral[100] },
-  imagePlaceholder: { alignItems: "center", justifyContent: "center" },
-  placeholderIcon: { fontSize: 25 },
-  productInfo: { flex: 1, justifyContent: "center" },
-  productName: { color: Colors.neutral[900], fontSize: FontSize.sm, fontWeight: FontWeight.bold },
-  productMeta: { color: Colors.neutral[500], fontSize: 10, marginTop: 2 },
+  statusText: {
+    fontSize: 9,
+    fontWeight: "600",
+    maxWidth: "50%",
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: DIVIDER,
+    marginBottom: 10,
+  },
+  productRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 8,
+  },
+  productImage: {
+    width: 46,
+    height: 47,
+    borderRadius: 4,
+    backgroundColor: "#F3F3F3",
+  },
+  imagePlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  placeholderIcon: {
+    fontSize: 22,
+  },
+  productInfo: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  productName: {
+    color: TEXT_BLACK,
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 2,
+    letterSpacing: -0.2,
+  },
+  productMeta: {
+    color: TEXT_BLACK,
+    fontSize: 10,
+    fontWeight: "400",
+  },
   totalAmount: {
-    color: Colors.neutral[900],
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.bold,
+    color: TEXT_BLACK,
+    fontSize: 12,
+    fontWeight: "600",
     textAlign: "right",
-    maxWidth: 92,
   },
-  metadata: { borderTopWidth: 1, borderTopColor: Colors.neutral[100], marginTop: Spacing[2], paddingTop: 5 },
+  metadata: {
+    marginTop: 4,
+    gap: 3,
+  },
   metadataRow: {
-    minHeight: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: Spacing[2],
+    gap: 8,
   },
-  metadataLabel: { color: Colors.neutral[600], fontSize: 10 },
-  metadataValue: { color: Colors.neutral[600], fontSize: 10, textAlign: "right", flexShrink: 1 },
-  actions: { flexDirection: "row", justifyContent: "flex-end", gap: Spacing[2], marginTop: Spacing[2] },
+  metadataLabel: {
+    color: TEXT_BLACK,
+    fontSize: 9,
+    fontWeight: "400",
+  },
+  metadataValue: {
+    color: TEXT_BLACK,
+    fontSize: 9,
+    fontWeight: "400",
+    textAlign: "right",
+  },
+  actions: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 10,
+  },
   primaryButton: {
-    minHeight: 34,
     flex: 1,
+    height: 29,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Colors.primary[600],
+    backgroundColor: PRIMARY,
     borderRadius: 5,
-    paddingHorizontal: Spacing[3],
   },
-  primaryButtonText: { color: Colors.neutral[0], fontSize: FontSize.xs, fontWeight: FontWeight.bold },
+  primaryButtonText: {
+    color: WHITE,
+    fontSize: 11,
+    fontWeight: "600",
+  },
   secondaryButton: {
-    minHeight: 34,
     flex: 1,
+    height: 29,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: Colors.primary[600],
+    borderColor: PRIMARY,
     borderRadius: 5,
-    paddingHorizontal: Spacing[2],
+    backgroundColor: WHITE,
   },
-  secondaryButtonText: { color: Colors.primary[600], fontSize: FontSize.xs, fontWeight: FontWeight.bold },
-  loader: { marginTop: Spacing[10] },
-  emptyList: { flexGrow: 1, justifyContent: "center" },
-  emptyState: { alignItems: "center", paddingHorizontal: Spacing[5], paddingBottom: Spacing[10] },
-  emptyIcon: { fontSize: 38, marginBottom: Spacing[3] },
-  emptyTitle: { color: Colors.neutral[900], fontSize: FontSize.md, fontWeight: FontWeight.bold },
+  secondaryButtonText: {
+    color: PRIMARY,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  loader: {
+    marginTop: 40,
+  },
+  emptyList: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+  },
+  emptyIcon: {
+    fontSize: 38,
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    color: TEXT_BLACK,
+    fontSize: 16,
+    fontWeight: "600",
+  },
   emptyDescription: {
-    color: Colors.neutral[500],
-    fontSize: FontSize.sm,
-    lineHeight: 19,
+    color: GRAY_400,
+    fontSize: 13,
+    lineHeight: 18,
     textAlign: "center",
-    marginTop: Spacing[1],
+    marginTop: 4,
   },
 });

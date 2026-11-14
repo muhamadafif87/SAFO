@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
   ActivityIndicator,
-  ScrollView,
   Alert,
+  Image,
+  Linking,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
   TouchableOpacity,
   Image,
   Linking,
@@ -18,8 +19,11 @@ import Svg, { Path } from 'react-native-svg';
 import { orderService } from '@/services/order.service';
 import { paymentService } from '@/services/payment.service';
 import type { Order, OrderStatus } from '@/types';
+import { Colors, FontWeight } from '@/constants/typography';
 
-// ─── Status helpers ────────────────────────────────────────────────────────
+const PRIMARY = '#00615F';
+const DIVIDER = '#EAEAEA';
+const STATUS_GOLD = '#E2B640';
 
 const STATUS_STEPS: { key: OrderStatus; label: string }[] = [
   { key: 'paid', label: 'Pesanan Disiapkan' },
@@ -39,7 +43,76 @@ const STATUS_ORDER_INDEX: Partial<Record<OrderStatus, number>> = {
 };
 
 function getStatusIndex(status: OrderStatus): number {
-  return STATUS_ORDER_INDEX[status] ?? -1;
+  switch (status) {
+    case 'paid':
+    case 'processing':
+    case 'ready':
+      return 0;
+    case 'ready_for_pickup':
+      return 1;
+    case 'completed':
+      return 2;
+    default:
+      return -1;
+  }
+}
+
+function getStatusLabel(status: OrderStatus): string {
+  switch (status) {
+    case 'pending_payment':
+      return 'Menunggu Pembayaran';
+    case 'paid':
+      return 'Menunggu Diproses';
+    case 'processing':
+    case 'ready':
+      return 'Pesanan Sedang Disiapkan';
+    case 'ready_for_pickup':
+      return 'Pesanan Siap Diambil';
+    case 'completed':
+      return 'Selesai';
+    case 'cancelled':
+      return 'Pesanan Dibatalkan';
+    case 'expired':
+      return 'Pesanan Kedaluwarsa';
+  }
+}
+
+function formatCurrency(value: number | string | null | undefined): string {
+  return `Rp ${Number(value ?? 0).toLocaleString('id-ID')}`;
+}
+
+function formatOrderDate(value?: string): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+
+  const months = [
+    'Januari',
+    'Februari',
+    'Maret',
+    'April',
+    'Mei',
+    'Juni',
+    'Juli',
+    'Agustus',
+    'September',
+    'Oktober',
+    'November',
+    'Desember',
+  ];
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()} ${hours} : ${minutes}`;
+}
+
+function FigmaStepIcon({ source }: { source: number }) {
+  return (
+    <SvgUri
+      uri={Asset.fromModule(source).uri}
+      width={26}
+      height={26}
+    />
+  );
 }
 
 const DYNAMIC_STATUS_LABEL: Record<OrderStatus, string> = {
@@ -196,6 +269,7 @@ export default function CustomerOrderDetail() {
 
   if (!order) return null;
 
+  const items = order.items ?? order.orderItems ?? [];
   const currentStep = getStatusIndex(order.status);
   const items = order.items ?? order.orderItems ?? [];
   const pickupChars = order.pickupCode ? order.pickupCode.split('') : ['X', 'X', 'X', 'X'];
@@ -451,6 +525,9 @@ const styles = StyleSheet.create({
 
   // Header
   header: {
+    height: 40,
+    marginTop: 6,
+    paddingHorizontal: 23,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
@@ -689,6 +766,7 @@ const styles = StyleSheet.create({
   },
   metaRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
     alignItems: 'center',
   },

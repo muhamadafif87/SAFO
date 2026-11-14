@@ -15,6 +15,7 @@ export type ProductStatus = "active" | "sold_out" | "expired" | "inactive";
 export type OrderStatus =
   | "pending_payment"
   | "paid"
+  | "processing"
   | "accepted" // mitra menekan "Terima Pesanan"
   | "ready"
   | "ready_for_pickup" // alias used by backend entity
@@ -125,6 +126,11 @@ export type SortFilter = 'nearby' | 'discount' | 'rating';
 export interface Order {
   id: string;
   customerId: string;
+  customer?: {
+    id: string;
+    name: string;
+    phone?: string | null;
+  };
   mitraId: string;
   mitra?: Pick<MitraProfile, "businessName" | "address" | "latitude" | "longitude">;
   /** Hanya diisi oleh endpoint mitra — cukup untuk tombol "Hubungi Pelanggan". */

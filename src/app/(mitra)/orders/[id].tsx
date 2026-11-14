@@ -226,188 +226,60 @@ export default function MitraOrderDetailScreen() {
         <View style={styles.backButton} />
       </View>
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* ── Ringkas status ── */}
-          <View style={styles.card}>
-            <View style={styles.cardHeaderRow}>
-              <Text style={styles.orderId}>
-                #{order.id.slice(0, 8).toUpperCase()}
-              </Text>
-              <View style={[styles.chip, { backgroundColor: chip.bg }]}>
-                <Text style={[styles.chipText, { color: chip.fg }]}>
-                  {STATUS_LABEL[order.status]}
-                </Text>
-              </View>
-            </View>
-            <Text style={styles.meta}>{formatDate(order.createdAt)}</Text>
-            {!!order.note && <Text style={styles.note}>Catatan: {order.note}</Text>}
-          </View>
+      <Button
+        title="💬 Hubungi Pelanggan"
+        variant="secondary"
+        onPress={() => router.push(`/(mitra)/chat/${order.id}`)}
+        style={{ marginBottom: Spacing[4] }}
+      />
 
-          {/* ── Menu ── */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Menu</Text>
-            {order.orderItems?.map((item) => (
-              <View key={item.id} style={styles.itemRow}>
-                {item.product?.photoUrl ? (
-                  <Image
-                    source={{ uri: item.product.photoUrl }}
-                    style={styles.itemImage}
-                  />
-                ) : (
-                  <View style={[styles.itemImage, styles.itemImagePh]}>
-                    <Text style={{ fontSize: 18 }}>🍽️</Text>
-                  </View>
-                )}
-                <View style={styles.itemInfo}>
-                  <Text style={styles.itemName} numberOfLines={1}>
-                    {item.product?.name || 'Menu'}
-                  </Text>
-                  <Text style={styles.itemQty}>
-                    {item.qty} x Rp{' '}
-                    {item.priceAtPurchase.toLocaleString('id-ID')}
-                  </Text>
-                </View>
-                <Text style={styles.itemTotal}>
-                  Rp {(item.qty * item.priceAtPurchase).toLocaleString('id-ID')}
-                </Text>
-              </View>
-            ))}
-          </View>
+      {order.status === "paid" && (
+        <Button
+          title="Terima Pesanan"
+          onPress={() => handleUpdateStatus("processing")}
+          isLoading={isUpdating}
+          style={styles.actionButton}
+        />
+      )}
 
-          {/* ── Pelanggan ── */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Pelanggan</Text>
-            <Text style={styles.customerName}>
-              {order.customer?.name || '-'}
-            </Text>
-            <Text style={styles.customerPhone}>
-              {order.customer?.phone || 'Nomor telepon tidak tersedia'}
-            </Text>
-            <TouchableOpacity
-              style={styles.contactButton}
-              activeOpacity={0.75}
-              onPress={handleContact}
-            >
-              <Text style={styles.contactButtonText}>Hubungi Pelanggan</Text>
-            </TouchableOpacity>
-          </View>
+      {(order.status === "processing" || order.status === "ready") && (
+        <Button
+          title="Tandai Siap Diambil"
+          onPress={() => handleUpdateStatus("ready_for_pickup")}
+          isLoading={isUpdating}
+          style={styles.actionButton}
+        />
+      )}
 
-          {/* ── Ringkasan biaya ── */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Ringkasan Biaya</Text>
-            <View style={styles.feeRow}>
-              <Text style={styles.feeLabel}>Subtotal</Text>
-              <Text style={styles.feeValue}>
-                Rp {subtotal.toLocaleString('id-ID')}
-              </Text>
-            </View>
-            <View style={styles.feeRow}>
-              <Text style={styles.feeLabel}>Biaya platform</Text>
-              <Text style={styles.feeValue}>
-                Rp {order.platformFee.toLocaleString('id-ID')}
-              </Text>
-            </View>
-            <View style={[styles.feeRow, styles.feeRowTotal]}>
-              <Text style={styles.feeTotalLabel}>Total</Text>
-              <Text style={styles.feeTotalValue}>
-                Rp {order.totalAmount.toLocaleString('id-ID')}
-              </Text>
-            </View>
-          </View>
+      {order.status === "ready_for_pickup" && (
+        <View style={styles.verifySection}>
+          <Text style={styles.sectionTitle}>Verifikasi Pickup</Text>
+          <Text style={styles.sectionDesc}>
+            Minta kode 4-digit dari aplikasi customer atau scan QR code mereka.
+          </Text>
+          <Input
+            placeholder="Masukkan 4 digit kode"
+            value={pickupCodeInput}
+            onChangeText={setPickupCodeInput}
+            autoCapitalize="characters"
+            maxLength={4}
+          />
+          <Button
+            title="Verifikasi Kode"
+            onPress={handleVerifyPickup}
+            isLoading={isVerifying}
+          />
+          {/* Ideal: Add QR scanner button here using expo-camera */}
+        </View>
+      )}
 
-          {/* ── Aksi: menunggu ── */}
-          {isAwaiting && (
-            <View style={styles.actions}>
-              <TouchableOpacity
-                style={[styles.button, styles.dangerButton]}
-                activeOpacity={0.75}
-                disabled={busy !== null}
-                onPress={handleCancel}
-              >
-                <Text style={styles.dangerButtonText}>Batalkan</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.button, styles.primaryButton]}
-                activeOpacity={0.75}
-                disabled={busy !== null}
-                onPress={handleAccept}
-              >
-                <Text style={styles.primaryButtonText}>Terima Pesanan</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* ── Aksi: sudah diterima → verifikasi pickup ── */}
-          {isAccepted && (
-            <>
-              <View style={styles.card}>
-                <Text style={styles.cardTitle}>Verifikasi Pickup</Text>
-                <Text style={styles.sectionDesc}>
-                  Minta kode 4 karakter dari pelanggan, lalu selesaikan
-                  pesanan.
-                </Text>
-                <TextInput
-                  value={pickupCodeInput}
-                  onChangeText={setPickupCodeInput}
-                  placeholder="Contoh: A3B7"
-                  placeholderTextColor={TEXT_MUTED}
-                  autoCapitalize="characters"
-                  maxLength={4}
-                  style={styles.codeInput}
-                />
-                <TouchableOpacity
-                  style={[
-                    styles.fullButton,
-                    busy === 'verify' && styles.disabledButton,
-                  ]}
-                  activeOpacity={0.8}
-                  disabled={busy === 'verify'}
-                  onPress={handleVerifyPickup}
-                >
-                  {busy === 'verify' ? (
-                    <ActivityIndicator color={WHITE} />
-                  ) : (
-                    <Text style={styles.fullButtonText}>
-                      Selesaikan Pesanan
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              <TouchableOpacity
-                style={[
-                  styles.fullButton,
-                  styles.dangerOutlineButton,
-                  busy !== null && styles.disabledButton,
-                ]}
-                activeOpacity={0.75}
-                disabled={busy !== null}
-                onPress={handleCancel}
-              >
-                <Text style={styles.dangerOutlineText}>Batalkan Pesanan</Text>
-              </TouchableOpacity>
-            </>
-          )}
-
-          {/* ── Sudah selesai ── */}
-          {isTerminal && (
-            <View style={styles.doneNote}>
-              <Text style={styles.doneNoteText}>
-                {order.status === 'completed'
-                  ? 'Pesanan ini sudah selesai.'
-                  : order.status === 'cancelled'
-                    ? 'Pesanan ini dibatalkan dan stok sudah dikembalikan.'
-                    : 'Pesanan ini kedaluwarsa.'}
-              </Text>
-            </View>
-          )}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      <Button
+        title="Kembali"
+        variant="ghost"
+        onPress={() => router.back()}
+        style={{ marginTop: Spacing[6] }}
+      />
+    </ScrollView>
   );
 }
 

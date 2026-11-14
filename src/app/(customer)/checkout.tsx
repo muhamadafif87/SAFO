@@ -1,11 +1,4 @@
 import { Button } from "@/components/ui/Button";
-import {
-  BorderRadius,
-  Colors,
-  FontSize,
-  FontWeight,
-  Spacing,
-} from "@/constants/typography";
 import { orderService } from "@/services/order.service";
 import { paymentService } from "@/services/payment.service";
 import { PLATFORM_FEE, useCartStore } from "@/stores/cart.store";
@@ -44,7 +37,6 @@ const PAYMENT_METHODS: {
   id: PaymentMethod;
   label: string;
   desc: string;
-  icon: string;
 }[] = [
   {
     id: "qris",
@@ -150,6 +142,27 @@ export default function CheckoutScreen() {
   );
   const total = subtotal + PLATFORM_FEE;
 
+  const firstProduct = items[0]?.product;
+  const formatTime = (iso?: string | null) => {
+    if (!iso) return "--.--";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d
+      .toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+      .replace(":", ".");
+  };
+
+  const pickupTimeDisplay =
+    firstProduct?.pickupWindowStart && firstProduct?.pickupWindowEnd
+      ? `${formatTime(firstProduct.pickupWindowStart)} - ${formatTime(firstProduct.pickupWindowEnd)} WIB`
+      : "17.00 - 20.00 WIB";
+
+  const mitraAddress =
+    firstProduct?.mitra?.address || "Jl. Kartika No 12, Jebres, Surakarta";
+
   const handleOpenGoogleMaps = () => {
     const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
     Linking.openURL(url).catch(() => {
@@ -251,6 +264,8 @@ export default function CheckoutScreen() {
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            activeOpacity={0.7}
           >
             <Svg
               width={20}
@@ -570,8 +585,7 @@ export default function CheckoutScreen() {
             value={note}
             onChangeText={setNote}
             multiline
-            numberOfLines={3}
-            maxLength={200}
+            numberOfLines={2}
           />
           <Text style={styles.charCount}>{note.length}/200</Text>
         </View>
@@ -631,16 +645,10 @@ export default function CheckoutScreen() {
             </TouchableOpacity>
           ))}
         </View>
-      </ScrollView>
 
-      {/* Fixed Bottom Bar */}
-      <View
-        style={[
-          styles.bottomBar,
-          { paddingBottom: Math.max(insets.bottom, Spacing[4]) },
-        ]}
-      >
-        <View style={styles.summaryRows}>
+        {/* Card 5: Total & Metode Pembayaran */}
+        <View style={styles.card}>
+          {/* Subtotal & Fee Rows */}
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Subtotal Pesanan</Text>
             <Text style={styles.summaryValue}>
@@ -653,14 +661,36 @@ export default function CheckoutScreen() {
               Rp {PLATFORM_FEE.toLocaleString("id-ID")}
             </Text>
           </View>
-          <View style={[styles.summaryRow, styles.totalRow]}>
-            <Text style={styles.totalLabel}>Total Pembayaran</Text>
-            <Text style={styles.totalValue}>
+
+          <View style={styles.cardDivider} />
+
+          {/* Total Row */}
+          <View style={styles.paymentRow}>
+            <Text style={styles.cardTitle}>Total Pembayaran</Text>
+            <Text style={styles.totalPriceText}>
               Rp {total.toLocaleString("id-ID")}
             </Text>
           </View>
-        </View>
 
+          <View style={styles.cardDivider} />
+
+          {/* Payment Method Row */}
+          <View style={styles.paymentRow}>
+            <Text style={styles.cardTitle}>Metode Pembayaran</Text>
+            <Text style={styles.paymentMethodValue}>
+              {PAYMENT_METHODS.find((m) => m.id === paymentMethod)?.label || "QRIS"}
+            </Text>
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Bottom Sticky Bar */}
+      <View
+        style={[
+          styles.bottomBar,
+          { paddingBottom: Math.max(insets.bottom, 16) },
+        ]}
+      >
         <TouchableOpacity
           style={[styles.orderBtn, isLoading && styles.orderBtnDisabled]}
           onPress={handleOrder}
@@ -687,6 +717,7 @@ const styles = StyleSheet.create({
   },
 
   header: {
+    height: 52,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -709,8 +740,6 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.bold,
     color: "#0F172A",
   },
-
-  scrollArea: { flex: 1 },
   scroll: {
     paddingHorizontal: Spacing[4],
     paddingTop: Spacing[4],
@@ -730,8 +759,9 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  sectionTitleRow: {
+  cardRowContainer: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
     marginBottom: Spacing[3],
     gap: Spacing[2],
@@ -1053,10 +1083,8 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.bold,
     color: "#0F172A",
   },
-
   addMoreBtn: {
-    marginTop: Spacing[3],
-    paddingVertical: Spacing[2],
+    marginTop: 8,
     alignItems: "center",
     backgroundColor: "#F8FAFC",
     borderRadius: 10,
@@ -1091,7 +1119,6 @@ const styles = StyleSheet.create({
   // 5. Metode Pembayaran
   paymentOption: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
     padding: Spacing[3],
     borderRadius: 14,
@@ -1191,7 +1218,6 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.bold,
     color: PRIMARY,
   },
-
   orderBtn: {
     backgroundColor: PRIMARY,
     borderRadius: 14,
@@ -1210,7 +1236,6 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.bold,
     color: "#FFFFFF",
   },
-
   emptyWrap: {
     flex: 1,
     alignItems: "center",

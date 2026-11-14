@@ -9,7 +9,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
 // ─── Color Palette Matching Screen & Theme ──────────────────────────────────
@@ -65,12 +68,7 @@ const ClockIcon = () => (
       stroke={TEAL}
       strokeWidth={2.2}
     />
-    <Path
-      d="M12 1v2"
-      stroke={TEAL}
-      strokeWidth={2.2}
-      strokeLinecap="round"
-    />
+    <Path d="M12 1v2" stroke={TEAL} strokeWidth={2.2} strokeLinecap="round" />
   </Svg>
 );
 
@@ -87,7 +85,7 @@ export default function VipScreen() {
       Alert.alert(
         "Status VIP Aktif",
         "Akun Anda sudah memiliki langganan SAFO VIP aktif.",
-        [{ text: "Tutup" }]
+        [{ text: "Tutup" }],
       );
       return;
     }
@@ -115,16 +113,19 @@ export default function VipScreen() {
                     text: "Kembali ke Profil",
                     onPress: () => router.back(),
                   },
-                ]
+                ],
               );
             } catch (err) {
-              Alert.alert("Gagal", "Terjadi kesalahan saat memproses langganan.");
+              Alert.alert(
+                "Gagal",
+                "Terjadi kesalahan saat memproses langganan.",
+              );
             } finally {
               setIsProcessing(false);
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -134,7 +135,7 @@ export default function VipScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => router.replace("/profile")}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           activeOpacity={0.7}
         >
@@ -155,7 +156,8 @@ export default function VipScreen() {
           <View style={styles.heroTextWrap}>
             <Text style={styles.heroTitle}>SAFO VIP</Text>
             <Text style={styles.heroSubtitle}>
-              Nikmati pengalaman terbaik belanja makanan dengan keuntungan eksklusif.
+              Nikmati pengalaman terbaik belanja makanan dengan keuntungan
+              eksklusif.
             </Text>
           </View>
         </View>
@@ -168,7 +170,8 @@ export default function VipScreen() {
           <View style={styles.benefitContent}>
             <Text style={styles.benefitTitle}>Cashback Saat Makanan Zonk</Text>
             <Text style={styles.benefitDesc}>
-              Makanan tidak sesuai, basi, atau tidak layak? Dapatkan uang kembali 100%.
+              Makanan tidak sesuai, basi, atau tidak layak? Dapatkan uang
+              kembali 100%.
             </Text>
           </View>
         </View>
@@ -181,7 +184,8 @@ export default function VipScreen() {
           <View style={styles.benefitContent}>
             <Text style={styles.benefitTitle}>Makanan Muncul Lebih Awal</Text>
             <Text style={styles.benefitDesc}>
-              Dapatkan akses lebih awal untuk melihat dan memesan makanan sebelum pengguna lainnya.
+              Dapatkan akses lebih awal untuk melihat dan memesan makanan
+              sebelum pengguna lainnya.
             </Text>
           </View>
         </View>
@@ -214,7 +218,11 @@ export default function VipScreen() {
             disabled={isProcessing}
           >
             <Text style={styles.upgradeButtonText}>
-              {isVip ? "VIP Anda Sudah Aktif" : isProcessing ? "Memproses..." : "Upgrade VIP"}
+              {isVip
+                ? "VIP Anda Sudah Aktif"
+                : isProcessing
+                  ? "Memproses..."
+                  : "Upgrade VIP"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -382,4 +390,3 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
-
