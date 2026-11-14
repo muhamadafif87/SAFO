@@ -23,6 +23,8 @@ function assertUuid(id: string, label = 'ID'): void {
   }
 }
 
+import { ConversationStatus } from '../database/entities/chat.enums';
+import { Conversation } from '../database/entities/conversation.entity';
 import { OrderItem } from '../database/entities/order-item.entity';
 import { OrderStatusLog } from '../database/entities/order-status-log.entity';
 import { Order } from '../database/entities/order.entity';
@@ -147,6 +149,10 @@ export class OrderService {
   async createOrder(customerId: string, dto: CreateOrderDto): Promise<Order> {
     const { items, note, paymentMethod } = dto;
 
+    if (!items || items.length === 0) {
+      throw new BadRequestException('Item pesanan tidak boleh kosong');
+    }
+
     // 2. Create order in a DB transaction with pessimistic locking
     // Stock validation is done INSIDE the transaction to prevent race conditions (TOCTOU).
     return this.dataSource.transaction(async (manager) => {
@@ -174,6 +180,17 @@ export class OrderService {
         }
       }
 
+      // Single merchant per order validation
+      const firstProduct = productMap.get(items[0].productId)!;
+      const targetMitraId = firstProduct.mitraId;
+      for (const p of products) {
+        if (p.mitraId !== targetMitraId) {
+          throw new BadRequestException(
+            'Semua produk dalam satu pesanan harus berasal dari mitra yang sama',
+          );
+        }
+      }
+
       let totalAmount = PLATFORM_FEE;
       for (const item of items) {
         const p = productMap.get(item.productId)!;
@@ -186,12 +203,10 @@ export class OrderService {
         .substring(2, 6)
         .toUpperCase();
 
-      const firstProduct = productMap.get(items[0].productId)!;
-
       // Create order
       const order = manager.create(Order, {
         customerId,
-        mitraId: firstProduct.mitraId,
+        mitraId: targetMitraId,
         totalAmount,
         platformFee: PLATFORM_FEE,
         status: OrderStatus.PENDING_PAYMENT,
@@ -207,6 +222,15 @@ export class OrderService {
         OrderStatus.PENDING_PAYMENT,
         customerId,
       );
+
+      // Create 1:1 conversation in WAITING status
+      const conversation = manager.create(Conversation, {
+        orderId: order.id,
+        customerId: order.customerId,
+        mitraId: order.mitraId,
+        status: ConversationStatus.WAITING,
+      });
+      await manager.save(Conversation, conversation);
 
       // Create order items & decrement DB stock
       for (const item of items) {
@@ -373,9 +397,14 @@ export class OrderService {
   ): Promise<Order> {
     assertUuid(orderId, 'Order ID');
 
-    const orders = await this.getMitraOrders(mitraUserId);
-    const order = orders.find((o) => o.id === orderId);
-    if (!order) throw new NotFoundException('Order tidak ditemukan');
+    return this.dataSource.transaction(async (manager) => {
+      const order = await manager.findOne(Order, {
+        where: { id: orderId },
+        relations: { mitra: true },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!order) throw new NotFoundException('Order tidak ditemukan');
+      if (order.mitra.userId !== mitraUserId) throw new ForbiddenException();
 
     if (
       order.status !== OrderStatus.ACCEPTED &&
@@ -387,16 +416,28 @@ export class OrderService {
       );
     }
 
-    if (order.pickupCode !== pickupCode.toUpperCase()) {
-      throw new BadRequestException('Kode pickup salah');
-    }
+      if (order.pickupCode !== pickupCode.toUpperCase()) {
+        throw new BadRequestException('Kode pickup salah');
+      }
 
-    return this.transitionOrder(
-      this.dataSource.manager,
-      order,
-      OrderStatus.COMPLETED,
-      mitraUserId,
-    );
+      order.status = OrderStatus.COMPLETED;
+      await manager.save(Order, order);
+
+      // Close conversation in lock hierarchy
+      const conversation = await manager.findOne(Conversation, {
+        where: { orderId: order.id },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (conversation && conversation.status !== ConversationStatus.CLOSED) {
+        conversation.status = ConversationStatus.CLOSED;
+        conversation.closedAt = new Date();
+        conversation.closeReason = 'ORDER_COMPLETED';
+        await manager.save(Conversation, conversation);
+      }
+
+      return order;
+    });
   }
 
   async updateOrderStatus(
@@ -406,16 +447,63 @@ export class OrderService {
   ): Promise<Order> {
     assertUuid(orderId, 'Order ID');
 
-    const orders = await this.getMitraOrders(mitraUserId);
-    const order = orders.find((o) => o.id === orderId);
-    if (!order) throw new NotFoundException('Order tidak ditemukan');
+    return this.dataSource.transaction(async (manager) => {
+      const order = await manager.findOne(Order, {
+        where: { id: orderId },
+        relations: { mitra: true },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!order) throw new NotFoundException('Order tidak ditemukan');
+      if (order.mitra.userId !== mitraUserId) throw new ForbiddenException();
 
-    return this.transitionOrder(
-      this.dataSource.manager,
-      order,
-      status,
-      mitraUserId,
-    );
+      const allowedTransitions: Partial<Record<OrderStatus, OrderStatus[]>> = {
+        [OrderStatus.PAID]: [OrderStatus.PROCESSING, OrderStatus.CANCELLED],
+        [OrderStatus.PROCESSING]: [
+          OrderStatus.READY_FOR_PICKUP,
+          OrderStatus.CANCELLED,
+        ],
+        [OrderStatus.READY]: [
+          OrderStatus.READY_FOR_PICKUP,
+          OrderStatus.CANCELLED,
+        ],
+      };
+
+      if (!allowedTransitions[order.status]?.includes(status)) {
+        throw new BadRequestException(
+          `Perubahan status dari ${order.status} ke ${status} tidak diizinkan`,
+        );
+      }
+
+      order.status = status;
+      await manager.save(Order, order);
+
+      // Synchronize conversation lifecycle
+      const conversation = await manager.findOne(Conversation, {
+        where: { orderId: order.id },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (conversation) {
+        if (
+          status === OrderStatus.PROCESSING &&
+          conversation.status === ConversationStatus.WAITING
+        ) {
+          conversation.status = ConversationStatus.ACTIVE;
+          conversation.startedAt = new Date();
+          await manager.save(Conversation, conversation);
+        } else if (
+          status === OrderStatus.CANCELLED &&
+          conversation.status !== ConversationStatus.CLOSED
+        ) {
+          conversation.status = ConversationStatus.CLOSED;
+          conversation.closedAt = new Date();
+          conversation.closeReason = 'ORDER_CANCELLED';
+          await manager.save(Conversation, conversation);
+        }
+      }
+
+      return order;
+    });
   }
 
   // Redis is intentionally disabled for now.
