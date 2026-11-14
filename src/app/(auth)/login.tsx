@@ -62,7 +62,13 @@ export default function LoginScreen() {
     try {
       const res = await authService.login({ email: cleanEmail, password });
       await setAuth(res.user, res.tokens, res.mitra);
-      router.replace("/(customer)");
+      if (res.user.role === "mitra") {
+        router.replace("/(mitra)");
+      } else if (res.user.role === "admin") {
+        router.replace("/(admin)");
+      } else {
+        router.replace("/(customer)");
+      }
     } catch (error) {
       if (isAxiosError(error)) {
         const msg = error.response?.data?.message;

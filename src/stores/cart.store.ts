@@ -11,6 +11,10 @@ interface CartState {
   items: CartItem[];
   mitraId: string | null;
   mitraName: string | null;
+  mitraAddress: string | null;
+  mitraLatitude: number | null;
+  mitraLongitude: number | null;
+  mitraPhotoUrl: string | null;
 }
 
 interface CartActions {
@@ -36,6 +40,10 @@ export const useCartStore = create<CartState & CartActions>((set, get) => ({
   items: [],
   mitraId: null,
   mitraName: null,
+  mitraAddress: null,
+  mitraLatitude: null,
+  mitraLongitude: null,
+  mitraPhotoUrl: null,
 
   // ── Actions ───────────────────────────────────────────────────────────
 
@@ -66,6 +74,10 @@ export const useCartStore = create<CartState & CartActions>((set, get) => ({
       items: [...items, { product, qty: Math.min(product.stock, qty) }],
       mitraId: product.mitraId,
       mitraName: product.mitra?.businessName ?? null,
+      mitraAddress: product.mitra?.address ?? null,
+      mitraLatitude: product.mitra?.latitude ?? null,
+      mitraLongitude: product.mitra?.longitude ?? null,
+      mitraPhotoUrl: product.mitra?.photoUrl ?? null,
     });
     return 'added';
   },
@@ -75,6 +87,10 @@ export const useCartStore = create<CartState & CartActions>((set, get) => ({
       items: [{ product, qty: Math.min(product.stock, qty) }],
       mitraId: product.mitraId,
       mitraName: product.mitra?.businessName ?? null,
+      mitraAddress: product.mitra?.address ?? null,
+      mitraLatitude: product.mitra?.latitude ?? null,
+      mitraLongitude: product.mitra?.longitude ?? null,
+      mitraPhotoUrl: product.mitra?.photoUrl ?? null,
     });
   },
 
@@ -84,6 +100,10 @@ export const useCartStore = create<CartState & CartActions>((set, get) => ({
       items,
       mitraId: items.length === 0 ? null : get().mitraId,
       mitraName: items.length === 0 ? null : get().mitraName,
+      mitraAddress: items.length === 0 ? null : get().mitraAddress,
+      mitraLatitude: items.length === 0 ? null : get().mitraLatitude,
+      mitraLongitude: items.length === 0 ? null : get().mitraLongitude,
+      mitraPhotoUrl: items.length === 0 ? null : get().mitraPhotoUrl,
     });
   },
 
@@ -112,7 +132,16 @@ export const useCartStore = create<CartState & CartActions>((set, get) => ({
   getItemNote: (productId) =>
     get().items.find((i) => i.product.id === productId)?.note ?? '',
 
-  clearCart: () => set({ items: [], mitraId: null, mitraName: null }),
+  clearCart: () =>
+    set({
+      items: [],
+      mitraId: null,
+      mitraName: null,
+      mitraAddress: null,
+      mitraLatitude: null,
+      mitraLongitude: null,
+      mitraPhotoUrl: null,
+    }),
 
   getTotalItems: () =>
     get().items.reduce((sum, i) => sum + i.qty, 0),

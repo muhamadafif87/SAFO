@@ -21,6 +21,7 @@ const HISTORY_STATUSES: OrderStatus[] = ["completed", "cancelled", "expired"];
 const STATUS_LABEL: Record<OrderStatus, string> = {
   pending_payment: "Menunggu Pembayaran",
   paid: "Menunggu Diproses",
+  accepted: "Diterima",
   ready: "Siap Diambil",
   ready_for_pickup: "Siap Diambil",
   completed: "Selesai",
@@ -239,6 +240,7 @@ export default function CustomerOrders() {
 const statusStyles = StyleSheet.create({
   pending_payment: { color: Colors.warning },
   paid: { color: Colors.warning },
+  accepted: { color: Colors.primary[600] },
   ready: { color: Colors.primary[600] },
   ready_for_pickup: { color: Colors.primary[600] },
   completed: { color: Colors.primary[600] },

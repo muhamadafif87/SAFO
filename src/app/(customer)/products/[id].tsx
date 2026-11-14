@@ -1,10 +1,4 @@
-import {
-  BorderRadius,
-  Colors,
-  FontSize,
-  FontWeight,
-  Spacing,
-} from "@/constants/typography";
+import { Colors, FontSize, FontWeight, Spacing } from "@/constants/typography";
 import { productService } from "@/services/product.service";
 import { useCartStore } from "@/stores/cart.store";
 import type { Product } from "@/types";
@@ -23,6 +17,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const PRIMARY = "#1a5c52";
@@ -54,23 +49,27 @@ export default function ProductDetail() {
 
   const [imgSrc, setImgSrc] = useState<string>("");
 
-  useEffect(() => {
-    (async () => {
-      try {
-        if (!id) return;
-        const data = await productService.getById(id);
-        setProduct(data);
-        if (data?.photoUrl) {
-          setImgSrc(data.photoUrl);
-        }
-      } catch (err: any) {
-        Alert.alert("Error", err.message || "Gagal memuat produk");
-        router.back();
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [id]);
+  // Refresh data produk setiap kali screen ini mendapat focus,
+  // sehingga stok selalu up-to-date setelah user balik dari checkout.
+  useFocusEffect(
+    useCallback(() => {
+      if (!id) return;
+      setLoading(true);
+      productService
+        .getById(id)
+        .then((data) => {
+          setProduct(data);
+          if (data?.photoUrl) {
+            setImgSrc(data.photoUrl);
+          }
+        })
+        .catch((err: any) => {
+          Alert.alert("Error", err.message || "Gagal memuat produk");
+          router.back();
+        })
+        .finally(() => setLoading(false));
+    }, [id])
+  );
 
   const handleAddToCart = (directCheckout = false) => {
     if (!product) return;
@@ -167,7 +166,20 @@ export default function ProductDetail() {
             style={[styles.backBtn, { top: Math.max(insets.top, 16) }]}
             onPress={() => router.back()}
           >
-            <Text style={styles.backBtnText}>{"<"}</Text>
+            <Text style={styles.backBtnText}>
+              <Svg
+                width={16}
+                height={16}
+                fill="currentColor"
+                className="bi bi-chevron-left"
+                viewBox="0 0 16 16"
+              >
+                <Path
+                  fillRule="evenodd"
+                  d="M11.354 1.646a.5.5 0 010 .708L5.707 8l5.647 5.646a.5.5 0 01-.708.708l-6-6a.5.5 0 010-.708l6-6a.5.5 0 01.708 0"
+                />
+              </Svg>
+            </Text>
           </TouchableOpacity>
         </View>
 

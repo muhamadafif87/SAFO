@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import api from './api';
 import type {
   ApiResponse,
@@ -189,16 +190,34 @@ export const productService = {
    */
   uploadPhoto: async (id: string, uri: string): Promise<{ photoUrl: string }> => {
     const formData = new FormData();
-    formData.append('photo', {
-      uri,
-      name: 'product.jpg',
-      type: 'image/jpeg',
-    } as unknown as Blob);
+
+    if (Platform.OS === 'web' || uri.startsWith('blob:') || uri.startsWith('data:')) {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const mime = blob.type || 'image/jpeg';
+      const ext = mime.split('/')[1] || 'jpg';
+      const filename = `product-${Date.now()}.${ext}`;
+      formData.append('photo', blob, filename);
+    } else {
+      const filename = uri.split('/').pop() || 'product.jpg';
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : 'image/jpeg';
+      formData.append('photo', {
+        uri,
+        name: filename,
+        type,
+      } as unknown as Blob);
+    }
 
     const res = await api.post<{ photoUrl: string }>(
       `/products/${id}/photo`,
       formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
+      {
+        headers: {
+          'Content-Type': Platform.OS === 'web' ? undefined : 'multipart/form-data',
+        },
+        transformRequest: (data) => data,
+      }
     );
     return res.data;
   },
