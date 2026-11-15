@@ -8,6 +8,7 @@ import { Message } from '../database/entities/message.entity';
 import { MitraProfile } from '../database/entities/mitra-profile.entity';
 import { NotificationOutbox } from '../database/entities/notification-outbox.entity';
 import { UserDevice } from '../database/entities/user-device.entity';
+import { Order } from '../database/entities/order.entity';
 import { ChatStorageService } from './chat-storage.service';
 import { ChatController } from './chat.controller';
 import { ChatGateway } from './chat.gateway';
@@ -24,6 +25,7 @@ import { NotificationOutboxProcessor } from './notification-outbox.processor';
       NotificationOutbox,
       UserDevice,
       MitraProfile,
+      Order,
     ]),
     ConfigModule,
     JwtModule.registerAsync({
@@ -44,6 +46,6 @@ import { NotificationOutboxProcessor } from './notification-outbox.processor';
     ChatGateway,
     NotificationOutboxProcessor,
   ],
-  exports: [ChatService],
+  exports: [ChatService, ChatGateway],
 })
 export class ChatModule {}

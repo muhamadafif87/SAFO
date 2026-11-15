@@ -1,5 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ChatModule } from '../chat/chat.module';
 import { MitraProfile } from '../database/entities/mitra-profile.entity';
 import { OrderItem } from '../database/entities/order-item.entity';
 import { Order } from '../database/entities/order.entity';
@@ -21,6 +22,7 @@ import { OrderService } from './order.service';
       Payment,
     ]),
     forwardRef(() => PaymentModule),
+    forwardRef(() => ChatModule),
   ],
   controllers: [OrderController],
   providers: [OrderService],

@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useAuthStore } from '@/stores/auth.store';
+import { setSessionExpiredCallback } from '@/services/api';
 import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
@@ -23,11 +24,22 @@ export default function RootLayout() {
   const isLoading = useAuthStore((state) => state.isLoading);
   const role = useAuthStore((state) => state.user?.role);
   const restoreSession = useAuthStore((state) => state.restoreSession);
+  const clearAuth = useAuthStore((state) => state.clearAuth);
+
+  // ── Daftarkan session-expired callback ke Axios interceptor ─────────────
+  // Dipanggil oleh api.ts saat refresh token gagal (session benar-benar berakhir).
+  // Callback ini clear Zustand state + paksa redirect ke login tanpa spam backend logout.
+  useEffect(() => {
+    setSessionExpiredCallback(async () => {
+      await clearAuth({ skipBackend: true });
+      // router.replace dipastikan jalan di luar React render cycle
+      router.replace('/(auth)/login');
+    });
+  }, [clearAuth, router]);
 
   useEffect(() => {
     restoreSession();
   }, []);
-
   useEffect(() => {
     if (isLoading) return;
 

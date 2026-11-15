@@ -41,6 +41,28 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly jwtService: JwtService,
   ) {}
 
+  /**
+   * Broadcast conversation lifecycle change (e.g., waiting -> active -> closed)
+   * to all connected participants in the conversation room.
+   */
+  emitConversationStatus(
+    conversationId: string,
+    status: string,
+    orderId: string,
+  ): void {
+    if (this.server) {
+      const roomName = `conversation:${conversationId}`;
+      this.server.to(roomName).emit('chat:status', {
+        conversationId,
+        orderId,
+        status,
+      });
+      this.logger.log(
+        `[WebSocket] Emitted chat:status "${status}" to room ${roomName}`,
+      );
+    }
+  }
+
   async handleConnection(client: AuthenticatedSocket) {
     try {
       const authHeader =

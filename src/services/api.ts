@@ -21,6 +21,29 @@ const BASE_URL = __DEV__ ? DEV_API_URL : "https://api.safo.app/api";
 const TOKEN_KEY_ACCESS = "safo_access_token";
 const TOKEN_KEY_REFRESH = "safo_refresh_token";
 
+// ── Session Expired Callback ──────────────────────────────────────────────
+// Didaftarkan oleh _layout.tsx saat mount agar interceptor bisa memicu
+// clearAuth() + navigasi ke /login tanpa circular import ke Zustand/Router.
+type SessionExpiredCallback = () => void;
+let _onSessionExpired: SessionExpiredCallback | null = null;
+let _isSessionExpiredHandled = false;
+
+export function setSessionExpiredCallback(cb: SessionExpiredCallback): void {
+  _onSessionExpired = cb;
+}
+
+export function resetSessionExpiredFlag(): void {
+  _isSessionExpiredHandled = false;
+}
+
+function triggerSessionExpired(): void {
+  if (_isSessionExpiredHandled) return;
+  _isSessionExpiredHandled = true;
+  if (_onSessionExpired) {
+    _onSessionExpired();
+  }
+}
+
 // ── Axios Instance ────────────────────────────────────────────────────────
 export const api = axios.create({
   baseURL: BASE_URL,
@@ -63,10 +86,12 @@ api.interceptors.response.use(
       _retry?: boolean;
     };
 
-    // Do not attempt to refresh if the 401 error is from login or register endpoints
+    // Do not attempt to refresh if the 401 error is from auth lifecycle endpoints
     const isAuthEndpoint =
       originalRequest.url?.includes("/auth/login") ||
-      originalRequest.url?.includes("/auth/register");
+      originalRequest.url?.includes("/auth/register") ||
+      originalRequest.url?.includes("/auth/refresh") ||
+      originalRequest.url?.includes("/auth/logout");
 
     if (
       error.response?.status === 401 &&
@@ -94,8 +119,21 @@ api.interceptors.response.use(
           refreshToken,
         });
 
-        const newAccessToken: string = data.data.accessToken;
+        const newAccessToken: string | undefined =
+          data.tokens?.accessToken ?? data.data?.accessToken ?? data.accessToken;
+        const newRefreshToken: string | undefined =
+          data.tokens?.refreshToken ?? data.data?.refreshToken ?? data.refreshToken;
+
+        if (!newAccessToken) {
+          throw new Error("Invalid token refresh payload structure");
+        }
+
         await storage.setItemAsync(TOKEN_KEY_ACCESS, newAccessToken);
+        if (newRefreshToken) {
+          await storage.setItemAsync(TOKEN_KEY_REFRESH, newRefreshToken);
+        }
+
+        _isSessionExpiredHandled = false;
         processQueue(null, newAccessToken);
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         return api(originalRequest);
@@ -104,6 +142,8 @@ api.interceptors.response.use(
         // Clear tokens — session expired
         await storage.deleteItemAsync(TOKEN_KEY_ACCESS);
         await storage.deleteItemAsync(TOKEN_KEY_REFRESH);
+        // Notify app to clear auth state and redirect to login
+        triggerSessionExpired();
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

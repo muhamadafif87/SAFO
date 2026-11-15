@@ -49,6 +49,11 @@ export const authService = {
    * Logout — invalidate refresh token di server.
    */
   logout: async (refreshToken?: string | null): Promise<void> => {
-    await api.post('/auth/logout', { refreshToken }, { timeout: 3500 });
+    try {
+      await api.post('/auth/logout', { refreshToken }, { timeout: 3500 });
+    } catch {
+      // Silent catch: jika offline, timeout, atau token sudah invalid,
+      // pembersihan lokal di client tetap harus berlanjut dengan aman.
+    }
   },
 };

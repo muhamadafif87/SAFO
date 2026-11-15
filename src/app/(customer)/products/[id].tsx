@@ -1,9 +1,8 @@
-import { Colors, FontSize, FontWeight, Spacing } from "@/constants/typography";
 import { productService } from "@/services/product.service";
 import { useCartStore } from "@/stores/cart.store";
 import type { Product } from "@/types";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -66,7 +65,7 @@ export default function ProductDetail() {
           router.back();
         })
         .finally(() => setLoading(false));
-    }, [id])
+    }, [id]),
   );
 
   const handleAddToCart = (directCheckout = false) => {
@@ -122,8 +121,10 @@ export default function ProductDetail() {
 
   if (!product) return null;
 
-  const discountAmount =
-    Math.max(0, Number(product.originalPrice) - Number(product.discountPrice));
+  const discountAmount = Math.max(
+    0,
+    Number(product.originalPrice) - Number(product.discountPrice),
+  );
 
   const formatTime = (iso?: string | null) => {
     if (!iso) return "--.--";
@@ -221,11 +222,12 @@ export default function ProductDetail() {
               <Text style={styles.discountPrice}>
                 Rp {Number(product.discountPrice).toLocaleString("id-ID")}
               </Text>
-              {Number(product.originalPrice) > Number(product.discountPrice) && (
-                <Text style={styles.originalPrice}>
-                  Rp{Number(product.originalPrice).toLocaleString("id-ID")}
-                </Text>
-              )}
+              {Number(product.originalPrice) >
+                Number(product.discountPrice) && (
+                  <Text style={styles.originalPrice}>
+                    Rp{Number(product.originalPrice).toLocaleString("id-ID")}
+                  </Text>
+                )}
             </View>
             {discountAmount > 0 && (
               <View style={styles.badge}>
@@ -262,7 +264,10 @@ export default function ProductDetail() {
 
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Lokasi Toko</Text>
-            <Text style={[styles.infoValue, styles.locationText]} numberOfLines={2}>
+            <Text
+              style={[styles.infoValue, styles.locationText]}
+              numberOfLines={2}
+            >
               {product.mitra?.address || "-"}
             </Text>
           </View>

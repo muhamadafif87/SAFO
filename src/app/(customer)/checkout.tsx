@@ -1,8 +1,10 @@
 import { Button } from "@/components/ui/Button";
+import { FontSize, FontWeight, Spacing } from "@/constants/typography";
 import { orderService } from "@/services/order.service";
 import { paymentService } from "@/services/payment.service";
 import { PLATFORM_FEE, useCartStore } from "@/stores/cart.store";
 import type { PaymentMethod } from "@/types";
+import Mapbox from "@rnmapbox/maps";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
@@ -23,7 +25,6 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
-import Mapbox from "@rnmapbox/maps";
 
 const MAPBOX_ACCESS_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ?? "";
 if (MAPBOX_ACCESS_TOKEN) {
@@ -37,14 +38,15 @@ const PAYMENT_METHODS: {
   id: PaymentMethod;
   label: string;
   desc: string;
+  icon?: string;
 }[] = [
-  {
-    id: "qris",
-    label: "QRIS",
-    desc: "Scan QR dari semua aplikasi dompet & bank",
-    icon: "💳",
-  },
-];
+    {
+      id: "qris",
+      label: "QRIS",
+      desc: "Scan QR dari semua aplikasi dompet & bank",
+      icon: "💳",
+    },
+  ];
 
 // Helper format waktu pickup
 function formatPickupWindow(startStr?: string, endStr?: string) {
@@ -82,10 +84,10 @@ function formatPickupWindow(startStr?: string, endStr?: string) {
     const dateLabel = isToday
       ? "Hari Ini"
       : start.toLocaleDateString("id-ID", {
-          weekday: "short",
-          day: "numeric",
-          month: "short",
-        });
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      });
 
     return {
       dateLabel,
@@ -111,6 +113,8 @@ export default function CheckoutScreen() {
     mitraLatitude: storedLat,
     mitraLongitude: storedLng,
     clearCart,
+    updateQty,
+    removeItem,
   } = useCartStore();
 
   const [note, setNote] = useState("");
@@ -170,6 +174,36 @@ export default function CheckoutScreen() {
     });
   };
 
+  const handleIncreaseQty = (item: (typeof items)[0]) => {
+    if (item.qty >= item.product.stock) {
+      Alert.alert(
+        "Batas Stok",
+        `Stok maksimal untuk "${item.product.name}" adalah ${item.product.stock}.`
+      );
+      return;
+    }
+    updateQty(item.product.id, item.qty + 1);
+  };
+
+  const handleDecreaseQty = (item: (typeof items)[0]) => {
+    if (item.qty <= 1) {
+      Alert.alert(
+        "Hapus Menu",
+        `Apakah kamu yakin ingin menghapus "${item.product.name}" dari pesanan?`,
+        [
+          { text: "Batal", style: "cancel" },
+          {
+            text: "Hapus",
+            style: "destructive",
+            onPress: () => removeItem(item.product.id),
+          },
+        ]
+      );
+      return;
+    }
+    updateQty(item.product.id, item.qty - 1);
+  };
+
   const handleOrder = async () => {
     if (items.length === 0) return;
 
@@ -217,7 +251,7 @@ export default function CheckoutScreen() {
           Alert.alert(
             "Pesanan Berhasil Dibuat",
             payErr.response?.data?.message ||
-              "Pesanan berhasil dibuat, namun pembayaran QRIS belum dapat ditampilkan. Silakan bayar melalui halaman Pesanan.",
+            "Pesanan berhasil dibuat, namun pembayaran QRIS belum dapat ditampilkan. Silakan bayar melalui halaman Pesanan.",
             [
               {
                 text: "Buka Detail Pesanan",
@@ -299,16 +333,19 @@ export default function CheckoutScreen() {
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Svg
-            width={20}
-            height={20}
-            fill={PRIMARY}
-            viewBox="0 0 16 16"
-          >
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          activeOpacity={0.7}
+        >
+          <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
             <Path
-              fillRule="evenodd"
-              d="M11.354 1.646a.5.5 0 010 .708L5.707 8l5.647 5.646a.5.5 0 01-.708.708l-6-6a.5.5 0 010-.708l6-6a.5.5 0 01.708 0"
+              d="M19 12H5M5 12L12 19M5 12L12 5"
+              stroke={PRIMARY}
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
           </Svg>
         </TouchableOpacity>
@@ -322,66 +359,39 @@ export default function CheckoutScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* 1. LOKASI PENGAMBILAN & EXTENDED MAP VIEW */}
-        <View style={styles.section}>
-          <View style={styles.sectionTitleRow}>
-            <View style={styles.sectionIconBadge}>
-              <Svg
-                width={16}
-                height={16}
-                fill={PRIMARY}
-                viewBox="0 0 16 16"
-              >
-                <Path d="M8 16s6-5.686 6-10A6 6 0 002 6c0 4.314 6 10 6 10m0-7a3 3 0 110-6 3 3 0 010 6" />
-              </Svg>
-            </View>
-            <Text style={styles.sectionTitle}>Lokasi Pengambilan</Text>
-          </View>
+        {/* Card 1: Alamat Warung & Utilitas Mapbox */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Alamat Warung</Text>
+          <View style={styles.cardDivider} />
 
-          <View style={styles.locationCard}>
-            <View style={styles.locationDetails}>
-              <View style={styles.mitraTitleRow}>
-                <Text style={styles.mitraName}>{displayMitraName}</Text>
-                {distanceKm ? (
-                  <View style={styles.distanceBadge}>
-                    <Text style={styles.distanceText}>{distanceKm} km</Text>
-                  </View>
-                ) : null}
-              </View>
-              <Text style={styles.pickupAddress}>{displayAddress}</Text>
+          <View style={styles.addressRow}>
+            <View style={styles.addressInfoCol}>
+              <Text style={styles.mitraName}>{displayMitraName}</Text>
+              <Text style={styles.mitraAddress}>{displayAddress}</Text>
             </View>
 
             <TouchableOpacity
               style={[
-                styles.mapButton,
-                isMapExpanded && styles.mapButtonActive,
+                styles.arrowButton,
+                isMapExpanded && styles.arrowButtonActive,
               ]}
               onPress={() => setIsMapExpanded((prev) => !prev)}
               activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Svg
-                width={20}
-                height={20}
-                fill={isMapExpanded ? ACCENT_YELLOW : PRIMARY}
-                viewBox="0 0 16 16"
-              >
+              <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
                 <Path
-                  fillRule="evenodd"
-                  d="M16 .5a.5.5 0 00-.598-.49L10.5.99 5.598.01a.5.5 0 00-.196 0l-5 1A.5.5 0 000 1.5v14a.5.5 0 00.598.49l4.902-.98 4.902.98a.5.5 0 00.196 0l5-1A.5.5 0 0016 14.5zM5 14.09V1.11l.5-.1.5.1v12.98l-.402-.08a.5.5 0 00-.196 0zm5 .8V1.91l.402.08a.5.5 0 00.196 0L11 1.91v12.98l-.5.1z"
+                  d={isMapExpanded ? "M18 15L12 9L6 15" : "M9 18L15 12L9 6"}
+                  stroke={isMapExpanded ? "#FFFFFF" : PRIMARY}
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
               </Svg>
-              <Text
-                style={[
-                  styles.mapBtnText,
-                  isMapExpanded && styles.mapBtnTextActive,
-                ]}
-              >
-                {isMapExpanded ? "Tutup" : "Peta"}
-              </Text>
             </TouchableOpacity>
           </View>
 
-          {/* EXTENDED LAYOUT: MAP VIEW SAAT ICON MAP DITEKAN */}
+          {/* Utilitas Peta Interaktif Mapbox (Accordion View) */}
           {isMapExpanded && (
             <View style={styles.extendedMapContainer}>
               <View style={styles.mapHeaderRow}>
@@ -426,8 +436,8 @@ export default function CheckoutScreen() {
                   <View style={styles.markerPinPulse}>
                     <View style={styles.markerPinCore}>
                       <Svg
-                        width={22}
-                        height={22}
+                        width={20}
+                        height={20}
                         fill="#ffffff"
                         viewBox="0 0 16 16"
                       >
@@ -447,68 +457,20 @@ export default function CheckoutScreen() {
           )}
         </View>
 
-        {/* 2. LAYOUT INFORMASI WAKTU PICKUP */}
-        <View style={styles.section}>
-          <View style={styles.sectionTitleRow}>
-            <View style={styles.sectionIconBadge}>
-              <Svg
-                width={16}
-                height={16}
-                fill={PRIMARY}
-                viewBox="0 0 16 16"
-              >
-                <Path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z" />
-                <Path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z" />
-              </Svg>
-            </View>
-            <Text style={styles.sectionTitle}>Waktu Pengambilan</Text>
-            <View style={styles.pickupDateBadge}>
-              <Text style={styles.pickupDateBadgeText}>
-                {pickupInfo.dateLabel}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.pickupInfoCard}>
-            <View style={styles.pickupTimeRow}>
-              <View style={styles.pickupClockIconWrap}>
-                <Text style={styles.pickupClockEmoji}>⏰</Text>
-              </View>
-              <View style={styles.pickupTimeCol}>
-                <Text style={styles.pickupTimeLabel}>Estimasi Jam Pickup</Text>
-                <Text style={styles.pickupTimeValue}>{pickupInfo.timeRange}</Text>
-              </View>
-            </View>
-            <View style={styles.pickupNoteRow}>
-              <Text style={styles.pickupNoteBullet}>•</Text>
-              <Text style={styles.pickupNoteMessage}>
-                Ambil pesanan langsung di toko sebelum batas waktu pickup berakhir
-                agar pesanan tetap fresh dan siap diserahkan oleh mitra.
-              </Text>
-            </View>
-          </View>
+        {/* Card 2: Waktu Pick-up */}
+        <View style={styles.pickupCard}>
+          <Text style={styles.cardTitle}>Waktu Pick-up</Text>
+          <Text style={styles.pickupTimeText}>{pickupTimeDisplay}</Text>
         </View>
 
-        {/* 3. ORDER SUMMARY (RINGKASAN PESANAN DENGAN GAMBAR PRODUK) */}
-        <View style={styles.section}>
-          <View style={styles.sectionTitleRow}>
-            <View style={styles.sectionIconBadge}>
-              <Svg
-                width={16}
-                height={16}
-                fill={PRIMARY}
-                viewBox="0 0 16 16"
-              >
-                <Path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .485.621l-1.5 6A.5.5 0 0 1 13 10H4a.5.5 0 0 1-.485-.379L1.61 3H.5a.5.5 0 0 1-.5-.5zM3.14 4l1.25 5h8.22l1.25-5H3.14zM5 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm7 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-7 1a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm7 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2z" />
-              </Svg>
-            </View>
-            <Text style={styles.sectionTitle}>Ringkasan Pesanan</Text>
-            <Text style={styles.itemCountTag}>{items.length} Menu</Text>
-          </View>
+        {/* Card 3: Detail Pesanan */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Detail Pesanan</Text>
+          <View style={styles.cardDivider} />
 
           {items.map((item) => (
             <View key={item.product.id} style={styles.itemRow}>
-              {/* Gambar Produk */}
+              {/* Gambar Menu */}
               <Image
                 source={{
                   uri:
@@ -519,12 +481,11 @@ export default function CheckoutScreen() {
                 resizeMode="cover"
               />
 
-              {/* Detail Produk */}
+              {/* Detail Menu */}
               <View style={styles.itemDetailCol}>
                 <Text style={styles.itemName} numberOfLines={2}>
                   {item.product.name}
                 </Text>
-
                 {item.note ? (
                   <View style={styles.itemNoteChip}>
                     <Text style={styles.itemNoteText} numberOfLines={1}>
@@ -532,27 +493,37 @@ export default function CheckoutScreen() {
                     </Text>
                   </View>
                 ) : null}
-
                 <Text style={styles.itemPrice}>
-                  Rp{" "}
-                  {Number(item.product.discountPrice).toLocaleString("id-ID")}
-                  {"  "}
-                  <Text style={styles.itemQtyMultiplier}>x{item.qty}</Text>
+                  Rp {Number(item.product.discountPrice).toLocaleString("id-ID")}
                 </Text>
               </View>
 
-              {/* Subtotal Item */}
-              <View style={styles.itemRightCol}>
-                <Text style={styles.itemSubtotal}>
-                  Rp{" "}
-                  {(
-                    Number(item.product.discountPrice) * item.qty
-                  ).toLocaleString("id-ID")}
-                </Text>
+              {/* Stepper Kuantitas */}
+              <View style={styles.stepperContainer}>
+                <TouchableOpacity
+                  style={styles.stepperMinusBtn}
+                  onPress={() => handleDecreaseQty(item)}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <Text style={styles.stepperMinusText}>-</Text>
+                </TouchableOpacity>
+
+                <Text style={styles.stepperQtyText}>{item.qty}</Text>
+
+                <TouchableOpacity
+                  style={styles.stepperPlusBtn}
+                  onPress={() => handleIncreaseQty(item)}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <Text style={styles.stepperPlusText}>+</Text>
+                </TouchableOpacity>
               </View>
             </View>
           ))}
 
+          {/* Tombol Tambah Menu Lain */}
           <TouchableOpacity
             style={styles.addMoreBtn}
             onPress={() => router.back()}
@@ -562,99 +533,31 @@ export default function CheckoutScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* 4. Catatan Pesanan */}
-        <View style={styles.section}>
-          <View style={styles.sectionTitleRow}>
-            <View style={styles.sectionIconBadge}>
-              <Svg
-                width={16}
-                height={16}
-                fill={PRIMARY}
-                viewBox="0 0 16 16"
-              >
-                <Path d="M12.854.146a.5.5 0 0 0-.707 0L10.5 1.793 14.207 5.5l1.647-1.646a.5.5 0 0 0 0-.708l-3-3zm.646 6.061L9.793 2.5 3.293 9H3.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.207l6.5-6.5zm-7.468 7.468A.5.5 0 0 1 6 13.5V13h-.5a.5.5 0 0 1-.5-.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.5-.5V10h-.5a.499.499 0 0 1-.175-.032l-.179.178a.5.5 0 0 0-.11.168l-2 5a.5.5 0 0 0 .65.65l5-2a.5.5 0 0 0 .168-.11l.178-.178z" />
-              </Svg>
-            </View>
-            <Text style={styles.sectionTitle}>Catatan Pesanan</Text>
-            <Text style={styles.optionalTag}>(opsional)</Text>
-          </View>
+        {/* Card 4: Catatan Pesanan */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Catatan Pesanan</Text>
+          <View style={styles.cardDivider} />
           <TextInput
             style={styles.noteInput}
-            placeholder="Contoh: jangan terlalu pedas, kuah dipisah..."
-            placeholderTextColor={Colors.neutral[400]}
+            placeholder="Contoh : tidak pedas, tambah alat makan"
+            placeholderTextColor="#888888"
             value={note}
             onChangeText={setNote}
             multiline
-            numberOfLines={2}
           />
-          <Text style={styles.charCount}>{note.length}/200</Text>
         </View>
 
-        {/* 5. Metode Pembayaran */}
-        <View style={styles.section}>
-          <View style={styles.sectionTitleRow}>
-            <View style={styles.sectionIconBadge}>
-              <Svg
-                width={16}
-                height={16}
-                fill={PRIMARY}
-                viewBox="0 0 16 16"
-              >
-                <Path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm2-1a1 1 0 0 0-1 1v1h14V4a1 1 0 0 0-1-1H2zm13 4H1v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7z" />
-                <Path d="M2 10a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-1z" />
-              </Svg>
-            </View>
-            <Text style={styles.sectionTitle}>Metode Pembayaran</Text>
-          </View>
-          {PAYMENT_METHODS.map((method) => (
-            <TouchableOpacity
-              key={method.id}
-              style={[
-                styles.paymentOption,
-                paymentMethod === method.id && styles.paymentOptionSelected,
-              ]}
-              onPress={() => setPaymentMethod(method.id)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.paymentLeft}>
-                <View style={styles.paymentIconWrap}>
-                  <Text style={styles.paymentIcon}>{method.icon}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[
-                      styles.paymentLabel,
-                      paymentMethod === method.id && styles.paymentLabelSelected,
-                    ]}
-                  >
-                    {method.label}
-                  </Text>
-                  <Text style={styles.paymentDesc}>{method.desc}</Text>
-                </View>
-              </View>
-              <View
-                style={[
-                  styles.radio,
-                  paymentMethod === method.id && styles.radioSelected,
-                ]}
-              >
-                {paymentMethod === method.id && (
-                  <View style={styles.radioDot} />
-                )}
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Card 5: Total & Metode Pembayaran */}
+        {/* Card 5: Ringkasan Total & Metode Pembayaran */}
         <View style={styles.card}>
-          {/* Subtotal & Fee Rows */}
+          {/* Subtotal Pesanan */}
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Subtotal Pesanan</Text>
             <Text style={styles.summaryValue}>
               Rp {subtotal.toLocaleString("id-ID")}
             </Text>
           </View>
+
+          {/* Biaya Layanan SAFO */}
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Biaya Layanan SAFO</Text>
             <Text style={styles.summaryValue}>
@@ -664,27 +567,25 @@ export default function CheckoutScreen() {
 
           <View style={styles.cardDivider} />
 
-          {/* Total Row */}
-          <View style={styles.paymentRow}>
+          {/* Total Pembayaran */}
+          <View style={styles.summaryRow}>
             <Text style={styles.cardTitle}>Total Pembayaran</Text>
-            <Text style={styles.totalPriceText}>
+            <Text style={styles.totalPriceHighlight}>
               Rp {total.toLocaleString("id-ID")}
             </Text>
           </View>
 
           <View style={styles.cardDivider} />
 
-          {/* Payment Method Row */}
-          <View style={styles.paymentRow}>
+          {/* Metode Pembayaran */}
+          <View style={styles.summaryRow}>
             <Text style={styles.cardTitle}>Metode Pembayaran</Text>
-            <Text style={styles.paymentMethodValue}>
-              {PAYMENT_METHODS.find((m) => m.id === paymentMethod)?.label || "QRIS"}
-            </Text>
+            <Text style={styles.paymentMethodValue}>QRIS</Text>
           </View>
         </View>
       </ScrollView>
 
-      {/* Bottom Sticky Bar */}
+      {/* Bottom Sticky Action Bar */}
       <View
         style={[
           styles.bottomBar,
@@ -698,11 +599,9 @@ export default function CheckoutScreen() {
           activeOpacity={0.88}
         >
           {isLoading ? (
-            <ActivityIndicator color="#ffffff" />
+            <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.orderBtnText}>
-              Bayar & Konfirmasi · Rp {total.toLocaleString("id-ID")}
-            </Text>
+            <Text style={styles.orderBtnText}>Pesan Sekarang</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -713,156 +612,100 @@ export default function CheckoutScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#FFFFFF",
   },
-
   header: {
-    height: 52,
+    height: 56,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[3],
+    paddingHorizontal: 20,
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
+    borderBottomColor: "#F1F5F9",
   },
   backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#F1F5F9",
-    alignItems: "center",
+    width: 40,
+    height: 40,
+    alignItems: "flex-start",
     justifyContent: "center",
   },
   headerTitle: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
-    color: "#0F172A",
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#000000",
+  },
+  scrollArea: {
+    flex: 1,
   },
   scroll: {
-    paddingHorizontal: Spacing[4],
-    paddingTop: Spacing[4],
-    paddingBottom: Spacing[8],
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 24,
   },
 
-  section: {
+  // Base Card
+  card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: Spacing[4],
-    marginBottom: Spacing[4],
-    borderWidth: 1,
-    borderColor: "#EEF2F6",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    borderRadius: 10,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.14,
+    shadowRadius: 5,
+    elevation: 3,
+    borderWidth: Platform.OS === "android" ? 0.6 : 0,
+    borderColor: "#E2E8F0",
   },
-  cardRowContainer: {
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#363434",
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: "#F1F5F9",
+    marginVertical: 12,
+  },
+
+  // Card 1: Alamat Warung
+  addressRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: Spacing[3],
-    gap: Spacing[2],
+    justifyContent: "space-between",
   },
-  sectionIconBadge: {
-    width: 28,
-    height: 28,
+  addressInfoCol: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  mitraName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#363434",
+    marginBottom: 4,
+  },
+  mitraAddress: {
+    fontSize: 13,
+    color: "#64748B",
+    lineHeight: 18,
+  },
+  arrowButton: {
+    width: 36,
+    height: 36,
     borderRadius: 8,
     backgroundColor: "#E6F4F2",
     alignItems: "center",
     justifyContent: "center",
   },
-  sectionTitle: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
-    color: "#0F172A",
-    flex: 1,
-  },
-  itemCountTag: {
-    fontSize: FontSize.xs,
-    color: PRIMARY,
-    fontWeight: FontWeight.semiBold,
-    backgroundColor: "#E6F4F2",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-  },
-  optionalTag: {
-    fontSize: FontSize.xs,
-    color: Colors.neutral[400],
-  },
-
-  // 1. Lokasi Pengambilan
-  locationCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F4FBF9",
-    borderWidth: 1,
-    borderColor: "#D3EBE7",
-    borderRadius: 14,
-    padding: 14,
-    gap: Spacing[3],
-  },
-  locationDetails: {
-    flex: 1,
-  },
-  mitraTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 4,
-  },
-  mitraName: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
-    color: "#0F172A",
-  },
-  distanceBadge: {
-    backgroundColor: ACCENT_YELLOW,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 6,
-  },
-  distanceText: {
-    fontSize: 10,
-    fontWeight: FontWeight.bold,
-    color: "#000000",
-  },
-  pickupAddress: {
-    fontSize: FontSize.sm,
-    color: "#475569",
-    lineHeight: 18,
-  },
-  mapButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: "#E6F4F2",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#BDE2DC",
-  },
-  mapButtonActive: {
+  arrowButtonActive: {
     backgroundColor: PRIMARY,
-    borderColor: PRIMARY,
-  },
-  mapBtnText: {
-    fontSize: 9,
-    fontWeight: FontWeight.bold,
-    color: PRIMARY,
-    marginTop: 2,
-  },
-  mapBtnTextActive: {
-    color: ACCENT_YELLOW,
   },
 
-  // Extended Map Layout
+  // Extended Map
   extendedMapContainer: {
-    marginTop: Spacing[3],
-    borderRadius: 14,
+    marginTop: 14,
+    borderRadius: 10,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#CBD5E1",
@@ -887,7 +730,7 @@ const styles = StyleSheet.create({
     backgroundColor: PRIMARY,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 6,
   },
   openGmapsText: {
     fontSize: 11,
@@ -896,7 +739,7 @@ const styles = StyleSheet.create({
   },
   mapWrapper: {
     width: "100%",
-    height: 180,
+    height: 170,
     position: "relative",
   },
   mapView: {
@@ -909,13 +752,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#E2E8F0",
   },
   mapFallbackEmoji: {
-    fontSize: 32,
+    fontSize: 28,
     marginBottom: 4,
   },
   mapFallbackText: {
-    fontSize: FontSize.xs,
+    fontSize: 11,
     color: "#475569",
-    fontWeight: FontWeight.medium,
+    fontWeight: "500",
   },
   markerPinOverlay: {
     ...StyleSheet.absoluteFill,
@@ -923,25 +766,25 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   markerPinPulse: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(0, 97, 95, 0.25)",
     alignItems: "center",
     justifyContent: "center",
   },
   markerPinCore: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: PRIMARY,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowRadius: 3,
+    elevation: 3,
   },
   mapFooter: {
     paddingHorizontal: 12,
@@ -951,115 +794,67 @@ const styles = StyleSheet.create({
     borderTopColor: "#F1F5F9",
   },
   mapFooterText: {
-    fontSize: FontSize.xs,
+    fontSize: 11,
     color: "#64748B",
   },
 
-  // 2. Waktu Pickup Card
-  pickupDateBadge: {
-    backgroundColor: ACCENT_YELLOW,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-  },
-  pickupDateBadgeText: {
-    fontSize: 11,
-    fontWeight: FontWeight.bold,
-    color: "#000000",
-  },
-  pickupInfoCard: {
-    backgroundColor: "#F0FAF9",
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#CCEAE5",
-  },
-  pickupTimeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 10,
-  },
-  pickupClockIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+  // Card 2: Waktu Pick-up
+  pickupCard: {
     backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#BDE2DC",
-  },
-  pickupClockEmoji: {
-    fontSize: 22,
-  },
-  pickupTimeCol: {
-    flex: 1,
-  },
-  pickupTimeLabel: {
-    fontSize: FontSize.xs,
-    color: "#004846",
-    fontWeight: FontWeight.medium,
-    marginBottom: 2,
-  },
-  pickupTimeValue: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
-    color: PRIMARY,
-  },
-  pickupNoteRow: {
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 16,
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 6,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(0, 97, 95, 0.12)",
+    alignItems: "center",
+    justifyContent: "space-between",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.14,
+    shadowRadius: 5,
+    elevation: 3,
+    borderWidth: Platform.OS === "android" ? 0.6 : 0,
+    borderColor: "#E2E8F0",
   },
-  pickupNoteBullet: {
-    fontSize: FontSize.sm,
-    color: PRIMARY,
-    lineHeight: 18,
-  },
-  pickupNoteMessage: {
-    flex: 1,
-    fontSize: FontSize.xs,
-    color: "#004846",
-    lineHeight: 18,
+  pickupTimeText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#363434",
   },
 
-  // 3. Ringkasan Pesanan (dengan gambar)
+  // Card 3: Detail Pesanan
   itemRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: Spacing[3],
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
-    gap: 12,
+    borderBottomColor: "#F8FAFC",
   },
   itemThumbnail: {
-    width: 60,
-    height: 60,
-    borderRadius: 12,
+    width: 52,
+    height: 52,
+    borderRadius: 6,
     backgroundColor: "#F1F5F9",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
   },
   itemDetailCol: {
     flex: 1,
+    marginLeft: 12,
+    marginRight: 8,
+    justifyContent: "center",
   },
   itemName: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.bold,
-    color: "#1E293B",
-    marginBottom: 2,
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#000000",
+    marginBottom: 3,
   },
   itemNoteChip: {
     backgroundColor: "#F8FAFC",
     alignSelf: "flex-start",
     paddingHorizontal: 6,
     paddingVertical: 1,
-    borderRadius: 6,
-    marginBottom: 4,
+    borderRadius: 4,
+    marginBottom: 3,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
@@ -1068,174 +863,137 @@ const styles = StyleSheet.create({
     color: "#64748B",
   },
   itemPrice: {
-    fontSize: FontSize.xs,
-    color: "#64748B",
-  },
-  itemQtyMultiplier: {
-    fontWeight: FontWeight.bold,
+    fontSize: 14,
+    fontWeight: "600",
     color: PRIMARY,
   },
-  itemRightCol: {
-    alignItems: "flex-end",
+  stepperContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
-  itemSubtotal: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.bold,
-    color: "#0F172A",
+  stepperMinusBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: PRIMARY,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  stepperMinusText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: PRIMARY,
+    lineHeight: 18,
+  },
+  stepperQtyText: {
+    width: 24,
+    textAlign: "center",
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#000000",
+  },
+  stepperPlusBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 4,
+    backgroundColor: PRIMARY,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepperPlusText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    lineHeight: 18,
   },
   addMoreBtn: {
-    marginTop: 8,
+    marginTop: 12,
     alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
     backgroundColor: "#F8FAFC",
-    borderRadius: 10,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
   addMoreText: {
-    fontSize: FontSize.xs,
+    fontSize: 12,
     color: PRIMARY,
-    fontWeight: FontWeight.bold,
+    fontWeight: "600",
   },
 
-  // 4. Catatan Pesanan
+  // Card 4: Catatan Pesanan
   noteInput: {
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 12,
-    padding: Spacing[3],
-    fontSize: FontSize.sm,
-    color: "#0F172A",
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#F3F3F3",
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 12,
+    color: "#363434",
+    minHeight: 50,
     textAlignVertical: "top",
-    minHeight: 76,
-  },
-  charCount: {
-    fontSize: 10,
-    color: "#94A3B8",
-    textAlign: "right",
-    marginTop: Spacing[1],
   },
 
-  // 5. Metode Pembayaran
-  paymentOption: {
+  // Card 5: Ringkasan & Pembayaran
+  summaryRow: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    padding: Spacing[3],
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: "#E2E8F0",
-    marginBottom: Spacing[2],
-    backgroundColor: "#FFFFFF",
+    marginVertical: 4,
   },
-  paymentOptionSelected: {
-    borderColor: PRIMARY,
-    backgroundColor: "#F0FAF9",
+  summaryLabel: {
+    fontSize: 13,
+    color: "#64748B",
   },
-  paymentLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    flex: 1,
-  },
-  paymentIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: "#F1F5F9",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  paymentIcon: { fontSize: 20 },
-  paymentLabel: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.bold,
+  summaryValue: {
+    fontSize: 13,
+    fontWeight: "500",
     color: "#1E293B",
   },
-  paymentLabelSelected: { color: PRIMARY },
-  paymentDesc: {
-    fontSize: 11,
-    color: "#64748B",
-    marginTop: 1,
+  totalPriceHighlight: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: PRIMARY,
   },
-  radio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "#CBD5E1",
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 8,
-  },
-  radioSelected: { borderColor: PRIMARY },
-  radioDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: PRIMARY,
+  paymentMethodValue: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#000000",
   },
 
   // Bottom Bar
   bottomBar: {
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: Spacing[4],
-    paddingTop: Spacing[3],
+    paddingHorizontal: 20,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 10,
-  },
-  summaryRows: { marginBottom: Spacing[3] },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 6,
-  },
-  summaryLabel: { fontSize: FontSize.xs, color: "#64748B" },
-  summaryValue: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.medium,
-    color: "#1E293B",
-  },
-  totalRow: {
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
-    marginTop: 4,
-    marginBottom: 0,
-    alignItems: "center",
-  },
-  totalLabel: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.bold,
-    color: "#0F172A",
-  },
-  totalValue: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
-    color: PRIMARY,
+    borderTopColor: "#F1F5F9",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 8,
   },
   orderBtn: {
     backgroundColor: PRIMARY,
-    borderRadius: 14,
-    paddingVertical: 14,
+    borderRadius: 6,
+    height: 52,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: PRIMARY,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  orderBtnDisabled: { opacity: 0.65 },
+  orderBtnDisabled: {
+    opacity: 0.65,
+  },
   orderBtnText: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.bold,
+    fontSize: 20,
+    fontWeight: "700",
     color: "#FFFFFF",
   },
+
+  // Empty State
   emptyWrap: {
     flex: 1,
     alignItems: "center",
@@ -1243,7 +1001,9 @@ const styles = StyleSheet.create({
     gap: Spacing[3],
     paddingHorizontal: 24,
   },
-  emptyIcon: { fontSize: 56 },
+  emptyIcon: {
+    fontSize: 56,
+  },
   emptyText: {
     fontSize: FontSize.md,
     color: "#64748B",

@@ -1,14 +1,16 @@
 import {
-    BadRequestException,
-    ForbiddenException,
-    forwardRef,
-    Inject,
-    Injectable,
-    Logger,
-    NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  forwardRef,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
+import { ChatGateway } from '../chat/chat.gateway';
 
 // UUID v4 regex — guards against sending non-UUID strings to PostgreSQL uuid columns,
 // which would cause: QueryFailedError: invalid input syntax for type uuid (pg 22P02)
@@ -25,6 +27,7 @@ function assertUuid(id: string, label = 'ID'): void {
 
 import { ConversationStatus } from '../database/entities/chat.enums';
 import { Conversation } from '../database/entities/conversation.entity';
+import { MitraProfile } from '../database/entities/mitra-profile.entity';
 import { OrderItem } from '../database/entities/order-item.entity';
 import { OrderStatusLog } from '../database/entities/order-status-log.entity';
 import { Order } from '../database/entities/order.entity';
@@ -54,7 +57,10 @@ export class OrderService {
     private dataSource: DataSource,
     @Inject(forwardRef(() => PaymentService))
     private paymentService: PaymentService,
-  ) {}
+    @Optional()
+    @Inject(forwardRef(() => ChatGateway))
+    private readonly chatGateway?: ChatGateway,
+  ) { }
 
   /** Rejects any status jump that is not part of the canonical order flow. */
   private assertTransition(from: OrderStatus, to: OrderStatus): void {
@@ -116,6 +122,102 @@ export class OrderService {
     }
   }
 
+  private async syncConversationLifecycle(
+    manager: EntityManager,
+    orderId: string,
+    to: OrderStatus,
+  ): Promise<void> {
+    let conversation = await manager.findOne(Conversation, {
+      where: { orderId },
+      lock: { mode: 'pessimistic_write' },
+    });
+
+    const activeStatuses = [
+      OrderStatus.ACCEPTED,
+      OrderStatus.PROCESSING,
+      OrderStatus.READY,
+      OrderStatus.READY_FOR_PICKUP,
+    ];
+
+    if (!conversation) {
+      const order = await manager.findOne(Order, { where: { id: orderId } });
+      if (order) {
+        let initialStatus = ConversationStatus.WAITING;
+        if (activeStatuses.includes(to)) {
+          initialStatus = ConversationStatus.ACTIVE;
+        } else if (
+          to === OrderStatus.COMPLETED ||
+          to === OrderStatus.CANCELLED ||
+          to === OrderStatus.EXPIRED
+        ) {
+          initialStatus = ConversationStatus.CLOSED;
+        }
+
+        conversation = manager.create(Conversation, {
+          orderId: order.id,
+          customerId: order.customerId,
+          mitraId: order.mitraId,
+          status: initialStatus,
+          startedAt: initialStatus === ConversationStatus.ACTIVE ? new Date() : null,
+          closedAt: initialStatus === ConversationStatus.CLOSED ? new Date() : null,
+          closeReason:
+            to === OrderStatus.CANCELLED
+              ? 'ORDER_CANCELLED'
+              : to === OrderStatus.COMPLETED
+              ? 'ORDER_COMPLETED'
+              : null,
+        });
+        await manager.save(Conversation, conversation);
+      }
+    }
+
+    if (conversation) {
+      let statusChanged = false;
+
+      if (
+        activeStatuses.includes(to) &&
+        conversation.status === ConversationStatus.WAITING
+      ) {
+        conversation.status = ConversationStatus.ACTIVE;
+        conversation.startedAt = new Date();
+        await manager.save(Conversation, conversation);
+        statusChanged = true;
+      } else if (
+        to === OrderStatus.CANCELLED &&
+        conversation.status !== ConversationStatus.CLOSED
+      ) {
+        conversation.status = ConversationStatus.CLOSED;
+        conversation.closedAt = new Date();
+        conversation.closeReason = 'ORDER_CANCELLED';
+        await manager.save(Conversation, conversation);
+        statusChanged = true;
+      } else if (
+        to === OrderStatus.COMPLETED &&
+        conversation.status !== ConversationStatus.CLOSED
+      ) {
+        conversation.status = ConversationStatus.CLOSED;
+        conversation.closedAt = new Date();
+        conversation.closeReason = 'ORDER_COMPLETED';
+        await manager.save(Conversation, conversation);
+        statusChanged = true;
+      }
+
+      if (statusChanged && this.chatGateway) {
+        try {
+          this.chatGateway.emitConversationStatus(
+            conversation.id,
+            conversation.status,
+            orderId,
+          );
+        } catch (err: any) {
+          this.logger.warn(
+            `Could not emit chat:status for conversation ${conversation.id}: ${err?.message}`,
+          );
+        }
+      }
+    }
+  }
+
   /**
    * Single entry point for status changes: validates the transition, releases
    * reserved stock when the order ends, and records the audit trail.
@@ -139,6 +241,7 @@ export class OrderService {
     order.status = to;
     const saved = await manager.save(Order, order);
     await this.writeStatusLog(manager, order.id, from, to, changedBy);
+    await this.syncConversationLifecycle(manager, order.id, to);
     return saved;
   }
 
@@ -400,43 +503,37 @@ export class OrderService {
     return this.dataSource.transaction(async (manager) => {
       const order = await manager.findOne(Order, {
         where: { id: orderId },
-        relations: { mitra: true },
         lock: { mode: 'pessimistic_write' },
       });
       if (!order) throw new NotFoundException('Order tidak ditemukan');
-      if (order.mitra.userId !== mitraUserId) throw new ForbiddenException();
 
-    if (
-      order.status !== OrderStatus.ACCEPTED &&
-      order.status !== OrderStatus.READY &&
-      order.status !== OrderStatus.READY_FOR_PICKUP
-    ) {
-      throw new BadRequestException(
-        'Pesanan harus diterima mitra sebelum bisa diselesaikan',
-      );
-    }
+      const mitra = await manager.findOne(MitraProfile, {
+        where: { id: order.mitraId },
+      });
+      if (!mitra || mitra.userId !== mitraUserId) throw new ForbiddenException();
+      order.mitra = mitra;
+
+      if (
+        order.status !== OrderStatus.ACCEPTED &&
+        order.status !== OrderStatus.PROCESSING &&
+        order.status !== OrderStatus.READY &&
+        order.status !== OrderStatus.READY_FOR_PICKUP
+      ) {
+        throw new BadRequestException(
+          'Pesanan harus diterima mitra sebelum bisa diselesaikan',
+        );
+      }
 
       if (order.pickupCode !== pickupCode.toUpperCase()) {
         throw new BadRequestException('Kode pickup salah');
       }
 
-      order.status = OrderStatus.COMPLETED;
-      await manager.save(Order, order);
-
-      // Close conversation in lock hierarchy
-      const conversation = await manager.findOne(Conversation, {
-        where: { orderId: order.id },
-        lock: { mode: 'pessimistic_write' },
-      });
-
-      if (conversation && conversation.status !== ConversationStatus.CLOSED) {
-        conversation.status = ConversationStatus.CLOSED;
-        conversation.closedAt = new Date();
-        conversation.closeReason = 'ORDER_COMPLETED';
-        await manager.save(Conversation, conversation);
-      }
-
-      return order;
+      return this.transitionOrder(
+        manager,
+        order,
+        OrderStatus.COMPLETED,
+        mitraUserId,
+      );
     });
   }
 
@@ -450,20 +547,38 @@ export class OrderService {
     return this.dataSource.transaction(async (manager) => {
       const order = await manager.findOne(Order, {
         where: { id: orderId },
-        relations: { mitra: true },
         lock: { mode: 'pessimistic_write' },
       });
       if (!order) throw new NotFoundException('Order tidak ditemukan');
-      if (order.mitra.userId !== mitraUserId) throw new ForbiddenException();
+
+      const mitra = await manager.findOne(MitraProfile, {
+        where: { id: order.mitraId },
+      });
+      if (!mitra || mitra.userId !== mitraUserId) throw new ForbiddenException();
+      order.mitra = mitra;
 
       const allowedTransitions: Partial<Record<OrderStatus, OrderStatus[]>> = {
-        [OrderStatus.PAID]: [OrderStatus.PROCESSING, OrderStatus.CANCELLED],
+        [OrderStatus.PAID]: [
+          OrderStatus.ACCEPTED,
+          OrderStatus.PROCESSING,
+          OrderStatus.CANCELLED,
+        ],
+        [OrderStatus.ACCEPTED]: [
+          OrderStatus.PROCESSING,
+          OrderStatus.READY,
+          OrderStatus.READY_FOR_PICKUP,
+          OrderStatus.CANCELLED,
+        ],
         [OrderStatus.PROCESSING]: [
+          OrderStatus.READY,
           OrderStatus.READY_FOR_PICKUP,
           OrderStatus.CANCELLED,
         ],
         [OrderStatus.READY]: [
           OrderStatus.READY_FOR_PICKUP,
+          OrderStatus.CANCELLED,
+        ],
+        [OrderStatus.READY_FOR_PICKUP]: [
           OrderStatus.CANCELLED,
         ],
       };
@@ -474,35 +589,12 @@ export class OrderService {
         );
       }
 
-      order.status = status;
-      await manager.save(Order, order);
-
-      // Synchronize conversation lifecycle
-      const conversation = await manager.findOne(Conversation, {
-        where: { orderId: order.id },
-        lock: { mode: 'pessimistic_write' },
-      });
-
-      if (conversation) {
-        if (
-          status === OrderStatus.PROCESSING &&
-          conversation.status === ConversationStatus.WAITING
-        ) {
-          conversation.status = ConversationStatus.ACTIVE;
-          conversation.startedAt = new Date();
-          await manager.save(Conversation, conversation);
-        } else if (
-          status === OrderStatus.CANCELLED &&
-          conversation.status !== ConversationStatus.CLOSED
-        ) {
-          conversation.status = ConversationStatus.CLOSED;
-          conversation.closedAt = new Date();
-          conversation.closeReason = 'ORDER_CANCELLED';
-          await manager.save(Conversation, conversation);
-        }
-      }
-
-      return order;
+      return this.transitionOrder(
+        manager,
+        order,
+        status,
+        mitraUserId,
+      );
     });
   }
 

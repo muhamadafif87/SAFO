@@ -1,9 +1,9 @@
-import { Colors } from '@/constants/typography';
-import { orderService } from '@/services/order.service';
-import { Order, OrderStatus } from '@/types';
-import { showAlert, showConfirm } from '@/utils/alert';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { Colors } from "@/constants/typography";
+import { orderService } from "@/services/order.service";
+import { Order, OrderStatus } from "@/types";
+import { showAlert, showConfirm } from "@/utils/alert";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -17,41 +17,43 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
 
 const PRIMARY = Colors.primary[600];
-const MINT = '#D8EDE7';
-const WHITE = '#ffffff';
+const MINT = "#D8EDE7";
+const WHITE = "#ffffff";
 const TEXT_DARK = Colors.neutral[900];
 const TEXT_MUTED = Colors.neutral[500];
-const BORDER = '#EAEEF0';
-const PAGE_BG = '#F4F6F7';
-const INPUT_BG = '#F3F5F6';
-const DANGER = '#C0392B';
-const DANGER_BG = '#FBE9E7';
+const BORDER = "#EAEEF0";
+const PAGE_BG = "#F4F6F7";
+const INPUT_BG = "#F3F5F6";
+const DANGER = "#C0392B";
+const DANGER_BG = "#FBE9E7";
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
-  pending_payment: 'Menunggu Bayar',
-  paid: 'Menunggu Diproses',
-  accepted: 'Diterima',
-  ready: 'Diterima',
-  ready_for_pickup: 'Diterima',
-  completed: 'Selesai',
-  cancelled: 'Dibatalkan',
-  expired: 'Kedaluwarsa',
+  pending_payment: "Menunggu Bayar",
+  paid: "Menunggu Diproses",
+  processing: "Diproses",
+  accepted: "Diterima",
+  ready: "Siap Diambil",
+  ready_for_pickup: "Siap Diambil",
+  completed: "Selesai",
+  cancelled: "Dibatalkan",
+  expired: "Kedaluwarsa",
 };
 
 const STATUS_CHIP: Record<OrderStatus, { bg: string; fg: string }> = {
-  pending_payment: { bg: '#FEF3C7', fg: '#92400E' },
-  paid: { bg: '#FEF3C7', fg: '#92400E' },
+  pending_payment: { bg: "#FEF3C7", fg: "#92400E" },
+  paid: { bg: "#FEF3C7", fg: "#92400E" },
+  processing: { bg: MINT, fg: PRIMARY },
   accepted: { bg: MINT, fg: PRIMARY },
   ready: { bg: MINT, fg: PRIMARY },
   ready_for_pickup: { bg: MINT, fg: PRIMARY },
   completed: { bg: MINT, fg: PRIMARY },
-  cancelled: { bg: '#FDECEC', fg: DANGER },
-  expired: { bg: '#EEF1F2', fg: TEXT_MUTED },
+  cancelled: { bg: "#FDECEC", fg: DANGER },
+  expired: { bg: "#EEF1F2", fg: TEXT_MUTED },
 };
 
 const BackIcon = ({ color }: { color: string }) => (
@@ -62,13 +64,13 @@ const BackIcon = ({ color }: { color: string }) => (
 
 function formatDate(value: string) {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '-';
-  return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   }).format(date);
 }
 
@@ -79,19 +81,25 @@ export default function MitraOrderDetailScreen() {
 
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [pickupCodeInput, setPickupCodeInput] = useState('');
-  const [busy, setBusy] = useState<'verify' | 'accept' | 'cancel' | null>(null);
+  const [pickupCodeInput, setPickupCodeInput] = useState("");
+  const [busy, setBusy] = useState<"verify" | "accept" | "cancel" | null>(null);
 
   const load = useCallback(async () => {
     if (!orderId) return;
     try {
       setOrder(await orderService.getMitraById(orderId));
-    } catch {
-      showAlert('Gagal', 'Pesanan tidak dapat dimuat.');
+    } catch (err: any) {
+      if (err?.response?.status === 401) return;
+      showAlert("Gagal", "Pesanan tidak dapat dimuat.");
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace("/(mitra)/orders");
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [orderId]);
+  }, [orderId, router]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -100,7 +108,7 @@ export default function MitraOrderDetailScreen() {
 
   const changeStatus = async (
     status: OrderStatus,
-    which: 'accept' | 'cancel',
+    which: "accept" | "cancel",
   ) => {
     if (!orderId) return;
     setBusy(which);
@@ -108,9 +116,13 @@ export default function MitraOrderDetailScreen() {
       await orderService.updateStatus(orderId, status);
       await load();
     } catch (error: any) {
+      if (error?.response?.status === 401) return;
       const message =
-        error?.response?.data?.message || 'Gagal mengubah status pesanan';
-      Alert.alert('Gagal', Array.isArray(message) ? message.join('\n') : message);
+        error?.response?.data?.message || "Gagal mengubah status pesanan";
+      Alert.alert(
+        "Gagal",
+        Array.isArray(message) ? message.join("\n") : message,
+      );
     } finally {
       setBusy(null);
     }
@@ -118,42 +130,55 @@ export default function MitraOrderDetailScreen() {
 
   const handleAccept = () => {
     showConfirm(
-      'Terima Pesanan',
-      'Terima pesanan ini? Stok sudah terpotong saat checkout.',
-      () => changeStatus('accepted', 'accept'),
-      { confirmText: 'Terima', cancelText: 'Batal' },
+      "Terima Pesanan",
+      "Terima pesanan ini? Stok sudah terpotong saat checkout.",
+      () => changeStatus("accepted", "accept"),
+      { confirmText: "Terima", cancelText: "Batal" },
     );
   };
 
   const handleCancel = () => {
     showConfirm(
-      'Batalkan Pesanan',
-      'Stok produk akan dikembalikan setelah pesanan dibatalkan. Lanjutkan?',
-      () => changeStatus('cancelled', 'cancel'),
-      { confirmText: 'Batalkan', cancelText: 'Kembali', destructive: true },
+      "Batalkan Pesanan",
+      "Stok produk akan dikembalikan setelah pesanan dibatalkan. Lanjutkan?",
+      () => changeStatus("cancelled", "cancel"),
+      { confirmText: "Batalkan", cancelText: "Kembali", destructive: true },
     );
   };
 
   const handleVerifyPickup = async () => {
     if (!orderId) return;
     if (!pickupCodeInput.trim()) {
-      showAlert('Kode kosong', 'Masukkan kode pickup dari pelanggan.');
+      showAlert("Kode kosong", "Masukkan kode pickup dari pelanggan.");
       return;
     }
-    setBusy('verify');
+    setBusy("verify");
     try {
       const updated = await orderService.verifyPickup(
         orderId,
         pickupCodeInput.trim(),
       );
       setOrder(updated);
-      setPickupCodeInput('');
-      Alert.alert('Selesai', 'Pesanan dinyatakan selesai.', [
-        { text: 'OK', onPress: () => router.back() },
+      setPickupCodeInput("");
+      Alert.alert("Selesai", "Pesanan dinyatakan selesai.", [
+        {
+          text: "OK",
+          onPress: () => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/(mitra)/orders");
+            }
+          },
+        },
       ]);
     } catch (error: any) {
-      const message = error?.response?.data?.message || 'Kode pickup salah';
-      Alert.alert('Gagal', Array.isArray(message) ? message.join('\n') : message);
+      if (error?.response?.status === 401) return;
+      const message = error?.response?.data?.message || "Kode pickup salah";
+      Alert.alert(
+        "Gagal",
+        Array.isArray(message) ? message.join("\n") : message,
+      );
     } finally {
       setBusy(null);
     }
@@ -162,17 +187,20 @@ export default function MitraOrderDetailScreen() {
   const handleContact = () => {
     const phone = order?.customer?.phone;
     if (!phone) {
-      showAlert('Kontak tidak tersedia', 'Pelanggan belum mengisi nomor telepon.');
+      showAlert(
+        "Kontak tidak tersedia",
+        "Pelanggan belum mengisi nomor telepon.",
+      );
       return;
     }
     Linking.openURL(`tel:${phone}`).catch(() =>
-      showAlert('Gagal', 'Tidak dapat membuka aplikasi telepon.'),
+      showAlert("Gagal", "Tidak dapat membuka aplikasi telepon."),
     );
   };
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
         <View style={styles.loadingBox}>
           <ActivityIndicator color={PRIMARY} />
         </View>
@@ -182,7 +210,7 @@ export default function MitraOrderDetailScreen() {
 
   if (!order) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -200,20 +228,24 @@ export default function MitraOrderDetailScreen() {
     );
   }
 
-  const chip = STATUS_CHIP[order.status];
+  const chip = STATUS_CHIP[order.status] ?? { bg: MINT, fg: PRIMARY };
   const subtotal = order.totalAmount - order.platformFee;
-  const isAwaiting = order.status === 'pending_payment' || order.status === 'paid';
+  const isAwaiting =
+    order.status === "pending_payment" || order.status === "paid";
   const isAccepted =
-    order.status === 'accepted' ||
-    order.status === 'ready' ||
-    order.status === 'ready_for_pickup';
+    order.status === "accepted" ||
+    order.status === "processing" ||
+    order.status === "ready" ||
+    order.status === "ready_for_pickup";
   const isTerminal =
-    order.status === 'completed' ||
-    order.status === 'cancelled' ||
-    order.status === 'expired';
+    order.status === "completed" ||
+    order.status === "cancelled" ||
+    order.status === "expired";
+
+  const orderItems = order.orderItems ?? order.items ?? [];
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -226,60 +258,204 @@ export default function MitraOrderDetailScreen() {
         <View style={styles.backButton} />
       </View>
 
-      <Button
-        title="💬 Hubungi Pelanggan"
-        variant="secondary"
-        onPress={() => router.push(`/(mitra)/chat/${order.id}`)}
-        style={{ marginBottom: Spacing[4] }}
-      />
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          {/* ── Ringkas status ── */}
+          <View style={styles.card}>
+            <View style={styles.cardHeaderRow}>
+              <Text style={styles.orderId}>
+                #{order.id.slice(0, 8).toUpperCase()}
+              </Text>
+              <View style={[styles.chip, { backgroundColor: chip.bg }]}>
+                <Text style={[styles.chipText, { color: chip.fg }]}>
+                  {STATUS_LABEL[order.status] ?? order.status}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.meta}>{formatDate(order.createdAt)}</Text>
+            {!!order.note && (
+              <Text style={styles.note}>Catatan: {order.note}</Text>
+            )}
+          </View>
 
-      {order.status === "paid" && (
-        <Button
-          title="Terima Pesanan"
-          onPress={() => handleUpdateStatus("processing")}
-          isLoading={isUpdating}
-          style={styles.actionButton}
-        />
-      )}
+          {/* ── Menu ── */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Menu</Text>
+            {orderItems.map((item) => (
+              <View key={item.id} style={styles.itemRow}>
+                {item.product?.photoUrl ? (
+                  <Image
+                    source={{ uri: item.product.photoUrl }}
+                    style={styles.itemImage}
+                  />
+                ) : (
+                  <View style={[styles.itemImage, styles.itemImagePh]}>
+                    <Text style={{ fontSize: 18 }}>🍽️</Text>
+                  </View>
+                )}
+                <View style={styles.itemInfo}>
+                  <Text style={styles.itemName} numberOfLines={1}>
+                    {item.product?.name || "Menu"}
+                  </Text>
+                  <Text style={styles.itemQty}>
+                    {item.qty} x Rp{" "}
+                    {item.priceAtPurchase.toLocaleString("id-ID")}
+                  </Text>
+                </View>
+                <Text style={styles.itemTotal}>
+                  Rp {(item.qty * item.priceAtPurchase).toLocaleString("id-ID")}
+                </Text>
+              </View>
+            ))}
+          </View>
 
-      {(order.status === "processing" || order.status === "ready") && (
-        <Button
-          title="Tandai Siap Diambil"
-          onPress={() => handleUpdateStatus("ready_for_pickup")}
-          isLoading={isUpdating}
-          style={styles.actionButton}
-        />
-      )}
+          {/* ── Pelanggan ── */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Pelanggan</Text>
+            <Text style={styles.customerName}>
+              {order.customer?.name || "-"}
+            </Text>
+            <Text style={styles.customerPhone}>
+              {order.customer?.phone || "Nomor telepon tidak tersedia"}
+            </Text>
+            <View style={styles.contactActions}>
+              <TouchableOpacity
+                style={[styles.contactButton, styles.chatButton]}
+                activeOpacity={0.75}
+                onPress={() => router.push(`/(mitra)/chat/${order.id}`)}
+              >
+                <Text style={styles.contactButtonText}>💬 Chat Pelanggan</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.contactButton}
+                activeOpacity={0.75}
+                onPress={handleContact}
+              >
+                <Text style={styles.contactButtonText}>📞 Telepon</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
-      {order.status === "ready_for_pickup" && (
-        <View style={styles.verifySection}>
-          <Text style={styles.sectionTitle}>Verifikasi Pickup</Text>
-          <Text style={styles.sectionDesc}>
-            Minta kode 4-digit dari aplikasi customer atau scan QR code mereka.
-          </Text>
-          <Input
-            placeholder="Masukkan 4 digit kode"
-            value={pickupCodeInput}
-            onChangeText={setPickupCodeInput}
-            autoCapitalize="characters"
-            maxLength={4}
-          />
-          <Button
-            title="Verifikasi Kode"
-            onPress={handleVerifyPickup}
-            isLoading={isVerifying}
-          />
-          {/* Ideal: Add QR scanner button here using expo-camera */}
-        </View>
-      )}
+          {/* ── Ringkasan biaya ── */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Ringkasan Biaya</Text>
+            <View style={styles.feeRow}>
+              <Text style={styles.feeLabel}>Subtotal</Text>
+              <Text style={styles.feeValue}>
+                Rp {subtotal.toLocaleString("id-ID")}
+              </Text>
+            </View>
+            <View style={styles.feeRow}>
+              <Text style={styles.feeLabel}>Biaya platform</Text>
+              <Text style={styles.feeValue}>
+                Rp {order.platformFee.toLocaleString("id-ID")}
+              </Text>
+            </View>
+            <View style={[styles.feeRow, styles.feeRowTotal]}>
+              <Text style={styles.feeTotalLabel}>Total</Text>
+              <Text style={styles.feeTotalValue}>
+                Rp {order.totalAmount.toLocaleString("id-ID")}
+              </Text>
+            </View>
+          </View>
 
-      <Button
-        title="Kembali"
-        variant="ghost"
-        onPress={() => router.back()}
-        style={{ marginTop: Spacing[6] }}
-      />
-    </ScrollView>
+          {/* ── Aksi: menunggu ── */}
+          {isAwaiting && (
+            <View style={styles.actions}>
+              <TouchableOpacity
+                style={[styles.button, styles.dangerButton]}
+                activeOpacity={0.75}
+                disabled={busy !== null}
+                onPress={handleCancel}
+              >
+                <Text style={styles.dangerButtonText}>Batalkan</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.button, styles.primaryButton]}
+                activeOpacity={0.75}
+                disabled={busy !== null}
+                onPress={handleAccept}
+              >
+                {busy === "accept" ? (
+                  <ActivityIndicator color={WHITE} />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Terima Pesanan</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* ── Aksi: sudah diterima → verifikasi pickup ── */}
+          {isAccepted && (
+            <>
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Verifikasi Pickup</Text>
+                <Text style={styles.sectionDesc}>
+                  Minta kode 4 karakter dari pelanggan, lalu selesaikan pesanan.
+                </Text>
+                <TextInput
+                  value={pickupCodeInput}
+                  onChangeText={setPickupCodeInput}
+                  placeholder="Contoh: A3B7"
+                  placeholderTextColor={TEXT_MUTED}
+                  autoCapitalize="characters"
+                  maxLength={4}
+                  style={styles.codeInput}
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.fullButton,
+                    busy === "verify" && styles.disabledButton,
+                  ]}
+                  activeOpacity={0.8}
+                  disabled={busy === "verify"}
+                  onPress={handleVerifyPickup}
+                >
+                  {busy === "verify" ? (
+                    <ActivityIndicator color={WHITE} />
+                  ) : (
+                    <Text style={styles.fullButtonText}>Selesaikan Pesanan</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.fullButton,
+                  styles.dangerOutlineButton,
+                  busy !== null && styles.disabledButton,
+                ]}
+                activeOpacity={0.75}
+                disabled={busy !== null}
+                onPress={handleCancel}
+              >
+                {busy === "cancel" ? (
+                  <ActivityIndicator color={DANGER} />
+                ) : (
+                  <Text style={styles.dangerOutlineText}>Batalkan Pesanan</Text>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
+
+          {/* ── Sudah selesai ── */}
+          {isTerminal && (
+            <View style={styles.doneNote}>
+              <Text style={styles.doneNoteText}>
+                {order.status === "completed"
+                  ? "Pesanan ini sudah selesai."
+                  : order.status === "cancelled"
+                    ? "Pesanan ini dibatalkan dan stok sudah dikembalikan."
+                    : "Pesanan ini kedaluwarsa."}
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -293,8 +469,8 @@ const styles = StyleSheet.create({
   },
   loadingBox: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   emptyText: {
     fontSize: 13,
@@ -302,9 +478,9 @@ const styles = StyleSheet.create({
   },
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     backgroundColor: WHITE,
     paddingHorizontal: 8,
     paddingVertical: 12,
@@ -313,12 +489,12 @@ const styles = StyleSheet.create({
   },
   backButton: {
     width: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: "700",
     color: TEXT_DARK,
   },
 
@@ -336,19 +512,19 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   cardHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 6,
   },
   orderId: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
     color: TEXT_DARK,
   },
   cardTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     color: TEXT_DARK,
     marginBottom: 10,
   },
@@ -359,7 +535,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   meta: {
     fontSize: 12,
@@ -369,25 +545,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: TEXT_MUTED,
     marginTop: 6,
-    fontStyle: 'italic',
+    fontStyle: "italic",
   },
 
   itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F2',
+    borderBottomColor: "#F2F2F2",
   },
   itemImage: {
     width: 44,
     height: 44,
     borderRadius: 8,
-    backgroundColor: '#EEF1F2',
+    backgroundColor: "#EEF1F2",
   },
   itemImagePh: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   itemInfo: {
     flex: 1,
@@ -395,7 +571,7 @@ const styles = StyleSheet.create({
   },
   itemName: {
     fontSize: 13.5,
-    fontWeight: '700',
+    fontWeight: "700",
     color: TEXT_DARK,
     marginBottom: 2,
   },
@@ -405,14 +581,14 @@ const styles = StyleSheet.create({
   },
   itemTotal: {
     fontSize: 13.5,
-    fontWeight: '700',
+    fontWeight: "700",
     color: TEXT_DARK,
     marginLeft: 8,
   },
 
   customerName: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     color: TEXT_DARK,
     marginBottom: 3,
   },
@@ -421,27 +597,35 @@ const styles = StyleSheet.create({
     color: TEXT_MUTED,
     marginBottom: 12,
   },
+  contactActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
   contactButton: {
+    flex: 1,
     backgroundColor: PRIMARY,
     borderRadius: 8,
     paddingVertical: 12,
-    alignItems: 'center',
+    alignItems: "center",
+  },
+  chatButton: {
+    backgroundColor: "#0284c7",
   },
   contactButtonText: {
     color: WHITE,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 
   feeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingVertical: 6,
   },
   feeRowTotal: {
     borderTopWidth: 1,
-    borderTopColor: '#F2F2F2',
+    borderTopColor: "#F2F2F2",
     marginTop: 4,
     paddingTop: 10,
   },
@@ -452,17 +636,17 @@ const styles = StyleSheet.create({
   feeValue: {
     fontSize: 13,
     color: TEXT_DARK,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   feeTotalLabel: {
     fontSize: 14,
     color: TEXT_DARK,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   feeTotalValue: {
     fontSize: 15,
     color: PRIMARY,
-    fontWeight: '800',
+    fontWeight: "800",
   },
 
   sectionDesc: {
@@ -477,23 +661,23 @@ const styles = StyleSheet.create({
     backgroundColor: INPUT_BG,
     paddingHorizontal: 14,
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 4,
     color: TEXT_DARK,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 12,
   },
 
   actions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 10,
   },
   button: {
     flex: 1,
     borderRadius: 8,
     paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   primaryButton: {
     backgroundColor: PRIMARY,
@@ -501,7 +685,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: WHITE,
     fontSize: 13.5,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   dangerButton: {
     backgroundColor: DANGER_BG,
@@ -509,20 +693,20 @@ const styles = StyleSheet.create({
   dangerButtonText: {
     color: DANGER,
     fontSize: 13.5,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 
   fullButton: {
     backgroundColor: PRIMARY,
     borderRadius: 8,
     paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   fullButtonText: {
     color: WHITE,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   dangerOutlineButton: {
     backgroundColor: WHITE,
@@ -532,7 +716,7 @@ const styles = StyleSheet.create({
   dangerOutlineText: {
     color: DANGER,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   disabledButton: {
     opacity: 0.6,
@@ -542,12 +726,12 @@ const styles = StyleSheet.create({
     backgroundColor: MINT,
     borderRadius: 12,
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   doneNoteText: {
     fontSize: 13,
     color: PRIMARY,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: "600",
+    textAlign: "center",
   },
 });

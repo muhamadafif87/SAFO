@@ -1,3 +1,4 @@
+import { Colors } from "@/constants/typography";
 import { orderService } from "@/services/order.service";
 import type { Order, OrderStatus } from "@/types";
 import { useRouter } from "expo-router";
@@ -155,7 +156,8 @@ export default function CustomerOrders() {
                 {items.length > 1 ? `+${items.length - 1} produk · ` : ""}
                 {quantity} X Rp{" "}
                 {Number(
-                  firstItem?.priceAtPurchase ?? item.totalAmount / (quantity || 1),
+                  firstItem?.priceAtPurchase ??
+                    item.totalAmount / (quantity || 1),
                 ).toLocaleString("id-ID")}
               </Text>
             </View>
@@ -254,10 +256,12 @@ export default function CustomerOrders() {
 
       {/* Tabs (Semua / Riwayat) */}
       <View style={styles.tabs}>
-        {([
-          ["all", "Semua"],
-          ["history", "Riwayat"],
-        ] as const).map(([tab, label]) => (
+        {(
+          [
+            ["all", "Semua"],
+            ["history", "Riwayat"],
+          ] as const
+        ).map(([tab, label]) => (
           <TouchableOpacity
             key={tab}
             accessibilityRole="tab"
@@ -280,11 +284,7 @@ export default function CustomerOrders() {
 
       {/* Content List */}
       {loading ? (
-        <ActivityIndicator
-          size="large"
-          color={PRIMARY}
-          style={styles.loader}
-        />
+        <ActivityIndicator size="large" color={PRIMARY} style={styles.loader} />
       ) : (
         <FlatList
           data={visibleOrders}
@@ -322,6 +322,7 @@ const statusStyles = StyleSheet.create({
   pending_payment: { color: Colors.warning },
   paid: { color: Colors.warning },
   accepted: { color: Colors.primary[600] },
+  processing: { color: Colors.primary[600] },
   ready: { color: Colors.primary[600] },
   ready_for_pickup: { color: Colors.primary[600] },
   completed: { color: Colors.primary[600] },

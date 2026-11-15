@@ -110,7 +110,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   setupSocketListeners: () => {
-    return socketService.onMessage((incoming: ChatMessage) => {
+    const unsubMessage = socketService.onMessage((incoming: ChatMessage) => {
       const { conversation, messages } = get();
       if (!conversation || incoming.conversationId !== conversation.id) return;
 
@@ -128,6 +128,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({ messages: [...messages, incoming] });
       }
     });
+
+    const unsubStatus = socketService.onConversationStatus((payload) => {
+      const { conversation } = get();
+      if (!conversation || payload.conversationId !== conversation.id) return;
+
+      set({
+        conversation: {
+          ...conversation,
+          status: payload.status,
+        },
+        error: null,
+      });
+
+      // If just activated, load messages to make sure chat is fresh
+      if (payload.status === 'active') {
+        get().loadMessages(conversation.id);
+      }
+    });
+
+    return () => {
+      unsubMessage();
+      unsubStatus();
+    };
   },
 
   sendTextMessage: async (
