@@ -125,13 +125,13 @@ export default function QrisPaymentScreen() {
   const isMountedRef = useRef<boolean>(true);
   const isPollingRef = useRef<boolean>(false);
 
-  // ── Navigate to order detail after confirmed success ───────────────────
+  // ── Return to the order list after confirmed success ───────────────────
   const navigateToSuccess = useCallback(() => {
     if (hasNavigated) return; // prevent double-navigation
     setHasNavigated(true);
     clearCart();
-    router.replace(`/(customer)/orders/${orderId}`);
-  }, [hasNavigated, orderId, router, clearCart]);
+    router.replace("/(customer)/orders");
+  }, [hasNavigated, router, clearCart]);
 
   // ── Fetch status from backend (single poll) ───────────────────────────
   const fetchStatus = useCallback(

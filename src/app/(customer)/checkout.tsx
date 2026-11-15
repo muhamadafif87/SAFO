@@ -220,8 +220,8 @@ export default function CheckoutScreen() {
               "Pesanan berhasil dibuat, namun pembayaran QRIS belum dapat ditampilkan. Silakan bayar melalui halaman Pesanan.",
             [
               {
-                text: "Buka Detail Pesanan",
-                onPress: () => router.replace(`/(customer)/orders/${order.id}`),
+                text: "Lihat Pesanan",
+                onPress: () => router.replace("/(customer)/orders"),
               },
             ],
             { cancelable: false },
@@ -237,7 +237,7 @@ export default function CheckoutScreen() {
           [
             {
               text: "Lihat Pesanan",
-              onPress: () => router.replace(`/(customer)/orders/${order.id}`),
+              onPress: () => router.replace("/(customer)/orders"),
             },
           ],
           { cancelable: false },
