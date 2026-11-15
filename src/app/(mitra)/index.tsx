@@ -95,44 +95,49 @@ export default function MitraHome() {
     return products.filter((p) => p.name.toLowerCase().includes(q));
   }, [products, query]);
 
-  const renderProduct = ({ item }: { item: Product }) => (
-    <View style={styles.productCard}>
-      {item.photoUrl ? (
-        <Image source={{ uri: item.photoUrl }} style={styles.productImage} />
-      ) : (
-        <View style={[styles.productImage, styles.productImagePlaceholder]}>
-          <Text style={{ fontSize: 24 }}>🍲</Text>
-        </View>
-      )}
+  const renderProduct = ({ item }: { item: Product }) => {
+    const discountPrice = Number(item.discountPrice);
+    const originalPrice = Number(item.originalPrice);
 
-      <View style={styles.productInfo}>
-        <Text style={styles.productName} numberOfLines={1}>
-          {item.name}
-        </Text>
-        <View style={styles.priceRow}>
-          <Text style={styles.priceNow}>
-            Rp {item.discountPrice.toLocaleString('id-ID')}
+    return (
+      <View style={styles.productCard}>
+        {item.photoUrl ? (
+          <Image source={{ uri: item.photoUrl }} style={styles.productImage} />
+        ) : (
+          <View style={[styles.productImage, styles.productImagePlaceholder]}>
+            <Text style={{ fontSize: 24 }}>🍲</Text>
+          </View>
+        )}
+
+        <View style={styles.productInfo}>
+          <Text style={styles.productName} numberOfLines={1}>
+            {item.name}
           </Text>
-          {item.originalPrice > item.discountPrice && (
-            <Text style={styles.priceOld}>
-              Rp {item.originalPrice.toLocaleString('id-ID')}
+          <View style={styles.priceRow}>
+            <Text style={styles.priceNow}>
+              Rp {discountPrice.toLocaleString('id-ID')}
             </Text>
-          )}
+            {originalPrice > discountPrice && (
+              <Text style={styles.priceOld}>
+                Rp {originalPrice.toLocaleString('id-ID')}
+              </Text>
+            )}
+          </View>
+          <Text style={styles.productStock}>
+            Stok <Text style={styles.stockBold}>{item.stock}</Text>
+          </Text>
         </View>
-        <Text style={styles.productStock}>
-          Stok <Text style={styles.stockBold}>{item.stock}</Text>
-        </Text>
-      </View>
 
-      <TouchableOpacity
-        style={styles.editButton}
-        activeOpacity={0.7}
-        onPress={() => router.push(`/(mitra)/products/${item.id}/edit`)}
-      >
-        <Text style={styles.editButtonText}>Edit</Text>
-      </TouchableOpacity>
-    </View>
-  );
+        <TouchableOpacity
+          style={styles.editButton}
+          activeOpacity={0.7}
+          onPress={() => router.push(`/(mitra)/products/${item.id}/edit`)}
+        >
+          <Text style={styles.editButtonText}>Edit</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
