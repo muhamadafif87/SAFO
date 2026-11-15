@@ -183,6 +183,7 @@ export default function MitraEditProductScreen() {
 
       setSavedStock(Math.round(stock));
       showAlert('Tersimpan', 'Perubahan menu berhasil dikirim ke database.');
+      router.back();
     } catch (error: any) {
       const message = error?.response?.data?.message || 'Gagal menyimpan menu';
       Alert.alert('Gagal', Array.isArray(message) ? message.join('\n') : message);
