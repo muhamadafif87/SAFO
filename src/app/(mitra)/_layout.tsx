@@ -53,6 +53,14 @@ export default function MitraLayout() {
         }}
       />
       <Tabs.Screen
+        name="products/bulk-create"
+        options={{
+          href: null,
+          title: 'Setup Menu Awal',
+          tabBarStyle: { display: 'none' },
+        }}
+      />
+      <Tabs.Screen
         name="products/[id]/edit"
         options={{
           href: null,

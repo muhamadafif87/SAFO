@@ -246,9 +246,17 @@ export default function MitraHome() {
               <TouchableOpacity
                 style={styles.addButton}
                 activeOpacity={0.8}
-                onPress={() => router.push('/(mitra)/products/create')}
+                onPress={() =>
+                  router.push(
+                    products.length === 0
+                      ? '/(mitra)/products/bulk-create'
+                      : '/(mitra)/products/create',
+                  )
+                }
               >
-                <Text style={styles.addButtonText}>+ Tambah Produk</Text>
+                <Text style={styles.addButtonText}>
+                  {products.length === 0 ? 'Setup Menu Awal' : '+ Tambah Produk'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -262,7 +270,7 @@ export default function MitraHome() {
             <View style={styles.centerBox}>
               <Text style={styles.emptyTitle}>Belum ada produk</Text>
               <Text style={styles.emptyText}>
-                Tambahkan menu flash sale pertama melalui tombol + Tambah Produk.
+                Tambahkan beberapa menu sekaligus melalui tombol Setup Menu Awal.
               </Text>
             </View>
           )
