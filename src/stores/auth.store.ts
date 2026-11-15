@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { storage } from '@/utils/storage';
 import type { AuthState, User, MitraProfile, AuthTokens } from '@/types';
-import { api } from '@/services/api';
+import { api, resetSessionExpiredFlag } from '@/services/api';
 import { authService } from '@/services/auth.service';
 import { useCartStore } from '@/stores/cart.store';
 import { useLocationStore } from '@/stores/location.store';
@@ -9,9 +9,13 @@ import { useLocationStore } from '@/stores/location.store';
 const TOKEN_KEY_ACCESS = 'safo_access_token';
 const TOKEN_KEY_REFRESH = 'safo_refresh_token';
 
+interface ClearAuthOptions {
+  skipBackend?: boolean;
+}
+
 interface AuthActions {
   setAuth: (user: User, tokens: AuthTokens, mitra?: MitraProfile) => Promise<void>;
-  clearAuth: () => Promise<void>;
+  clearAuth: (options?: ClearAuthOptions) => Promise<void>;
   setLoading: (loading: boolean) => void;
   restoreSession: () => Promise<void>;
   updateMitra: (mitra: MitraProfile) => void;
@@ -29,6 +33,7 @@ export const useAuthStore = create<AuthState & AuthActions>((set) => ({
   // ── Actions ───────────────────────────────────────────────────────────
 
   setAuth: async (user, tokens, mitra) => {
+    resetSessionExpiredFlag();
     await storage.setItemAsync(TOKEN_KEY_ACCESS, tokens.accessToken);
     await storage.setItemAsync(TOKEN_KEY_REFRESH, tokens.refreshToken);
     set({
@@ -41,16 +46,20 @@ export const useAuthStore = create<AuthState & AuthActions>((set) => ({
     });
   },
 
-  clearAuth: async () => {
-    try {
-      const refreshToken = await storage.getItemAsync(TOKEN_KEY_REFRESH);
-      await authService.logout(refreshToken);
-    } catch (e) {
-      console.warn('[authStore] Backend logout failed or offline, wiping local session:', e);
+  clearAuth: async (options) => {
+    // Jika bukan karena session expired (misal: user klik logout manual), beri tahu backend
+    if (!options?.skipBackend) {
+      try {
+        const refreshToken = await storage.getItemAsync(TOKEN_KEY_REFRESH);
+        await authService.logout(refreshToken);
+      } catch (e) {
+        console.warn('[authStore] Backend logout failed or offline, wiping local session:', e);
+      }
     }
 
     await storage.deleteItemAsync(TOKEN_KEY_ACCESS);
     await storage.deleteItemAsync(TOKEN_KEY_REFRESH);
+    resetSessionExpiredFlag();
 
     try {
       useCartStore.getState().clearCart();

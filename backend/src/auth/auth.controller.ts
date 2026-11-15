@@ -39,7 +39,9 @@ export class AuthController {
     return this.authService.refreshToken(token);
   }
 
+  @Public()
   @Post('logout')
+  @HttpCode(HttpStatus.OK)
   logout() {
     return { message: 'Logged out successfully' };
   }

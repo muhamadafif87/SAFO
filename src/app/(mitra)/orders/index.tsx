@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/typography';
 import { orderService } from '@/services/order.service';
 import { Order, OrderStatus } from '@/types';
-import { showAlert, showConfirm } from '@/utils/alert';
+import { showConfirm } from '@/utils/alert';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -11,15 +11,14 @@ import {
   Image,
   Linking,
   Modal,
-  Platform,
   RefreshControl,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
 const PRIMARY = '#0E7465'; // Teal brand
@@ -86,7 +85,6 @@ export default function MitraOrdersScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [activeFilter, setActiveFilter] = useState<OrderFilter>("all");
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterKey>('all');
@@ -208,9 +206,9 @@ export default function MitraOrdersScreen() {
           text: isCancelling ? "Batalkan" : "Terima",
           style: isCancelling ? "destructive" : "default",
           onPress: () =>
-            void updateOrderStatus(
+            void changeStatus(
               order,
-              isCancelling ? "cancelled" : "processing",
+              isCancelling ? "cancelled" : "accepted",
             ),
         },
       ],

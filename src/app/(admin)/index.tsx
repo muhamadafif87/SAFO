@@ -20,6 +20,11 @@ export default function AdminHome() {
       .finally(() => setIsLoading(false));
   }, []);
 
+  const handleLogout = async () => {
+    await clearAuth();
+    router.replace('/(auth)/login');
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -71,7 +76,7 @@ export default function AdminHome() {
         <Button
           title="Logout"
           variant="danger"
-          onPress={() => clearAuth()}
+          onPress={handleLogout}
           style={styles.logoutButton}
         />
       </View>

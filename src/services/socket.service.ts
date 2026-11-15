@@ -87,6 +87,16 @@ class SocketService {
     };
   }
 
+  onConversationStatus(
+    callback: (payload: { conversationId: string; status: any; orderId: string }) => void,
+  ): () => void {
+    if (!this.socket) return () => {};
+    this.socket.on('chat:status', callback);
+    return () => {
+      this.socket?.off('chat:status', callback);
+    };
+  }
+
   sendMessage(payload: SendMessagePayload): Promise<MessageAckPayload> {
     return new Promise((resolve, reject) => {
       if (!this.socket?.connected) {

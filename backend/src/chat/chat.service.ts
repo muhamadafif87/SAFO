@@ -19,6 +19,8 @@ import { MessageAttachment } from '../database/entities/message-attachment.entit
 import { Message } from '../database/entities/message.entity';
 import { MitraProfile } from '../database/entities/mitra-profile.entity';
 import { NotificationOutbox } from '../database/entities/notification-outbox.entity';
+import { Order } from '../database/entities/order.entity';
+import { OrderStatus } from '../database/entities/order.enums';
 import { UserRole } from '../database/entities/user.entity';
 import { ChatStorageService } from './chat-storage.service';
 import { GetMessagesQueryDto } from './dto/get-messages-query.dto';
@@ -39,6 +41,8 @@ export class ChatService {
     private readonly outboxRepo: Repository<NotificationOutbox>,
     @InjectRepository(MitraProfile)
     private readonly mitraRepo: Repository<MitraProfile>,
+    @InjectRepository(Order)
+    private readonly orderRepo: Repository<Order>,
     private readonly chatStorageService: ChatStorageService,
     private readonly dataSource: DataSource,
   ) {}
@@ -76,18 +80,71 @@ export class ChatService {
 
   /**
    * Get conversation by Order ID.
+   * Auto-creates conversation if missing for an existing valid order.
    */
   async getConversationByOrderId(
     orderId: string,
     user: { id: string; role: string },
   ): Promise<Conversation> {
-    const conversation = await this.conversationRepo.findOne({
+    let conversation = await this.conversationRepo.findOne({
       where: { orderId },
       relations: ['order', 'customer', 'mitra', 'mitra.user'],
     });
 
     if (!conversation) {
-      throw new NotFoundException(`Conversation for order ${orderId} not found`);
+      const order = await this.orderRepo.findOne({
+        where: { id: orderId },
+        relations: ['customer', 'mitra', 'mitra.user'],
+      });
+
+      if (!order) {
+        throw new NotFoundException(`Conversation for order ${orderId} not found`);
+      }
+
+      // Determine initial status based on current order status
+      let status = ConversationStatus.WAITING;
+      const activeStatuses = [
+        OrderStatus.ACCEPTED,
+        OrderStatus.PROCESSING,
+        OrderStatus.READY,
+        OrderStatus.READY_FOR_PICKUP,
+      ];
+      const closedStatuses = [
+        OrderStatus.COMPLETED,
+        OrderStatus.CANCELLED,
+        OrderStatus.EXPIRED,
+      ];
+
+      if (activeStatuses.includes(order.status)) {
+        status = ConversationStatus.ACTIVE;
+      } else if (closedStatuses.includes(order.status)) {
+        status = ConversationStatus.CLOSED;
+      }
+
+      conversation = this.conversationRepo.create({
+        orderId: order.id,
+        customerId: order.customerId,
+        mitraId: order.mitraId,
+        status,
+        startedAt: status === ConversationStatus.ACTIVE ? new Date() : null,
+        closedAt: status === ConversationStatus.CLOSED ? new Date() : null,
+        closeReason:
+          order.status === OrderStatus.CANCELLED
+            ? 'ORDER_CANCELLED'
+            : order.status === OrderStatus.COMPLETED
+            ? 'ORDER_COMPLETED'
+            : null,
+      });
+      await this.conversationRepo.save(conversation);
+
+      conversation = await this.conversationRepo.findOne({
+        where: { id: conversation.id },
+        relations: ['order', 'customer', 'mitra', 'mitra.user'],
+      });
+
+      if (!conversation) {
+        throw new NotFoundException(`Failed to initialize conversation for order ${orderId}`);
+      }
     }
 
     await this.assertParticipant(conversation, user);
@@ -132,12 +189,13 @@ export class ChatService {
     const qb = this.messageRepo
       .createQueryBuilder('message')
       .leftJoinAndSelect('message.attachment', 'attachment')
-      .leftJoinAndSelect('message.sender', 'sender')
-      .where('message.conversation_id = :conversationId', { conversationId: conversation.id });
+      .leftJoin('message.sender', 'sender')
+      .addSelect(['sender.id', 'sender.name', 'sender.role'])
+      .where('message.conversationId = :conversationId', { conversationId: conversation.id });
 
     if (query.cursorCreatedAt && query.cursorId) {
       qb.andWhere(
-        '(message.created_at < :cursorCreatedAt OR (message.created_at = :cursorCreatedAt AND message.id < :cursorId))',
+        '(message.createdAt < :cursorCreatedAt OR (message.createdAt = :cursorCreatedAt AND message.id < :cursorId))',
         {
           cursorCreatedAt: new Date(query.cursorCreatedAt),
           cursorId: query.cursorId,
@@ -145,7 +203,7 @@ export class ChatService {
       );
     }
 
-    qb.orderBy('message.created_at', 'DESC')
+    qb.orderBy('message.createdAt', 'DESC')
       .addOrderBy('message.id', 'DESC')
       .take(limit + 1);
 
@@ -275,9 +333,11 @@ export class ChatService {
   ): Promise<{ message: Message; isDuplicate: boolean; conversation: Conversation }> {
     return this.dataSource.transaction(async (manager) => {
       // 1. Lock conversation row (Pessimistic Write Lock)
+      // Note: Lock ONLY the 'conv' table alias to avoid Postgres error 0A000:
+      // "FOR UPDATE cannot be applied to the nullable side of an outer join"
       const conversation = await manager
         .createQueryBuilder(Conversation, 'conv')
-        .setLock('pessimistic_write')
+        .setLock('pessimistic_write', undefined, ['conv'])
         .leftJoinAndSelect('conv.customer', 'customer')
         .leftJoinAndSelect('conv.mitra', 'mitra')
         .leftJoinAndSelect('mitra.user', 'mitraUser')

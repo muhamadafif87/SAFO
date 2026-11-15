@@ -22,11 +22,20 @@ export const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
     OrderStatus.EXPIRED,
   ],
   [OrderStatus.PAID]: [
+    OrderStatus.PROCESSING,
     OrderStatus.ACCEPTED,
     OrderStatus.CANCELLED,
     OrderStatus.EXPIRED,
   ],
+  [OrderStatus.PROCESSING]: [
+    OrderStatus.READY,
+    OrderStatus.READY_FOR_PICKUP,
+    OrderStatus.COMPLETED,
+    OrderStatus.CANCELLED,
+    OrderStatus.EXPIRED,
+  ],
   [OrderStatus.ACCEPTED]: [
+    OrderStatus.PROCESSING,
     OrderStatus.READY,
     OrderStatus.READY_FOR_PICKUP,
     OrderStatus.COMPLETED,
@@ -51,6 +60,7 @@ export const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 export const STATUSES_REQUIRING_STOCK_RELEASE: OrderStatus[] = [
   OrderStatus.PENDING_PAYMENT,
   OrderStatus.PAID,
+  OrderStatus.PROCESSING,
   OrderStatus.ACCEPTED,
   OrderStatus.READY,
   OrderStatus.READY_FOR_PICKUP,

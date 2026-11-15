@@ -6,10 +6,9 @@ import { Asset } from "expo-asset";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-  Alert,
   ActivityIndicator,
-  Image,
   Alert,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -27,22 +26,25 @@ const BORDER = "#eaeaea";
 const ERROR_BG = "#f0a8a8";
 const ERROR_TEXT = "#da3232";
 
-function FigmaAssetIcon({
-  source,
-  size,
-}: {
-  source: number;
-  size: number;
-}) {
+function FigmaAssetIcon({ source, size }: { source: number; size: number }) {
   const uri = Asset.fromModule(source).uri;
 
   return (
-    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+    <View
+      style={{
+        width: size,
+        height: size,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
       <SvgUri
         uri={uri}
         width={size}
         height={size}
-        onError={(error) => console.error("[profile] Gagal memuat ikon:", error)}
+        onError={(error) =>
+          console.error("[profile] Gagal memuat ikon:", error)
+        }
       />
     </View>
   );
@@ -70,13 +72,13 @@ export default function CustomerProfile() {
           console.error("[profile] Gagal logout:", error);
           showAlert(
             "Gagal",
-            "Terjadi kesalahan saat memproses logout. Silakan coba lagi."
+            "Terjadi kesalahan saat memproses logout. Silakan coba lagi.",
           );
         } finally {
           setIsLoggingOut(false);
         }
       },
-      { confirmText: "Keluar", cancelText: "Batal", destructive: true }
+      { confirmText: "Keluar", cancelText: "Batal", destructive: true },
     );
   };
 
@@ -107,7 +109,9 @@ export default function CustomerProfile() {
             />
           </View>
           <View style={styles.heroInfo}>
-            <Text style={styles.heroName}>{user?.name || "Pelanggan SAFO"}</Text>
+            <Text style={styles.heroName}>
+              {user?.name || "Pelanggan SAFO"}
+            </Text>
             <Text style={styles.heroPhone}>{user?.phone || "-"}</Text>
           </View>
         </View>
